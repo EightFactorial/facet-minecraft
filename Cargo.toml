@@ -31,6 +31,9 @@ std_instead_of_alloc = "deny"
 std_instead_of_core = "deny"
 unnecessary_cast = "warn"
 
+[dev-dependencies]
+divan = "0.1"
+
 [dependencies]
 facet-core = { default-features = false, features = ["alloc", "uuid"], version = "0.27" }
 facet-derive = { default-features = false, version = "0.27" }
