@@ -1,0 +1,9 @@
+# Editor & Build Settings
+/.cargo
+/.vscode
+/.zed
+
+# Build Files
+/Cargo.lock
+/debug
+/target

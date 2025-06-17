@@ -1,0 +1,57 @@
+[package]
+edition = "2024"
+name = "facet-minecraft"
+version = "0.1.0"
+
+[lints.rust]
+missing_docs = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unreachable_pub = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+
+[lints.rustdoc]
+bare_urls = "deny"
+broken_intra_doc_links = "deny"
+invalid_codeblock_attributes = "deny"
+invalid_html_tags = "deny"
+invalid_rust_codeblocks = "deny"
+private_intra_doc_links = "deny"
+
+[lints.clippy]
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+clone_on_ref_ptr = "warn"
+doc_markdown = "allow"
+module_name_repetitions = "allow"
+needless_pass_by_value = "allow"
+pedantic = { level = "warn", priority = -1 }
+std_instead_of_alloc = "deny"
+std_instead_of_core = "deny"
+unnecessary_cast = "warn"
+
+[dependencies]
+facet-core = { default-features = false, version = "0.27", features = ["uuid"] }
+facet-derive = { default-features = false, version = "0.27" }
+
+# Optional dependencies
+facet-deserialize = { default-features = false, version = "0.24", optional = true }
+facet-json = { default-features = false, version = "0.24", optional = true }
+facet-reflect = { default-features = false, version = "0.27", features = ["uuid"], optional = true }
+facet-serialize = { default-features = false, version = "0.24", optional = true }
+
+[features]
+default = ["enable", "rich-diagnostics", "std"]
+enable = ["deserialize", "json", "serialize"]
+
+json = ["alloc", "dep:facet-json", "dep:facet-reflect"]
+rich-diagnostics = ["facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
+
+deserialize = ["alloc", "dep:facet-deserialize", "dep:facet-reflect"]
+serialize = ["dep:facet-serialize"]
+
+alloc = ["facet-core/alloc", "facet-deserialize?/alloc", "facet-reflect?/alloc", "facet-serialize?/alloc"]
+std = ["alloc", "facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "facet-serialize?/std"]
+
+nightly = []
