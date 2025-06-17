@@ -3,10 +3,15 @@
 //! See the [Minecraft Wiki] for more information about the protocol.
 //!
 //! [Minecraft Wiki]: https://minecraft.wiki/w/Java_Edition_protocol/Packets
+#![allow(dead_code)]
+#![no_std]
+
+use alloc::{boxed::Box, vec, vec::Vec};
 
 use facet_derive::Facet;
 use facet_minecraft::serialize;
 
+extern crate alloc;
 extern crate facet_core as facet;
 
 fn main() {
@@ -97,6 +102,14 @@ fn main() {
     assert_eq!(buffer, vec![255, 1]);
     buffer.clear();
 
+    #[cfg(feature = "json")]
+    {
+        // The sixth variant (100), which contains a JSON-encoded enum.
+        serialize(&ExampleEnum::Sixth(Box::new(ExampleEnum::First(42))), &mut buffer).unwrap();
+        assert_eq!(buffer, vec![100, 12, 123, 34, 70, 105, 114, 115, 116, 34, 58, 52, 50, 125]); // 100, 12, '{"First":42}'
+        buffer.clear();
+    }
+
     // A `Vec` begins with its size, followed by its elements.
     serialize(&vec!["Hello, ", "World!"], &mut buffer).unwrap();
     assert_eq!(buffer, vec![2, 7, 72, 101, 108, 108, 111, 44, 32, 6, 87, 111, 114, 108, 100, 33]);
@@ -120,11 +133,12 @@ struct Variable<T>(#[facet(var)] T);
 
 #[repr(u8)]
 #[derive(Facet)]
-#[allow(dead_code)]
 enum ExampleEnum {
     First(u32),
     Second(u8, u8),
     Third(Variable<u32>),
     Fourth(Box<ExampleEnum>) = 66,
     Fifth = 255,
+    #[cfg(feature = "json")]
+    Sixth(#[facet(json)] Box<ExampleEnum>) = 100,
 }

@@ -56,4 +56,4 @@ nightly = []
 
 [[example]]
 name = "serialize"
-required-features = ["enable"]
+required-features = ["serialize"]
