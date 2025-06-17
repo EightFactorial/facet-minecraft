@@ -3,8 +3,10 @@
 #![cfg_attr(feature = "nightly", feature(core_io_borrowed_buf))]
 #![no_std]
 
-#[cfg(feature = "alloc")]
 extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
+
 extern crate facet_core as facet;
 
 pub mod adapter;

@@ -1,6 +1,15 @@
 <h1 align="center">facet-minecraft</h1>
 <p align="center">A facet serialization/deserialization crate that supports the Minecraft protocol</p>
 
+## Overview
+
+## Todo List
+
+- [ ] Deserialization
+- [x] Serialization
+- [ ] Protocol Assertions
+  - Works in some cases but not all
+
 ## License
 
 Licensed under either of

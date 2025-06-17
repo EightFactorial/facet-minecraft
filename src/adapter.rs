@@ -22,7 +22,7 @@ pub trait WriteAdapter {
 
 // -------------------------------------------------------------------------------------------------
 
-#[cfg(feature = "alloc")]
+#[cfg(not(feature = "std"))]
 impl WriteAdapter for alloc::vec::Vec<u8> {
     type Error = core::convert::Infallible;
 
@@ -36,7 +36,7 @@ impl WriteAdapter for alloc::vec::Vec<u8> {
     fn reserve(&mut self, len: usize) { alloc::vec::Vec::reserve(self, len); }
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(not(feature = "std"))]
 impl WriteAdapter for &mut alloc::vec::Vec<u8> {
     type Error = core::convert::Infallible;
 
@@ -52,7 +52,7 @@ impl WriteAdapter for &mut alloc::vec::Vec<u8> {
 
 // -------------------------------------------------------------------------------------------------
 
-#[cfg(feature = "nightly")]
+#[cfg(all(feature = "nightly", not(feature = "std")))]
 impl WriteAdapter for core::io::BorrowedCursor<'_> {
     type Error = core::convert::Infallible;
 
@@ -61,4 +61,14 @@ impl WriteAdapter for core::io::BorrowedCursor<'_> {
     fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
         Ok(core::io::BorrowedCursor::append(self, buf))
     }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+#[cfg(feature = "std")]
+impl<T: std::io::Write> WriteAdapter for T {
+    type Error = std::io::Error;
+
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> { self.write_all(buf) }
 }

@@ -32,26 +32,29 @@ std_instead_of_core = "deny"
 unnecessary_cast = "warn"
 
 [dependencies]
-facet-core = { default-features = false, version = "0.27", features = ["uuid"] }
+facet-core = { default-features = false, features = ["alloc", "uuid"], version = "0.27" }
 facet-derive = { default-features = false, version = "0.27" }
 
 # Optional dependencies
-facet-deserialize = { default-features = false, version = "0.24", optional = true }
-facet-json = { default-features = false, version = "0.24", optional = true }
-facet-reflect = { default-features = false, version = "0.27", features = ["uuid"], optional = true }
-facet-serialize = { default-features = false, version = "0.24", optional = true }
+facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
+facet-json = { default-features = false, optional = true, version = "0.24" }
+facet-reflect = { default-features = false, features = ["alloc", "uuid"], optional = true, version = "0.27" }
+facet-serialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
 
 [features]
 default = ["enable", "rich-diagnostics", "std"]
 enable = ["deserialize", "json", "serialize"]
 
-json = ["alloc", "dep:facet-json", "dep:facet-reflect"]
+json = ["dep:facet-json", "dep:facet-reflect"]
 rich-diagnostics = ["facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
 
-deserialize = ["alloc", "dep:facet-deserialize", "dep:facet-reflect"]
+deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
 serialize = ["dep:facet-serialize"]
 
-alloc = ["facet-core/alloc", "facet-deserialize?/alloc", "facet-reflect?/alloc", "facet-serialize?/alloc"]
-std = ["alloc", "facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "facet-serialize?/std"]
+std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "facet-serialize?/std"]
 
 nightly = []
+
+[[example]]
+name = "serialize"
+required-features = ["enable"]
