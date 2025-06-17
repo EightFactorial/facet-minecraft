@@ -1,8 +1,8 @@
 //! A trait and methods for asserting that a type can be read and written.
 
 use facet::{
-    EnumType, Facet, Field, FieldAttribute, NumericType, PrimitiveType, SequenceType, Shape,
-    ShapeLayout, StructType, TextualType, Type, UserType,
+    Def, EnumType, Facet, Field, FieldAttribute, NumericType, PointerType, PrimitiveType,
+    ScalarAffinity, SequenceType, Shape, ShapeLayout, StructType, TextualType, Type, UserType,
 };
 
 /// A trait for asserting that a type can be read and written.
@@ -28,8 +28,30 @@ pub const fn valid_shape(shape: &Shape<'_>) -> bool {
         Type::Sequence(SequenceType::Slice(slice)) => valid_shape(slice.t),
         Type::User(UserType::Struct(user)) => valid_struct_type(&user),
         Type::User(UserType::Enum(user)) => valid_enum_type(&user),
-        Type::User(..) => true,
-        Type::Pointer(..) => panic!("Pointer types are not supported yet!"),
+        Type::User(UserType::Opaque) => match shape.def {
+            Def::Scalar(def) => matches!(
+                def.affinity,
+                ScalarAffinity::Number(..)
+                    | ScalarAffinity::ComplexNumber(..)
+                    | ScalarAffinity::String(..)
+                    | ScalarAffinity::Boolean(..)
+            ),
+            // TODO: Cannot determine if shapes are valid at compile time.
+            // Def::Map(def) => valid_shape(def.k()) && valid_shape(def.v()),
+            // Def::Set(def) => valid_shape(def.t()),
+            // Def::List(def) => valid_shape(def.t()),
+            // Def::SmartPointer(def) => valid_shape(def.pointee),
+            Def::Array(def) => valid_shape(def.t),
+            Def::Slice(def) => valid_shape(def.t),
+            Def::Option(def) => valid_shape(def.t),
+            Def::Undefined => false,
+            _ => true,
+        },
+        Type::User(UserType::Union(..)) => panic!("Unions are not supported yet!"),
+        // TODO: Cannot determine if shapes are valid at compile time.
+        // Type::Pointer(PointerType::Reference(ptr)) => valid_shape(ptr.target()),
+        Type::Pointer(PointerType::Reference(..)) => true,
+        Type::Pointer(..) => panic!("Pointers are not supported yet!"),
         _ => panic!("This type does not support assertions yet!"),
     }
 }

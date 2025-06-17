@@ -6,7 +6,7 @@ use facet_reflect::{
     FieldsForSerializeIter, HasFields, Peek, PeekListLikeIter, PeekMapIter, ScalarType,
 };
 
-use crate::{adapter::WriteAdapter, assert::AssertProtocol};
+use crate::{adapter::WriteAdapter, assert::AssertProtocol, custom::FacetOverride};
 
 mod traits;
 pub use traits::{Serializer, SerializerExt};
@@ -28,6 +28,7 @@ where
     W: WriteAdapter,
 {
     <T as AssertProtocol<'facet>>::assert();
+
     serialize_iterative(Peek::new(value), McSerializer(writer))
 }
 
@@ -48,26 +49,26 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
     #[cfg(feature = "json")]
     static JSON: &FieldAttribute = &FieldAttribute::Arbitrary("json");
 
-    enum Task<'mem, 'facet, 'shape> {
-        Value(Peek<'mem, 'facet, 'shape>),
-        ValueVariable(Peek<'mem, 'facet, 'shape>),
-        #[cfg(feature = "json")]
-        ValueJson(Peek<'mem, 'facet, 'shape>),
-        Object(FieldsForSerializeIter<'mem, 'facet, 'shape>),
-        Array(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
-        List(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
-        Map(PeekMapIter<'mem, 'facet, 'shape>, bool),
-    }
-
     let mut stack = Vec::new();
-    stack.push(Task::Value(peek));
+    stack.push(SerializationTask::Value(peek));
 
     while let Some(task) = stack.pop() {
         match task {
-            Task::Value(mut peek) => {
+            SerializationTask::Value(mut peek) => {
                 if peek.shape().attributes.contains(&ShapeAttribute::Transparent) {
                     let inner = peek.into_struct().unwrap();
                     peek = inner.field(0).unwrap();
+                }
+
+                // TODO: Find a better way to handle overrides
+                #[allow(clippy::collapsible_if)]
+                if let Some((_, custom)) =
+                    FacetOverride::global().iter().find(|(id, _)| id == &peek.shape().id)
+                {
+                    if let Some(ser) = custom.serialize {
+                        ser(peek, &mut stack);
+                        continue;
+                    }
                 }
 
                 match peek.shape().def {
@@ -123,26 +124,31 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                         Some(ScalarType::ISize) => {
                             writer.serialize_isize(*peek.get::<isize>().unwrap())?;
                         }
-                        _ => todo!("TODO: Support other scalar types"),
+                        _ => {
+                            panic!(
+                                "Attempted to serialize an unsupported type `{}`",
+                                peek.shape().type_identifier
+                            )
+                        }
                     },
                     Def::Map(..) => {
                         let peek = peek.into_map().unwrap();
                         writer.serialize_var_usize(peek.len())?;
-                        stack.push(Task::Map(peek.iter(), false));
+                        stack.push(SerializationTask::Map(peek.iter(), false));
                     }
                     Def::List(..) | Def::Slice(..) => {
                         let peek = peek.into_list_like().unwrap();
                         writer.serialize_var_usize(peek.len())?;
-                        stack.push(Task::List(peek.iter(), false));
+                        stack.push(SerializationTask::List(peek.iter(), false));
                     }
                     Def::Array(..) => {
                         let peek = peek.into_list_like().unwrap();
-                        stack.push(Task::Array(peek.iter(), false));
+                        stack.push(SerializationTask::Array(peek.iter(), false));
                     }
                     Def::Option(..) => {
                         if let Some(value) = peek.into_option().unwrap().value() {
                             writer.serialize_bool(true)?;
-                            stack.push(Task::Value(value));
+                            stack.push(SerializationTask::Value(value));
                         } else {
                             writer.serialize_bool(false)?;
                         }
@@ -151,7 +157,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                     Def::SmartPointer(..) => {
                         let peek = peek.into_smart_pointer().unwrap();
                         if let Some(inner) = peek.borrow_inner() {
-                            stack.push(Task::Value(inner));
+                            stack.push(SerializationTask::Value(inner));
                         } else {
                             panic!("Attempted to serialize a smart pointer with no inner value!");
                         }
@@ -162,7 +168,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                             StructKind::Unit => writer.serialize_unit()?,
                             _ => {
                                 let peek = peek.into_struct().unwrap();
-                                stack.push(Task::Object(peek.fields_for_serialize()));
+                                stack.push(SerializationTask::Object(peek.fields_for_serialize()));
                             }
                         },
                         Type::User(UserType::Enum(..)) => {
@@ -182,18 +188,18 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                                     for (field, peek) in fields.into_iter().rev() {
                                         // Check if the field has the `var` attribute
                                         if field.attributes.contains(VAR) {
-                                            stack.push(Task::ValueVariable(peek));
+                                            stack.push(SerializationTask::ValueVariable(peek));
                                             continue;
                                         }
 
                                         // Check if the field has the `json` attribute
                                         #[cfg(feature = "json")]
                                         if field.attributes.contains(JSON) {
-                                            stack.push(Task::ValueJson(peek));
+                                            stack.push(SerializationTask::ValueJson(peek));
                                             continue;
                                         }
 
-                                        stack.push(Task::Value(peek));
+                                        stack.push(SerializationTask::Value(peek));
                                     }
                                 }
                             }
@@ -210,7 +216,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                     _ => {}
                 }
             }
-            Task::ValueVariable(mut peek) => {
+            SerializationTask::ValueVariable(mut peek) => {
                 if peek.shape().attributes.contains(&ShapeAttribute::Transparent) {
                     let inner = peek.into_struct().unwrap();
                     peek = inner.field(0).unwrap();
@@ -257,7 +263,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                     Def::Option(..) => {
                         if let Some(value) = peek.into_option().unwrap().value() {
                             writer.serialize_bool(true)?;
-                            stack.push(Task::ValueVariable(value));
+                            stack.push(SerializationTask::ValueVariable(value));
                         } else {
                             writer.serialize_bool(false)?;
                         }
@@ -265,16 +271,16 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                     Def::Map(..) => {
                         let peek = peek.into_map().unwrap();
                         writer.serialize_var_usize(peek.len())?;
-                        stack.push(Task::Map(peek.iter(), true));
+                        stack.push(SerializationTask::Map(peek.iter(), true));
                     }
                     Def::List(..) | Def::Slice(..) => {
                         let peek = peek.into_list_like().unwrap();
                         writer.serialize_var_usize(peek.len())?;
-                        stack.push(Task::List(peek.iter(), true));
+                        stack.push(SerializationTask::List(peek.iter(), true));
                     }
                     Def::Array(..) => {
                         let peek = peek.into_list_like().unwrap();
-                        stack.push(Task::Array(peek.iter(), true));
+                        stack.push(SerializationTask::Array(peek.iter(), true));
                     }
                     other => {
                         panic!(
@@ -284,60 +290,72 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                 }
             }
             #[cfg(feature = "json")]
-            Task::ValueJson(peek) => {
+            SerializationTask::ValueJson(peek) => {
                 writer.serialize_str(&facet_json::peek_to_string(peek))?;
             }
-            Task::Object(mut peek) => {
+            SerializationTask::Object(mut peek) => {
                 let Some((field, value)) = peek.next() else { continue };
-                stack.push(Task::Object(peek));
+                stack.push(SerializationTask::Object(peek));
 
                 // Check if the field has the `var` attribute
                 if field.attributes.contains(VAR) {
-                    stack.push(Task::ValueVariable(value));
+                    stack.push(SerializationTask::ValueVariable(value));
                     continue;
                 }
 
                 // Check if the field has the `json` attribute
                 #[cfg(feature = "json")]
                 if field.attributes.contains(JSON) {
-                    stack.push(Task::ValueJson(value));
+                    stack.push(SerializationTask::ValueJson(value));
                     continue;
                 }
 
-                stack.push(Task::Value(value));
+                stack.push(SerializationTask::Value(value));
             }
-            Task::List(mut peek, var) => {
+            SerializationTask::List(mut peek, var) => {
                 let Some(entry) = peek.next() else { continue };
-                stack.push(Task::List(peek, var));
+                stack.push(SerializationTask::List(peek, var));
                 if var {
-                    stack.push(Task::ValueVariable(entry));
+                    stack.push(SerializationTask::ValueVariable(entry));
                 } else {
-                    stack.push(Task::Value(entry));
+                    stack.push(SerializationTask::Value(entry));
                 }
             }
-            Task::Array(mut peek, var) => {
+            SerializationTask::Array(mut peek, var) => {
                 let Some(entry) = peek.next() else { continue };
-                stack.push(Task::Array(peek, var));
+                stack.push(SerializationTask::Array(peek, var));
                 if var {
-                    stack.push(Task::ValueVariable(entry));
+                    stack.push(SerializationTask::ValueVariable(entry));
                 } else {
-                    stack.push(Task::Value(entry));
+                    stack.push(SerializationTask::Value(entry));
                 }
             }
-            Task::Map(mut peek, var) => {
+            SerializationTask::Map(mut peek, var) => {
                 let Some((key, value)) = peek.next() else { continue };
-                stack.push(Task::Map(peek, var));
+                stack.push(SerializationTask::Map(peek, var));
                 if var {
-                    stack.push(Task::ValueVariable(value));
+                    stack.push(SerializationTask::ValueVariable(value));
                 } else {
-                    stack.push(Task::Value(value));
+                    stack.push(SerializationTask::Value(value));
                 }
-                stack.push(Task::Value(key));
+                stack.push(SerializationTask::Value(key));
             }
         }
     }
 
     Ok(())
+}
+
+/// A task to be performed during serialization.
+pub enum SerializationTask<'mem, 'facet, 'shape> {
+    Value(Peek<'mem, 'facet, 'shape>),
+    ValueVariable(Peek<'mem, 'facet, 'shape>),
+    #[cfg(feature = "json")]
+    ValueJson(Peek<'mem, 'facet, 'shape>),
+    Object(FieldsForSerializeIter<'mem, 'facet, 'shape>),
+    Array(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
+    List(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
+    Map(PeekMapIter<'mem, 'facet, 'shape>, bool),
 }
 
 // -------------------------------------------------------------------------------------------------

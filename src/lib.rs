@@ -4,13 +4,13 @@
 #![no_std]
 
 extern crate alloc;
+extern crate facet_core as facet;
 #[cfg(feature = "std")]
 extern crate std;
 
-extern crate facet_core as facet;
-
 pub mod adapter;
 pub mod assert;
+pub mod custom;
 
 #[cfg(feature = "deserialize")]
 mod deserialize;

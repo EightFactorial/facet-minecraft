@@ -37,6 +37,8 @@ divan = "0.1"
 [dependencies]
 facet-core = { default-features = false, features = ["alloc", "uuid"], version = "0.27" }
 facet-derive = { default-features = false, version = "0.27" }
+inventory = "0.3"
+once_cell = { default-features = false, features = ["alloc"], version = "1.21" }
 
 # Optional dependencies
 facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
@@ -53,7 +55,7 @@ rich-diagnostics = ["facet-deserialize?/rich-diagnostics", "facet-json?/rich-dia
 deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
 serialize = ["dep:facet-reflect"]
 
-std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std"]
+std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "once_cell/std"]
 
 nightly = []
 
