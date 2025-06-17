@@ -20,7 +20,7 @@ pub use deserialize::{DeserializeError, deserialize};
 #[cfg(feature = "serialize")]
 mod serialize;
 #[cfg(feature = "serialize")]
-pub use serialize::serialize;
+pub use serialize::{McSerializer, Serializer, SerializerExt, serialize, serialize_iterative};
 
 /// The Minecraft protocol
 pub struct Minecraft;

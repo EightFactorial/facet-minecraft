@@ -39,7 +39,6 @@ facet-derive = { default-features = false, version = "0.27" }
 facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
 facet-json = { default-features = false, optional = true, version = "0.24" }
 facet-reflect = { default-features = false, features = ["alloc", "uuid"], optional = true, version = "0.27" }
-facet-serialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
 
 [features]
 default = ["enable", "rich-diagnostics", "std"]
@@ -49,9 +48,9 @@ json = ["dep:facet-json", "dep:facet-reflect"]
 rich-diagnostics = ["facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
 
 deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
-serialize = ["dep:facet-serialize"]
+serialize = ["dep:facet-reflect"]
 
-std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "facet-serialize?/std"]
+std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std"]
 
 nightly = []
 

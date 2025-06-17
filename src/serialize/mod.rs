@@ -1,13 +1,19 @@
 use alloc::{borrow::Cow, string::String, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
-use facet::{Def, Facet, FieldAttribute, ShapeAttribute, StructKind, Type, UserType};
+use facet::{Def, FieldAttribute, ShapeAttribute, StructKind, Type, UserType};
 use facet_reflect::{
     FieldsForSerializeIter, HasFields, Peek, PeekListLikeIter, PeekMapIter, ScalarType,
 };
-use facet_serialize::Serializer;
 
 use crate::{adapter::WriteAdapter, assert::AssertProtocol};
+
+mod traits;
+pub use traits::{Serializer, SerializerExt};
+
+/// A serializer for Minecraft protocol data.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct McSerializer<W: WriteAdapter>(pub W);
 
 /// Serialize a type to the given writer.
 ///
@@ -18,35 +24,37 @@ pub fn serialize<'mem, 'facet, T, W>(value: &'mem T, writer: W) -> Result<(), W:
 where
     'mem: 'facet,
     'facet: 'mem,
-    T: Facet<'facet> + AssertProtocol<'facet>,
+    T: AssertProtocol<'facet>,
     W: WriteAdapter,
 {
     <T as AssertProtocol<'facet>>::assert();
-
-    serialize_iterative(Peek::new(value), &mut McSerializer(writer))
+    serialize_iterative(Peek::new(value), McSerializer(writer))
 }
 
 // -------------------------------------------------------------------------------------------------
 
-enum Task<'mem, 'facet, 'shape> {
-    Value(Peek<'mem, 'facet, 'shape>),
-    ValueVariable(Peek<'mem, 'facet, 'shape>),
-    Object(FieldsForSerializeIter<'mem, 'facet, 'shape>),
-    Array(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
-    List(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
-    Map(PeekMapIter<'mem, 'facet, 'shape>, bool),
-}
-
-static VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
-
 /// Iteratively serialize a type to the given writer.
 ///
 /// Avoids recursion to prevent depth issues with large structures.
-#[expect(clippy::elidable_lifetime_names, clippy::too_many_lines)]
-fn serialize_iterative<'mem, 'facet, 'shape, W: WriteAdapter>(
+///
+/// # Errors
+/// Returns an error if the serialization fails.
+#[expect(clippy::missing_panics_doc, clippy::too_many_lines)]
+pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
     peek: Peek<'mem, 'facet, 'shape>,
-    writer: &mut McSerializer<W>,
+    mut writer: W,
 ) -> Result<(), W::Error> {
+    static VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
+
+    enum Task<'mem, 'facet, 'shape> {
+        Value(Peek<'mem, 'facet, 'shape>),
+        ValueVariable(Peek<'mem, 'facet, 'shape>),
+        Object(FieldsForSerializeIter<'mem, 'facet, 'shape>),
+        Array(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
+        List(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
+        Map(PeekMapIter<'mem, 'facet, 'shape>, bool),
+    }
+
     let mut stack = Vec::new();
     stack.push(Task::Value(peek));
 
@@ -157,10 +165,9 @@ fn serialize_iterative<'mem, 'facet, 'shape, W: WriteAdapter>(
                             let peek = peek.into_enum().unwrap();
                             let variant = peek.active_variant().unwrap();
 
-                            #[expect(clippy::cast_sign_loss)]
                             let discriminant =
-                                variant.discriminant.unwrap_or_else(|| peek.discriminant()) as u64;
-                            writer.start_enum_variant(discriminant)?;
+                                variant.discriminant.unwrap_or_else(|| peek.discriminant());
+                            writer.serialize_var_i64(discriminant)?;
 
                             #[expect(clippy::single_match_else)]
                             match variant.data.kind {
@@ -305,225 +312,6 @@ fn serialize_iterative<'mem, 'facet, 'shape, W: WriteAdapter>(
     }
 
     Ok(())
-}
-
-// -------------------------------------------------------------------------------------------------
-
-struct McSerializer<W: WriteAdapter>(W);
-
-/// An extension trait for [`Serializer`] that provides
-/// variable-length serialization methods.
-trait SerializerExt<'shape>: Serializer<'shape> {
-    /// Serialize a variable-length unsigned short.
-    fn serialize_var_u16(&mut self, val: u16) -> Result<(), Self::Error>;
-    /// Serialize a variable-length unsigned integer.
-    fn serialize_var_u32(&mut self, val: u32) -> Result<(), Self::Error>;
-    /// Serialize a variable-length unsigned long.
-    fn serialize_var_u64(&mut self, val: u64) -> Result<(), Self::Error>;
-    /// Serialize a variable-length unsigned long long.
-    fn serialize_var_u128(&mut self, val: u128) -> Result<(), Self::Error>;
-    /// Serialize a variable-length unsigned size.
-    #[inline]
-    fn serialize_var_usize(&mut self, val: usize) -> Result<(), Self::Error> {
-        self.serialize_var_u64(val as u64)
-    }
-    /// Serialize a variable-length signed short.
-    fn serialize_var_i16(&mut self, val: i16) -> Result<(), Self::Error>;
-    /// Serialize a variable-length signed integer.
-    fn serialize_var_i32(&mut self, val: i32) -> Result<(), Self::Error>;
-    /// Serialize a variable-length signed long.
-    fn serialize_var_i64(&mut self, val: i64) -> Result<(), Self::Error>;
-    /// Serialize a variable-length signed long long.
-    fn serialize_var_i128(&mut self, val: i128) -> Result<(), Self::Error>;
-    /// Serialize a variable-length signed size.
-    #[inline]
-    fn serialize_var_isize(&mut self, val: isize) -> Result<(), Self::Error> {
-        self.serialize_var_i64(val as i64)
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-impl<'shape, W: WriteAdapter> Serializer<'shape> for McSerializer<W> {
-    type Error = W::Error;
-
-    fn serialize_u8(&mut self, val: u8) -> Result<(), Self::Error> { self.write(&[val]) }
-
-    fn serialize_u16(&mut self, val: u16) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_u32(&mut self, val: u32) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_u64(&mut self, val: u64) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_u128(&mut self, val: u128) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_usize(&mut self, val: usize) -> Result<(), Self::Error> {
-        self.serialize_u64(val as u64)
-    }
-
-    #[expect(clippy::cast_sign_loss)]
-    fn serialize_i8(&mut self, val: i8) -> Result<(), Self::Error> { self.write(&[val as u8]) }
-
-    fn serialize_i16(&mut self, val: i16) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_i32(&mut self, val: i32) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_i64(&mut self, val: i64) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_i128(&mut self, val: i128) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_isize(&mut self, val: isize) -> Result<(), Self::Error> {
-        self.serialize_i64(val as i64)
-    }
-
-    fn serialize_f32(&mut self, val: f32) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_f64(&mut self, val: f64) -> Result<(), Self::Error> {
-        self.write(&val.to_le_bytes())
-    }
-
-    fn serialize_bool(&mut self, val: bool) -> Result<(), Self::Error> {
-        self.write(&[u8::from(val)])
-    }
-
-    fn serialize_char(&mut self, _val: char) -> Result<(), Self::Error> {
-        unimplemented!("Protocol does not support `char`")
-    }
-
-    fn serialize_str(&mut self, val: &str) -> Result<(), Self::Error> {
-        self.serialize_var_usize(val.len())?;
-        self.serialize_bytes(val.as_bytes())
-    }
-
-    fn serialize_bytes(&mut self, val: &[u8]) -> Result<(), Self::Error> { self.write(val) }
-
-    fn serialize_none(&mut self) -> Result<(), Self::Error> { self.write(&[0]) }
-
-    fn serialize_unit(&mut self) -> Result<(), Self::Error> { Ok(()) }
-
-    fn serialize_unit_variant(&mut self, index: usize, _: &'shape str) -> Result<(), Self::Error> {
-        self.serialize_var_usize(index)
-    }
-
-    fn start_enum_variant(&mut self, discriminant: u64) -> Result<(), Self::Error> {
-        self.serialize_var_u64(discriminant)
-    }
-
-    fn start_object(&mut self, _: Option<usize>) -> Result<(), Self::Error> { Ok(()) }
-
-    fn start_array(&mut self, _: Option<usize>) -> Result<(), Self::Error> { Ok(()) }
-
-    fn start_map(&mut self, _: Option<usize>) -> Result<(), Self::Error> { Ok(()) }
-
-    fn serialize_field_name(&mut self, _: &'shape str) -> Result<(), Self::Error> { Ok(()) }
-}
-
-impl<W: WriteAdapter> SerializerExt<'_> for McSerializer<W> {
-    #[expect(unused_assignments)]
-    fn serialize_var_u16(&mut self, mut val: u16) -> Result<(), Self::Error> {
-        let mut byte = 0u8;
-        let mut count = 0u8;
-        while (val != 0 || count == 0) && count < 3 {
-            byte = (val & 0b0111_1111) as u8;
-            val = (val >> 7) & (u16::MAX >> 6);
-            if val != 0 {
-                byte |= 0b1000_0000;
-            }
-            count += 1;
-            self.serialize_u8(byte)?;
-        }
-        Ok(())
-    }
-
-    #[expect(unused_assignments)]
-    fn serialize_var_u32(&mut self, mut val: u32) -> Result<(), Self::Error> {
-        let mut count = 0u8;
-        let mut byte = 0u8;
-        while (val != 0 || count == 0) && count < 5 {
-            byte = (val & 0b0111_1111) as u8;
-            val = (val >> 7) & (u32::MAX >> 6);
-            if val != 0 {
-                byte |= 0b1000_0000;
-            }
-            count += 1;
-            self.serialize_u8(byte)?;
-        }
-        Ok(())
-    }
-
-    #[expect(unused_assignments)]
-    fn serialize_var_u64(&mut self, mut val: u64) -> Result<(), Self::Error> {
-        let mut byte = 0u8;
-        let mut count = 0u8;
-        while (val != 0 || count == 0) && count < 10 {
-            byte = (val & 0b0111_1111) as u8;
-            val = (val >> 7) & (u64::MAX >> 6);
-            if val != 0 {
-                byte |= 0b1000_0000;
-            }
-            count += 1;
-            self.serialize_u8(byte)?;
-        }
-        Ok(())
-    }
-
-    #[expect(unused_assignments)]
-    fn serialize_var_u128(&mut self, mut val: u128) -> Result<(), Self::Error> {
-        let mut byte = 0u8;
-        let mut count = 0u8;
-        while (val != 0 || count == 0) && count < 19 {
-            byte = (val & 0b0111_1111) as u8;
-            val = (val >> 7) & (u128::MAX >> 6);
-            if val != 0 {
-                byte |= 0b1000_0000;
-            }
-            count += 1;
-            self.serialize_u8(byte)?;
-        }
-        Ok(())
-    }
-
-    #[inline]
-    #[expect(clippy::cast_sign_loss)]
-    fn serialize_var_i16(&mut self, val: i16) -> Result<(), Self::Error> {
-        self.serialize_var_u16(val as u16)
-    }
-
-    #[inline]
-    #[expect(clippy::cast_sign_loss)]
-    fn serialize_var_i32(&mut self, val: i32) -> Result<(), Self::Error> {
-        self.serialize_var_u32(val as u32)
-    }
-
-    #[inline]
-    #[expect(clippy::cast_sign_loss)]
-    fn serialize_var_i64(&mut self, val: i64) -> Result<(), Self::Error> {
-        self.serialize_var_u64(val as u64)
-    }
-
-    #[inline]
-    #[expect(clippy::cast_sign_loss)]
-    fn serialize_var_i128(&mut self, val: i128) -> Result<(), Self::Error> {
-        self.serialize_var_u128(val as u128)
-    }
 }
 
 // -------------------------------------------------------------------------------------------------
