@@ -37,8 +37,10 @@ divan = "0.1"
 [dependencies]
 facet-core = { default-features = false, features = ["alloc", "uuid"], version = "0.27" }
 facet-derive = { default-features = false, version = "0.27" }
+owo-colors = { features = ["alloc"], version = "4.2" }
 
 # Optional dependencies
+ariadne = { default-features = false, optional = true, version = "0.5" }
 facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
 facet-json = { default-features = false, optional = true, version = "0.24" }
 facet-reflect = { default-features = false, features = ["alloc", "uuid"], optional = true, version = "0.27" }
@@ -61,7 +63,7 @@ parking_lot = ["dep:parking_lot", "once_cell?/parking_lot"]
 # Enable serializing fields as JSON
 json = ["dep:facet-json", "dep:facet-reflect"]
 # Enable rich diagnostics
-rich-diagnostics = ["facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
+rich-diagnostics = ["dep:ariadne", "facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
 
 # Enable deserialization support
 deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
