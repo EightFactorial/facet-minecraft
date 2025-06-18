@@ -5,7 +5,6 @@
 //! See the [Minecraft Wiki] for more information about the protocol.
 //!
 //! [Minecraft Wiki]: https://minecraft.wiki/w/Java_Edition_protocol/Packets
-#![allow(dead_code)]
 #![no_std]
 
 use alloc::{boxed::Box, string::String, vec, vec::Vec};

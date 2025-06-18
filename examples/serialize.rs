@@ -3,7 +3,6 @@
 //! See the [Minecraft Wiki] for more information about the protocol.
 //!
 //! [Minecraft Wiki]: https://minecraft.wiki/w/Java_Edition_protocol/Packets
-#![allow(dead_code)]
 #![no_std]
 
 use alloc::{boxed::Box, vec, vec::Vec};
@@ -133,6 +132,7 @@ struct Variable<T>(#[facet(var)] T);
 
 #[repr(u8)]
 #[derive(Facet)]
+#[allow(dead_code)]
 enum ExampleEnum {
     First(u32),
     Second(u8, u8),

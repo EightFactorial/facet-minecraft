@@ -298,7 +298,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
             }
             // TODO: Avoid recursion here if possible.
             SerializationTask::ValueOwned(owned) => {
-                serialize_iterative(owned.get(), writer)?;
+                serialize_iterative(owned.peek(), writer)?;
             }
             #[cfg(feature = "json")]
             SerializationTask::ValueJson(peek) => {

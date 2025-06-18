@@ -8,11 +8,11 @@ use crate::{adapter::WriteAdapter, serialize::McSerializer};
 /// A trait that provides a [`Peek`] for their current item.
 pub trait OwnedPeek<'facet> {
     /// Get a [`Peek`] for the current item.
-    fn get<'mem, 'shape>(&'mem self) -> Peek<'mem, 'facet, 'shape>;
+    fn peek<'mem, 'shape>(&'mem self) -> Peek<'mem, 'facet, 'shape>;
 }
 
 impl<'facet, T: Facet<'facet>> OwnedPeek<'facet> for T {
-    fn get<'mem, 'shape>(&'mem self) -> Peek<'mem, 'facet, 'shape> { Peek::new(self) }
+    fn peek<'mem, 'shape>(&'mem self) -> Peek<'mem, 'facet, 'shape> { Peek::new(self) }
 }
 
 // -------------------------------------------------------------------------------------------------

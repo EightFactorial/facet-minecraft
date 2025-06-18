@@ -1,6 +1,12 @@
 [package]
+authors = ["EightFactorial"]
 edition = "2024"
+homepage = "https://github.com/EightFactorial/facet-minecraft"
+include = ["/src/**/*", "Cargo.toml"]
+license = "MIT OR Apache-2.0"
 name = "facet-minecraft"
+readme = "README.md"
+repository = "https://github.com/EightFactorial/facet-minecraft"
 version = "0.1.0"
 
 [lints.rust]
