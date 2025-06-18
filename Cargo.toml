@@ -75,6 +75,20 @@ std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "once_c
 # Enable features using the nightly toolchain
 nightly = ["parking_lot?/nightly"]
 
+[[bench]]
+harness = false
+name = "deserialize"
+required-features = ["deserialize", "std"]
+
+[[example]]
+name = "deserialize"
+required-features = ["deserialize"]
+
+[[bench]]
+harness = false
+name = "serialize"
+required-features = ["serialize", "std"]
+
 [[example]]
 name = "serialize"
 required-features = ["serialize"]
