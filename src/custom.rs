@@ -1,13 +1,17 @@
-//! Custom facet ser/de overrides
+//! Custom facet serialization overrides
 //!
-//! Hopefully temporary...
+//! Uses [`inventory`] to register implementations
+//! and [`once_cell`] to provide a static slice.
 
 use alloc::vec::Vec;
 
 use facet::{ConstTypeId, Facet};
+#[cfg(any(feature = "serialize", feature = "deserialize"))]
 use facet_reflect::Peek;
+pub use inventory::submit;
 use once_cell::sync::OnceCell;
 
+#[cfg(feature = "serialize")]
 use crate::serialize::SerializationTask;
 
 /// A custom serialization or deserialization override for a [`Facet`].
@@ -15,14 +19,20 @@ pub struct FacetOverride {
     /// The [`ConstTypeId`] of the [`Facet`] this override applies to.
     pub id: ConstTypeId,
     /// A custom serialization function for this [`FacetOverride`].
+    #[cfg(feature = "serialize")]
     pub serialize: Option<SerializeFn>,
     /// A custom deserialization function for this [`FacetOverride`].
+    #[cfg(feature = "deserialize")]
     pub deserialize: Option<DeserializeFn>,
 }
 
-type SerializeFn =
-    for<'mem, 'shape> fn(Peek<'mem, '_, 'shape>, &mut Vec<SerializationTask<'mem, '_, 'shape>>);
-type DeserializeFn = for<'mem, 'shape> fn(Peek<'mem, '_, 'shape>);
+#[cfg(feature = "serialize")]
+type SerializeFn = for<'mem, 'facet, 'shape> fn(
+    Peek<'_, 'facet, 'shape>,
+    &mut Vec<SerializationTask<'mem, 'facet, 'shape>>,
+);
+#[cfg(feature = "deserialize")]
+type DeserializeFn = for<'mem, 'facet, 'shape> fn(Peek<'mem, 'facet, 'shape>);
 
 impl FacetOverride {
     /// Returns a static slice of all registered [`FacetOverride`]s.
@@ -35,19 +45,37 @@ impl FacetOverride {
     /// Create a new [`FacetOverride`].
     #[must_use]
     pub const fn new<'a, T: Facet<'a>>() -> Self {
-        FacetOverride { id: T::SHAPE.id, serialize: None, deserialize: None }
+        FacetOverride {
+            id: T::SHAPE.id,
+            #[cfg(feature = "serialize")]
+            serialize: None,
+            #[cfg(feature = "deserialize")]
+            deserialize: None,
+        }
     }
 
     /// Add a custom serialization function for this [`FacetOverride`].
     #[must_use]
+    #[cfg(feature = "serialize")]
     pub const fn with_ser(self, serialize: SerializeFn) -> Self {
-        FacetOverride { id: self.id, serialize: Some(serialize), deserialize: self.deserialize }
+        FacetOverride {
+            id: self.id,
+            serialize: Some(serialize),
+            #[cfg(feature = "deserialize")]
+            deserialize: self.deserialize,
+        }
     }
 
     /// Add a custom deserialization function for this [`FacetOverride`].
     #[must_use]
+    #[cfg(feature = "deserialize")]
     pub const fn with_de(self, deserialize: DeserializeFn) -> Self {
-        FacetOverride { id: self.id, serialize: self.serialize, deserialize: Some(deserialize) }
+        FacetOverride {
+            id: self.id,
+            #[cfg(feature = "serialize")]
+            serialize: self.serialize,
+            deserialize: Some(deserialize),
+        }
     }
 }
 

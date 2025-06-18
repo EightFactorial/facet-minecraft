@@ -1,6 +1,21 @@
 #![allow(clippy::inline_always)]
 
+use facet_core::Facet;
+use facet_reflect::Peek;
+
 use crate::{adapter::WriteAdapter, serialize::McSerializer};
+
+/// A trait that provides a [`Peek`] for their current item.
+pub trait OwnedPeek<'facet> {
+    /// Get a [`Peek`] for the current item.
+    fn get<'mem, 'shape>(&'mem self) -> Peek<'mem, 'facet, 'shape>;
+}
+
+impl<'facet, T: Facet<'facet>> OwnedPeek<'facet> for T {
+    fn get<'mem, 'shape>(&'mem self) -> Peek<'mem, 'facet, 'shape> { Peek::new(self) }
+}
+
+// -------------------------------------------------------------------------------------------------
 
 /// A serializer for Minecraft protocol data.
 #[expect(clippy::missing_errors_doc)]

@@ -55,7 +55,7 @@ default = ["custom", "enable", "rich-diagnostics", "std"]
 enable = ["deserialize", "json", "serialize"]
 
 # Allow custom serialization implementations
-custom = ["dep:inventory", "dep:once_cell"]
+custom = ["dep:facet-reflect", "dep:inventory", "dep:once_cell"]
 # Enable critical-section on `no_std` platforms
 critical-section = ["once_cell?/critical-section"]
 # Use `parking_lot` internally for synchronization
@@ -75,6 +75,10 @@ serialize = ["dep:facet-reflect"]
 std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "once_cell?/std"]
 # Enable features using the nightly toolchain
 nightly = ["parking_lot?/nightly"]
+
+[[example]]
+name = "custom"
+required-features = ["custom", "deserialize", "serialize"]
 
 [[bench]]
 harness = false

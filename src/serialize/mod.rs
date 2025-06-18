@@ -1,4 +1,4 @@
-use alloc::{borrow::Cow, string::String, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
 use facet::{Def, FieldAttribute, ShapeAttribute, StructKind, Type, UserType};
@@ -11,7 +11,7 @@ use crate::custom::FacetOverride;
 use crate::{adapter::WriteAdapter, assert::AssertProtocol};
 
 mod traits;
-pub use traits::{Serializer, SerializerExt};
+pub use traits::{OwnedPeek, Serializer, SerializerExt};
 
 /// A serializer for Minecraft protocol data.
 #[derive(Debug, Default, Clone, Copy)]
@@ -31,7 +31,7 @@ where
 {
     <T as AssertProtocol<'facet>>::assert();
 
-    serialize_iterative(Peek::new(value), McSerializer(writer))
+    serialize_iterative(Peek::new(value), &mut McSerializer(writer))
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -45,9 +45,11 @@ where
 #[expect(clippy::missing_panics_doc, clippy::too_many_lines)]
 pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
     peek: Peek<'mem, 'facet, 'shape>,
-    mut writer: W,
+    writer: &mut W,
 ) -> Result<(), W::Error> {
     static VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
+    #[cfg(feature = "custom")]
+    static CUSTOM: &ShapeAttribute = &ShapeAttribute::Arbitrary("custom");
     #[cfg(feature = "json")]
     static JSON: &FieldAttribute = &FieldAttribute::Arbitrary("json");
 
@@ -65,13 +67,14 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                     peek = inner.field(0).unwrap();
                 }
 
-                // TODO: Find a better way to handle overrides
                 #[cfg(feature = "custom")]
                 #[allow(clippy::collapsible_if)]
-                if let Some(custom) = overrides.iter().find(|o| o.id == peek.shape().id) {
-                    if let Some(ser) = custom.serialize {
-                        ser(peek, &mut stack);
-                        continue;
+                if peek.shape().attributes.contains(CUSTOM) {
+                    if let Some(custom) = overrides.iter().find(|o| o.id == peek.shape().id) {
+                        if let Some(ser) = custom.serialize {
+                            ser(peek, &mut stack);
+                            continue;
+                        }
                     }
                 }
 
@@ -293,6 +296,10 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                     }
                 }
             }
+            // TODO: Avoid recursion here if possible.
+            SerializationTask::ValueOwned(owned) => {
+                serialize_iterative(owned.get(), writer)?;
+            }
             #[cfg(feature = "json")]
             SerializationTask::ValueJson(peek) => {
                 writer.serialize_str(&facet_json::peek_to_string(peek))?;
@@ -354,6 +361,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
 #[expect(missing_docs)]
 pub enum SerializationTask<'mem, 'facet, 'shape> {
     Value(Peek<'mem, 'facet, 'shape>),
+    ValueOwned(Box<dyn OwnedPeek<'facet>>),
     ValueVariable(Peek<'mem, 'facet, 'shape>),
     #[cfg(feature = "json")]
     ValueJson(Peek<'mem, 'facet, 'shape>),

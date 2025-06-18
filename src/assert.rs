@@ -1,5 +1,7 @@
 //! A trait and methods for asserting that a type can be read and written.
 
+#[cfg(feature = "custom")]
+use facet::ShapeAttribute;
 use facet::{
     Def, EnumType, Facet, Field, FieldAttribute, NumericType, PointerType, PrimitiveType,
     ScalarAffinity, SequenceType, Shape, ShapeLayout, StructType, TextualType, Type, UserType,
@@ -20,6 +22,22 @@ impl<'a, T: Facet<'a>> AssertProtocol<'a> for T {}
 /// Returns `true` if the given [`Shape`] can be read and written.
 #[must_use]
 pub const fn valid_shape(shape: &Shape<'_>) -> bool {
+    #[cfg(feature = "custom")]
+    {
+        let mut index = 0usize;
+        while index < shape.attributes.len() {
+            if let ShapeAttribute::Arbitrary(attr) = shape.attributes[index] {
+                #[expect(clippy::single_match)]
+                match attr.as_bytes() {
+                    // Support any type with the `custom` attribute.
+                    b"custom" => return true,
+                    _ => {}
+                }
+            }
+            index += 1;
+        }
+    }
+
     match shape.ty {
         Type::Primitive(primitive) => {
             !matches!(primitive, PrimitiveType::Textual(TextualType::Char) | PrimitiveType::Never)
