@@ -62,8 +62,8 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
 
                 // TODO: Find a better way to handle overrides
                 #[allow(clippy::collapsible_if)]
-                if let Some((_, custom)) =
-                    FacetOverride::global().iter().find(|(id, _)| id == &peek.shape().id)
+                if let Some(custom) =
+                    FacetOverride::global().iter().find(|o| &o.id == &peek.shape().id)
                 {
                     if let Some(ser) = custom.serialize {
                         ser(peek, &mut stack);

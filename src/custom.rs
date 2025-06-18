@@ -27,9 +27,9 @@ type DeserializeFn = for<'mem, 'shape> fn(Peek<'mem, '_, 'shape>);
 impl FacetOverride {
     /// Returns a static slice of all registered [`FacetOverride`]s.
     #[must_use]
-    pub fn global() -> &'static [(ConstTypeId, &'static FacetOverride)] {
-        static GLOBAL: OnceCell<Vec<(ConstTypeId, &'static FacetOverride)>> = OnceCell::new();
-        GLOBAL.get_or_init(|| inventory::iter::<Self>().map(|ty| (ty.id, ty)).collect())
+    pub fn global() -> &'static [&'static FacetOverride] {
+        static GLOBAL: OnceCell<Vec<&'static FacetOverride>> = OnceCell::new();
+        GLOBAL.get_or_init(|| inventory::iter::<Self>().collect())
     }
 
     /// Create a new [`FacetOverride`].
