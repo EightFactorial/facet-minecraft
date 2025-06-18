@@ -37,27 +37,41 @@ divan = "0.1"
 [dependencies]
 facet-core = { default-features = false, features = ["alloc", "uuid"], version = "0.27" }
 facet-derive = { default-features = false, version = "0.27" }
-inventory = "0.3"
-once_cell = { default-features = false, features = ["alloc"], version = "1.21" }
 
 # Optional dependencies
 facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
 facet-json = { default-features = false, optional = true, version = "0.24" }
 facet-reflect = { default-features = false, features = ["alloc", "uuid"], optional = true, version = "0.27" }
+inventory = { optional = true, version = "0.3" }
+once_cell = { default-features = false, features = ["alloc"], optional = true, version = "1.21" }
+parking_lot = { default-features = false, optional = true, version = "0.12" }
 
 [features]
-default = ["enable", "rich-diagnostics", "std"]
+default = ["custom", "enable", "rich-diagnostics", "std"]
+# Enable all serialization and deserialization features
 enable = ["deserialize", "json", "serialize"]
 
+# Allow custom serialization implementations
+custom = ["dep:inventory", "dep:once_cell"]
+# Enable critical-section on `no_std` platforms
+critical-section = ["once_cell?/critical-section"]
+# Use `parking_lot` internally for synchronization
+parking_lot = ["dep:parking_lot", "once_cell?/parking_lot"]
+
+# Enable serializing fields as JSON
 json = ["dep:facet-json", "dep:facet-reflect"]
+# Enable rich diagnostics
 rich-diagnostics = ["facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
 
+# Enable deserialization support
 deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
+# Enable serialization support
 serialize = ["dep:facet-reflect"]
 
-std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "once_cell/std"]
-
-nightly = []
+# Enable support for the standard library
+std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "once_cell?/std"]
+# Enable features using the nightly toolchain
+nightly = ["parking_lot?/nightly"]
 
 [[example]]
 name = "serialize"

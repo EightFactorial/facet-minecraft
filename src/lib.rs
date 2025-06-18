@@ -10,6 +10,8 @@ extern crate std;
 
 pub mod adapter;
 pub mod assert;
+
+#[cfg(feature = "custom")]
 pub mod custom;
 
 #[cfg(feature = "deserialize")]
@@ -20,7 +22,9 @@ pub use deserialize::{DeserializeError, deserialize};
 #[cfg(feature = "serialize")]
 mod serialize;
 #[cfg(feature = "serialize")]
-pub use serialize::{McSerializer, Serializer, SerializerExt, serialize, serialize_iterative};
+pub use serialize::{
+    McSerializer, SerializationTask, Serializer, SerializerExt, serialize, serialize_iterative,
+};
 
 /// The Minecraft protocol
 pub struct Minecraft;

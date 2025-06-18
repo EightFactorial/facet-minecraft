@@ -6,7 +6,9 @@ use facet_reflect::{
     FieldsForSerializeIter, HasFields, Peek, PeekListLikeIter, PeekMapIter, ScalarType,
 };
 
-use crate::{adapter::WriteAdapter, assert::AssertProtocol, custom::FacetOverride};
+#[cfg(feature = "custom")]
+use crate::custom::FacetOverride;
+use crate::{adapter::WriteAdapter, assert::AssertProtocol};
 
 mod traits;
 pub use traits::{Serializer, SerializerExt};
@@ -49,6 +51,9 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
     #[cfg(feature = "json")]
     static JSON: &FieldAttribute = &FieldAttribute::Arbitrary("json");
 
+    #[cfg(feature = "custom")]
+    let overrides = FacetOverride::global();
+
     let mut stack = Vec::new();
     stack.push(SerializationTask::Value(peek));
 
@@ -61,10 +66,9 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                 }
 
                 // TODO: Find a better way to handle overrides
+                #[cfg(feature = "custom")]
                 #[allow(clippy::collapsible_if)]
-                if let Some(custom) =
-                    FacetOverride::global().iter().find(|o| &o.id == &peek.shape().id)
-                {
+                if let Some(custom) = overrides.iter().find(|o| o.id == peek.shape().id) {
                     if let Some(ser) = custom.serialize {
                         ser(peek, &mut stack);
                         continue;
@@ -347,6 +351,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
 }
 
 /// A task to be performed during serialization.
+#[expect(missing_docs)]
 pub enum SerializationTask<'mem, 'facet, 'shape> {
     Value(Peek<'mem, 'facet, 'shape>),
     ValueVariable(Peek<'mem, 'facet, 'shape>),
