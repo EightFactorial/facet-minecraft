@@ -33,6 +33,7 @@ unnecessary_cast = "warn"
 
 [dev-dependencies]
 divan = "0.1"
+facet = { version = "0.27", default-features = false }
 
 [dependencies]
 facet-core = { default-features = false, features = ["alloc", "uuid"], version = "0.27" }
