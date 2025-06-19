@@ -1,8 +1,6 @@
-use alloc::borrow::Cow;
-
-use facet::Facet;
+pub use facet_deserialize::DeserError;
 use facet_deserialize::{
-    Cooked, DeserErrorKind, Expectation, Format, NextData, NextResult, Outcome, Span, Spanned,
+    Cooked, DeserErrorKind, Expectation, Format, NextData, Outcome, Span, Spanned,
 };
 
 use crate::{Minecraft, assert::AssertProtocol};
@@ -11,30 +9,14 @@ use crate::{Minecraft, assert::AssertProtocol};
 ///
 /// # Errors
 /// Returns an error if the deserialization fails.
+#[inline]
 #[expect(clippy::result_large_err)]
-pub fn deserialize<'input, 'facet, 'shape, T>(
-    _input: &'input [u8],
-) -> Result<T, DeserializeError<'input, 'shape>>
-where
-    'input: 'facet,
-    T: Facet<'facet> + AssertProtocol<'facet>,
-{
+pub fn deserialize<'input: 'facet, 'facet, 'shape, T: AssertProtocol<'facet>>(
+    input: &'input [u8],
+) -> Result<T, DeserError<'input, 'shape, Cooked>> {
     <T as AssertProtocol<'facet>>::assert();
 
-    todo!()
-}
-
-/// An error that can occur during deserialization.
-#[derive(Debug)]
-pub struct DeserializeError<'input, 'shape> {
-    /// The input that caused the error.
-    pub input: Cow<'input, [u8]>,
-    /// Where the error occurred
-    pub span: Span<Cooked>,
-    /// The specific error that occurred..
-    pub kind: DeserErrorKind<'shape>,
-    /// The source identifier.
-    pub source: &'static str,
+    facet_deserialize::deserialize(input, Minecraft)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -43,34 +25,30 @@ impl Format for Minecraft {
     type Input<'i> = [u8];
     type SpanType = Cooked;
 
-    fn source(&self) -> &'static str { "protocol" }
+    fn source(&self) -> &'static str { crate::ERROR_SOURCE }
 
-    fn next<'i, 'f, 's>(
+    fn next<'i, 'f, 's: 'i>(
         &mut self,
-        _next: NextData<'i, 'f, 's, Cooked, [u8]>,
+        next: NextData<'i, 'f, 's, Cooked, [u8]>,
         _expt: Expectation,
-    ) -> NextResult<
-        'i,
-        'f,
-        's,
-        Spanned<Outcome<'i>, Cooked>,
-        Spanned<DeserErrorKind<'s>, Cooked>,
-        Cooked,
-        [u8],
-    >
-    where
-        's: 'i,
-    {
+    ) -> (
+        NextData<'i, 'f, 's, Cooked, [u8]>,
+        Result<Spanned<Outcome<'i>, Cooked>, Spanned<DeserErrorKind<'s>, Cooked>>,
+    ) {
+        let _input = &next.input()[next.start()..];
+
         todo!()
     }
 
-    fn skip<'i, 'f, 's>(
+    fn skip<'i, 'f, 's: 'i>(
         &mut self,
-        _next: NextData<'i, 'f, 's, Cooked, [u8]>,
-    ) -> NextResult<'i, 'f, 's, Span<Cooked>, Spanned<DeserErrorKind<'s>, Cooked>, Cooked, [u8]>
-    where
-        's: 'i,
-    {
+        next: NextData<'i, 'f, 's, Cooked, [u8]>,
+    ) -> (
+        NextData<'i, 'f, 's, Cooked, [u8]>,
+        Result<Span<Cooked>, Spanned<DeserErrorKind<'s>, Cooked>>,
+    ) {
+        let _input = &next.input()[next.start()..];
+
         todo!()
     }
 }

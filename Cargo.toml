@@ -50,6 +50,7 @@ ariadne = { default-features = false, optional = true, version = "0.5" }
 facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
 facet-json = { default-features = false, optional = true, version = "0.24" }
 facet-reflect = { default-features = false, features = ["alloc", "uuid"], optional = true, version = "0.27" }
+facet-serialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
 inventory = { optional = true, version = "0.3" }
 once_cell = { default-features = false, features = ["alloc"], optional = true, version = "1.21" }
 parking_lot = { default-features = false, optional = true, version = "0.12" }
@@ -74,10 +75,10 @@ rich-diagnostics = ["dep:ariadne", "facet-deserialize?/rich-diagnostics", "facet
 # Enable deserialization support
 deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
 # Enable serialization support
-serialize = ["dep:facet-reflect"]
+serialize = ["dep:facet-reflect", "dep:facet-serialize"]
 
 # Enable support for the standard library
-std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "once_cell?/std"]
+std = ["facet-core/std", "facet-deserialize?/std", "facet-reflect?/std", "facet-serialize?/std", "once_cell?/std"]
 # Enable features using the nightly toolchain
 nightly = ["parking_lot?/nightly"]
 

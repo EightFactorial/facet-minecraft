@@ -25,8 +25,6 @@ pub struct SerializeErrorData<'mem, 'facet, 'shape> {
 }
 
 impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
-    const SOURCE: &'static str = "facet_minecraft";
-
     /// Create a new [`SerializeError`] indicating a value
     /// and the reason for the error.
     #[must_use]
@@ -34,7 +32,7 @@ impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
         SerializeError::InvalidType(SerializeErrorData {
             reason,
             value: Some(value),
-            source: Self::SOURCE,
+            source: crate::ERROR_SOURCE,
         })
     }
 
@@ -44,7 +42,7 @@ impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
         SerializeError::InvalidType(SerializeErrorData {
             reason,
             value: None,
-            source: Self::SOURCE,
+            source: crate::ERROR_SOURCE,
         })
     }
 
