@@ -22,7 +22,10 @@ pub mod custom;
 #[cfg(feature = "deserialize")]
 mod deserialize;
 #[cfg(feature = "deserialize")]
-pub use deserialize::{DeserError, deserialize};
+pub use deserialize::{
+    DeserializationTask, DeserializeError, Deserializer, DeserializerExt, McDeserializer,
+    deserialize, deserialize_iterative,
+};
 
 #[cfg(feature = "serialize")]
 mod serialize;
@@ -31,6 +34,3 @@ pub use serialize::{
     McSerializer, OwnedPeek, SerializationTask, SerializeError, Serializer, SerializerExt,
     serialize, serialize_iterative,
 };
-
-/// The Minecraft protocol
-pub struct Minecraft;

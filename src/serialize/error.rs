@@ -5,7 +5,7 @@ use core::{
 
 use facet_reflect::Peek;
 
-/// An error occured during serialization.
+/// An error that occurred during serialization.
 pub enum SerializeError<'mem, 'facet, 'shape, T> {
     /// An error that occurred while serializing a value.
     InvalidType(SerializeErrorData<'mem, 'facet, 'shape>),
