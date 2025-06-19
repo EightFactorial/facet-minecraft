@@ -13,22 +13,39 @@ pub enum SerializeError<'mem, 'facet, 'shape, T> {
     WriteError(T),
 }
 
+/// Data associated with a serialization error.
+#[allow(unreachable_pub)]
+pub struct SerializeErrorData<'mem, 'facet, 'shape> {
+    /// The value that caused the error
+    pub value: Option<Peek<'mem, 'facet, 'shape>>,
+    /// The reason for the error.
+    pub reason: &'static str,
+    /// The source identifier.
+    pub source: &'static str,
+}
+
 impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
+    const SOURCE: &'static str = "facet_minecraft";
+
     /// Create a new [`SerializeError`] indicating a value
     /// and the reason for the error.
     #[must_use]
     pub(super) fn new(value: Peek<'mem, 'facet, 'shape>, reason: &'static str) -> Self {
         SerializeError::InvalidType(SerializeErrorData {
-            value: Some(value),
             reason,
-            source: "minecraft",
+            value: Some(value),
+            source: Self::SOURCE,
         })
     }
 
     /// Create a new [`SerializeError`] indicating the reason for the error.
     #[must_use]
     pub(super) fn new_reason(reason: &'static str) -> Self {
-        SerializeError::InvalidType(SerializeErrorData { value: None, reason, source: "minecraft" })
+        SerializeError::InvalidType(SerializeErrorData {
+            reason,
+            value: None,
+            source: Self::SOURCE,
+        })
     }
 
     /// Drop the inner data, unbinding the error from the lifetime of the value.
@@ -43,19 +60,6 @@ impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
             }),
         }
     }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-#[allow(unreachable_pub)]
-/// Data associated with a serialization error.
-pub struct SerializeErrorData<'mem, 'facet, 'shape> {
-    /// The value that caused the error
-    pub value: Option<Peek<'mem, 'facet, 'shape>>,
-    /// The reason for the error.
-    pub reason: &'static str,
-    /// The source identifier.
-    pub source: &'static str,
 }
 
 impl<T> From<T> for SerializeError<'_, '_, '_, T> {
