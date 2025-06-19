@@ -13,6 +13,9 @@ use crate::{adapter::WriteAdapter, assert::AssertProtocol};
 mod traits;
 pub use traits::{OwnedPeek, Serializer, SerializerExt};
 
+mod error;
+pub use error::SerializeError;
+
 /// A serializer for Minecraft protocol data.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct McSerializer<W: WriteAdapter>(pub W);
@@ -22,10 +25,11 @@ pub struct McSerializer<W: WriteAdapter>(pub W);
 /// # Errors
 /// Returns an error if the serialization fails.
 #[inline]
-pub fn serialize<'mem, 'facet, T, W>(value: &'mem T, writer: W) -> Result<(), W::Error>
+pub fn serialize<'mem, 'facet, 'shape, T, W>(
+    value: &'mem T,
+    writer: W,
+) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>>
 where
-    'mem: 'facet,
-    'facet: 'mem,
     T: AssertProtocol<'facet>,
     W: WriteAdapter,
 {
@@ -46,7 +50,7 @@ where
 pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
     peek: Peek<'mem, 'facet, 'shape>,
     writer: &mut W,
-) -> Result<(), W::Error> {
+) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
     static VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
     #[cfg(feature = "custom")]
     static CUSTOM: &ShapeAttribute = &ShapeAttribute::Arbitrary("custom");
@@ -56,7 +60,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
     #[cfg(feature = "custom")]
     let overrides = FacetOverride::global();
 
-    let mut stack = Vec::new();
+    let mut stack = Vec::with_capacity(1);
     stack.push(SerializationTask::Value(peek));
 
     while let Some(task) = stack.pop() {
@@ -132,10 +136,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                             writer.serialize_isize(*peek.get::<isize>().unwrap())?;
                         }
                         _ => {
-                            panic!(
-                                "Attempted to serialize an unsupported type `{}`",
-                                peek.shape().type_identifier
-                            )
+                            return Err(SerializeError::new(peek, "unsupported type"));
                         }
                     },
                     Def::Map(..) => {
@@ -160,13 +161,17 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                             writer.serialize_bool(false)?;
                         }
                     }
-                    Def::Set(..) => todo!("Push `Task::Set`"),
+                    Def::Set(..) => {
+                        return Err(SerializeError::new(peek, "sets are not supported yet"));
+                    }
                     Def::SmartPointer(..) => {
                         let peek = peek.into_smart_pointer().unwrap();
                         if let Some(inner) = peek.borrow_inner() {
                             stack.push(SerializationTask::Value(inner));
                         } else {
-                            panic!("Attempted to serialize a smart pointer with no inner value!");
+                            return Err(SerializeError::new_reason(
+                                "smart pointer is not initialized",
+                            ));
                         }
                     }
                     Def::Undefined => match peek.shape().ty {
@@ -261,10 +266,11 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                         Some(ScalarType::ISize) => {
                             writer.serialize_var_isize(*peek.get::<isize>().unwrap())?;
                         }
-                        other => {
-                            panic!(
-                                "Attempted to serialize a non-scalar type `{other:?}` as variable-length"
-                            )
+                        _ => {
+                            return Err(SerializeError::new(
+                                peek,
+                                "type does not support variable-length serialization",
+                            ));
                         }
                     },
                     Def::Option(..) => {
@@ -289,16 +295,19 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                         let peek = peek.into_list_like().unwrap();
                         stack.push(SerializationTask::Array(peek.iter(), true));
                     }
-                    other => {
-                        panic!(
-                            "Attempted to serialize a non-scalar type `{other:?}` as variable-length"
-                        )
+                    _ => {
+                        return Err(SerializeError::new(
+                            peek,
+                            "type does not support variable-length serialization",
+                        ));
                     }
                 }
             }
             // TODO: Avoid recursion here if possible.
             SerializationTask::ValueOwned(owned) => {
-                serialize_iterative(owned.peek(), writer)?;
+                if let Err(err) = serialize_iterative(owned.peek(), writer) {
+                    return Err(err.into_owned());
+                }
             }
             #[cfg(feature = "json")]
             SerializationTask::ValueJson(peek) => {

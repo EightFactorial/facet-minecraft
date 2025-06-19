@@ -23,8 +23,8 @@ pub use deserialize::{DeserializeError, deserialize};
 mod serialize;
 #[cfg(feature = "serialize")]
 pub use serialize::{
-    McSerializer, OwnedPeek, SerializationTask, Serializer, SerializerExt, serialize,
-    serialize_iterative,
+    McSerializer, OwnedPeek, SerializationTask, SerializeError, Serializer, SerializerExt,
+    serialize, serialize_iterative,
 };
 
 /// The Minecraft protocol
