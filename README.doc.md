@@ -1,7 +1,9 @@
 # TODO: Docs
 
 ```rust
-use facet::Facet;
+use facet_derive::Facet;
+
+extern crate facet_core as facet;
 
 /// A player struct
 #[derive(Facet)]
