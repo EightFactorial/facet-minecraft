@@ -33,7 +33,7 @@ where
     T: AssertProtocol<'facet>,
     W: WriteAdapter,
 {
-    <T as AssertProtocol<'facet>>::assert();
+    let () = const { <T as AssertProtocol<'facet>>::ASSERT };
 
     serialize_iterative(Peek::new(value), &mut McSerializer(writer))
 }

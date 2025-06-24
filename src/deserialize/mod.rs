@@ -27,7 +27,7 @@ pub struct McDeserializer;
 pub fn deserialize<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
     input: &'input [u8],
 ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'facet, 'shape>> {
-    <T as AssertProtocol<'facet>>::assert();
+    let () = const { <T as AssertProtocol<'facet>>::ASSERT };
 
     deserialize_iterative::<T, McDeserializer>(input, T::SHAPE, McDeserializer)
 }

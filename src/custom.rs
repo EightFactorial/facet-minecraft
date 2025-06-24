@@ -11,6 +11,8 @@ use facet_reflect::Peek;
 pub use inventory::submit;
 use once_cell::sync::OnceCell;
 
+#[cfg(feature = "deserialize")]
+use crate::deserialize::DeserializationTask;
 #[cfg(feature = "serialize")]
 use crate::serialize::SerializationTask;
 
@@ -32,7 +34,10 @@ type SerializeFn = for<'mem, 'facet, 'shape> fn(
     &mut Vec<SerializationTask<'mem, 'facet, 'shape>>,
 );
 #[cfg(feature = "deserialize")]
-type DeserializeFn = for<'mem, 'facet, 'shape> fn(Peek<'mem, 'facet, 'shape>);
+type DeserializeFn = for<'input, 'facet, 'shape> fn(
+    &'input [u8],
+    &mut Vec<DeserializationTask<'input, 'facet, 'shape>>,
+);
 
 impl FacetOverride {
     /// Returns a static slice of all registered [`FacetOverride`]s.
