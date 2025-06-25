@@ -1,4 +1,4 @@
-use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, string::String, vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
 use facet::{Def, FieldAttribute, ShapeAttribute, StructKind, Type, UserType};
@@ -60,17 +60,20 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
     #[cfg(feature = "custom")]
     let overrides = FacetOverride::global();
 
-    let mut stack = Vec::with_capacity(1);
-    stack.push(SerializationTask::Value(peek));
+    // Initialize the stack with the initial value to serialize.
+    let mut stack = vec![SerializationTask::Value(peek)];
 
     while let Some(task) = stack.pop() {
         match task {
             SerializationTask::Value(mut peek) => {
+                // Use the inner type if the shape has the `transparent` attribute.
                 if peek.shape().attributes.contains(&ShapeAttribute::Transparent) {
                     let inner = peek.into_struct().unwrap();
                     peek = inner.field(0).unwrap();
                 }
 
+                // If the shape has a `custom` attribute,
+                // check for a custom serialization function.
                 #[cfg(feature = "custom")]
                 #[allow(clippy::collapsible_if)]
                 if peek.shape().attributes.contains(CUSTOM) {
@@ -82,6 +85,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                     }
                 }
 
+                // Serialize the value based on its definition.
                 match peek.shape().def {
                     Def::Scalar(..) => match peek.scalar_type() {
                         Some(ScalarType::Unit) => writer.serialize_unit()?,
@@ -229,11 +233,13 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                 }
             }
             SerializationTask::ValueVariable(mut peek) => {
+                // Use the inner type if the shape has the `transparent` attribute.
                 if peek.shape().attributes.contains(&ShapeAttribute::Transparent) {
                     let inner = peek.into_struct().unwrap();
                     peek = inner.field(0).unwrap();
                 }
 
+                // Serialize the value based on its definition.
                 match peek.shape().def {
                     Def::Scalar(..) => match peek.scalar_type() {
                         Some(ScalarType::U16) => {
