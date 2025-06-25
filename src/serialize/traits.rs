@@ -1,4 +1,4 @@
-#![allow(clippy::inline_always)]
+#![allow(clippy::inline_always, clippy::missing_errors_doc)]
 
 use facet_core::Facet;
 use facet_reflect::Peek;
@@ -18,7 +18,6 @@ impl<'facet, T: Facet<'facet>> OwnedPeek<'facet> for T {
 // -------------------------------------------------------------------------------------------------
 
 /// A serializer for Minecraft protocol data.
-#[expect(clippy::missing_errors_doc)]
 pub trait Serializer<'shape> {
     /// The error type returned by serialization methods
     type Error;
@@ -79,7 +78,6 @@ pub trait Serializer<'shape> {
 
 /// An extension trait for [`Serializer`] that provides
 /// variable-length serialization methods.
-#[expect(clippy::missing_errors_doc)]
 pub trait SerializerExt<'shape>: Serializer<'shape> {
     /// Serialize a variable-length unsigned 16-bit integer.
     fn serialize_var_u16(&mut self, val: u16) -> Result<(), Self::Error>;
