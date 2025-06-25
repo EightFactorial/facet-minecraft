@@ -108,7 +108,12 @@ pub trait Deserializer {
         &mut self,
         input: &'input [u8],
     ) -> Result<(bool, &'input [u8]), DeserializeError<'input, '_, '_>> {
-        self.deserialize_u8(input).and_then(|_| todo!())
+        match input.split_first() {
+            Some((0u8, remainder)) => Ok((false, remainder)),
+            Some((1u8, remainder)) => Ok((true, remainder)),
+            Some(..) => todo!("Return an error gracefully"),
+            None => todo!("Return an error gracefully"),
+        }
     }
 
     /// Deserialize a UTF-8 string slice.
