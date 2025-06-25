@@ -52,11 +52,11 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
     writer: &mut W,
 ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
     static VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
-    #[cfg(feature = "custom")]
-    static CUSTOM: &ShapeAttribute = &ShapeAttribute::Arbitrary("custom");
     #[cfg(feature = "json")]
     static JSON: &FieldAttribute = &FieldAttribute::Arbitrary("json");
 
+    #[cfg(feature = "custom")]
+    static CUSTOM: &ShapeAttribute = &ShapeAttribute::Arbitrary("custom");
     #[cfg(feature = "custom")]
     let overrides = FacetOverride::global();
 

@@ -9,9 +9,30 @@
 use alloc::{boxed::Box, vec, vec::Vec};
 
 use facet_derive::Facet;
-use facet_minecraft::serialize;
+use facet_minecraft::deserialize;
 
 extern crate alloc;
 extern crate facet_core as facet;
 
-fn main() {}
+fn main() {
+    // let (de, rem) = deserialize::<u32>(&[0, 0, 0, 0]).unwrap();
+    // assert_eq!(de, 0u32);
+    // assert!(rem.is_empty());
+
+    // let (de, rem) = deserialize::<u32>(&[127, 0, 0, 0]).unwrap();
+    // assert_eq!(de, 127u32);
+    // assert!(rem.is_empty());
+
+    // let (de, rem) = deserialize::<Variable<u32>>(&[0]).unwrap();
+    // assert_eq!(de.0, 0u32);
+    // assert!(rem.is_empty());
+
+    // let (de, rem) = deserialize::<Variable<u32>>(&[127]).unwrap();
+    // assert_eq!(de.0, 127u32);
+    // assert!(rem.is_empty());
+}
+
+// -------------------------------------------------------------------------------------------------
+
+#[derive(Facet)]
+struct Variable<T>(#[facet(var)] T);

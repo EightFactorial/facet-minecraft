@@ -34,9 +34,9 @@ type SerializeFn = for<'mem, 'facet, 'shape> fn(
     &mut Vec<SerializationTask<'mem, 'facet, 'shape>>,
 );
 #[cfg(feature = "deserialize")]
-type DeserializeFn = for<'input, 'facet, 'shape> fn(
+type DeserializeFn = for<'input, 'stack, 'facet, 'shape> fn(
     &'input [u8],
-    &mut Vec<DeserializationTask<'input, 'facet, 'shape>>,
+    &mut Vec<DeserializationTask<'stack, 'facet, 'shape>>,
 );
 
 impl FacetOverride {

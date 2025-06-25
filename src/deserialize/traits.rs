@@ -367,29 +367,77 @@ impl Deserializer for McDeserializer {
 impl DeserializerExt for McDeserializer {
     fn deserialize_var_u16<'input>(
         &mut self,
-        _input: &'input [u8],
+        mut input: &'input [u8],
     ) -> Result<(u16, &'input [u8]), DeserializeError<'input, '_, '_>> {
-        todo!()
+        let mut number: u16 = 0;
+        for i in 0..3 {
+            if let Some((&byte, remainder)) = input.split_first() {
+                input = remainder;
+                number |= u16::from(byte & 0b0111_1111) << (7 * i);
+                if byte & 0b1000_0000 == 0 {
+                    break;
+                }
+            } else {
+                todo!("Return an error gracefully");
+            }
+        }
+        Ok((number, input))
     }
 
     fn deserialize_var_u32<'input>(
         &mut self,
-        _input: &'input [u8],
+        mut input: &'input [u8],
     ) -> Result<(u32, &'input [u8]), DeserializeError<'input, '_, '_>> {
-        todo!()
+        let mut number: u32 = 0;
+        for i in 0..5 {
+            if let Some((&byte, remainder)) = input.split_first() {
+                input = remainder;
+                number |= u32::from(byte & 0b0111_1111) << (7 * i);
+                if byte & 0b1000_0000 == 0 {
+                    break;
+                }
+            } else {
+                todo!("Return an error gracefully");
+            }
+        }
+        Ok((number, input))
     }
 
     fn deserialize_var_u64<'input>(
         &mut self,
-        _input: &'input [u8],
+        mut input: &'input [u8],
     ) -> Result<(u64, &'input [u8]), DeserializeError<'input, '_, '_>> {
-        todo!()
+        let mut number: u64 = 0;
+        for i in 0..10 {
+            if let Some((&byte, remainder)) = input.split_first() {
+                input = remainder;
+                number |= u64::from(byte & 0b0111_1111) << (7 * i);
+                if byte & 0b1000_0000 == 0 {
+                    break;
+                }
+            } else {
+                todo!("Return an error gracefully");
+            }
+        }
+        Ok((number, input))
     }
 
     fn deserialize_var_u128<'input>(
         &mut self,
-        _input: &'input [u8],
+        mut input: &'input [u8],
     ) -> Result<(u128, &'input [u8]), DeserializeError<'input, '_, '_>> {
-        todo!()
+        let mut number: u128 = 0;
+        for i in 0..19 {
+            if let Some((&byte, remainder)) = input.split_first() {
+                input = remainder;
+                number |= u128::from(byte & 0b0111_1111) << (7 * i);
+                if byte & 0b1000_0000 == 0 {
+                    break;
+                }
+            } else {
+                todo!("Return an error gracefully");
+            }
+        }
+        Ok((number, input))
     }
 }

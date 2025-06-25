@@ -1,5 +1,5 @@
 //! TODO
-use facet_minecraft::{McSerializer, SerializerExt};
+use facet_minecraft::{DeserializerExt, McDeserializer, McSerializer, SerializerExt};
 
 #[test]
 fn verify() {
@@ -44,4 +44,8 @@ fn assert_eq(var: u16, bytes: Vec<u8>) {
     let mut ser = McSerializer(Vec::new());
     ser.serialize_var_u16(var).unwrap();
     assert_eq!(ser.0, bytes, "Expected {var} to serialize as {bytes:?}!");
+
+    let (de, rem) = McDeserializer.deserialize_var_u16(&bytes).unwrap();
+    assert_eq!(de, var, "Expected {bytes:?} to deserialize as {var}!");
+    assert!(rem.is_empty(), "Found remaining bytes after deserialization: {rem:?}!");
 }
