@@ -1,10 +1,11 @@
 //! A trait and methods for asserting that a type can be read and written.
+#![expect(clippy::single_match)]
 
 #[cfg(feature = "custom")]
 use facet::ShapeAttribute;
 use facet::{
     Def, EnumType, Facet, Field, FieldAttribute, NumericType, PointerType, PrimitiveType,
-    ScalarAffinity, SequenceType, Shape, ShapeLayout, StructType, TextualType, Type, UserType,
+    SequenceType, Shape, ShapeLayout, StructType, TextualType, Type, UserType,
 };
 
 /// A trait for asserting that a type can be read and written.
@@ -12,7 +13,7 @@ pub trait AssertProtocol<'a>: Facet<'a> {
     /// An assertion that the type can be read and written.
     const ASSERT: () = assert!(valid_shape(Self::SHAPE), "Type cannot be read/written!");
     /// An assertion that the type can be read and written.
-    fn assert() { let () = Self::ASSERT; }
+    fn assert() { const { Self::ASSERT } }
 }
 
 impl<'a, T: Facet<'a>> AssertProtocol<'a> for T {}
@@ -27,7 +28,6 @@ const fn valid_shape(shape: &Shape<'_>) -> bool {
         let mut index = 0usize;
         while index < shape.attributes.len() {
             if let ShapeAttribute::Arbitrary(attr) = shape.attributes[index] {
-                #[expect(clippy::single_match)]
                 match attr.as_bytes() {
                     // Support any type with the `custom` attribute.
                     b"custom" => return true,
@@ -47,13 +47,8 @@ const fn valid_shape(shape: &Shape<'_>) -> bool {
         Type::User(UserType::Struct(user)) => valid_struct_type(&user),
         Type::User(UserType::Enum(user)) => valid_enum_type(&user),
         Type::User(UserType::Opaque) => match shape.def {
-            Def::Scalar(def) => matches!(
-                def.affinity,
-                ScalarAffinity::Number(..)
-                    | ScalarAffinity::ComplexNumber(..)
-                    | ScalarAffinity::String(..)
-                    | ScalarAffinity::Boolean(..)
-            ),
+            // TODO: `IpAddr` and `SocketAddr` are not supported.
+            // Def::Scalar => todo!(),
             // TODO: Cannot determine if shapes are valid at compile time.
             // Def::Map(def) => valid_shape(def.k()) && valid_shape(def.v()),
             // Def::Set(def) => valid_shape(def.t()),
@@ -70,7 +65,6 @@ const fn valid_shape(shape: &Shape<'_>) -> bool {
         // Type::Pointer(PointerType::Reference(ptr)) => valid_shape(ptr.target()),
         Type::Pointer(PointerType::Reference(..)) => true,
         Type::Pointer(..) => panic!("Pointers are not supported yet!"),
-        _ => panic!("This type does not support assertions yet!"),
     }
 }
 
@@ -99,40 +93,37 @@ const fn valid_enum_type(ty: &EnumType<'_>) -> bool {
 
 /// Returns `true` if the given [`Field`] can be read and written.
 #[must_use]
-#[expect(clippy::single_match)]
 const fn valid_field(field: &Field<'_>) -> bool {
     let mut index = 0usize;
     while index < field.attributes.len() {
-        if let FieldAttribute::Arbitrary(attr) = field.attributes[index] {
-            match attr.as_bytes() {
-                // Check for the variably-sized marker attribute.
-                b"var" => {
-                    // Make sure the type is u16/i16, u32/i32, u64/i64, u128/u128, or usize/isize.
-                    // Other sizes and floats are not allowed to be variably sized.
-                    if let Type::Primitive(PrimitiveType::Numeric(numeric)) = field.shape.ty {
-                        if let ShapeLayout::Sized(layout) = field.shape().layout {
-                            match numeric {
-                                // Accept u16/i16, u32/i32, u64/i64, i128/u128, and usize/isize.
-                                NumericType::Integer { .. }
-                                    if matches!(layout.size(), 2 | 4 | 8 | 16) => {}
-                                // Reject u8/i8
-                                NumericType::Integer { .. } => {
-                                    panic!("u8/i8 cannot be variably sized!")
-                                }
-                                // Reject f16, f32, f64, and f128
-                                NumericType::Float => {
-                                    panic!("Floating point types cannot be variably sized!")
-                                }
+        let FieldAttribute::Arbitrary(attr) = field.attributes[index];
+
+        match attr.as_bytes() {
+            // Check for the variably-sized marker attribute.
+            b"var" => {
+                // Make sure the type is u16/i16, u32/i32, u64/i64, u128/u128, or usize/isize.
+                // Other sizes and floats are not allowed to be variably sized.
+                if let Type::Primitive(PrimitiveType::Numeric(numeric)) = field.shape.ty {
+                    if let ShapeLayout::Sized(layout) = field.shape().layout {
+                        match numeric {
+                            // Accept u16/i16, u32/i32, u64/i64, i128/u128, and usize/isize.
+                            NumericType::Integer { .. }
+                                if matches!(layout.size(), 2 | 4 | 8 | 16) => {}
+                            // Reject u8/i8
+                            NumericType::Integer { .. } => {
+                                panic!("u8/i8 cannot be variably sized!")
                             }
-                        } else {
-                            panic!(
-                                "Only numeric types (u16, u32, i64, etc) can be variably sized!"
-                            );
+                            // Reject f16, f32, f64, and f128
+                            NumericType::Float => {
+                                panic!("Floating point types cannot be variably sized!")
+                            }
                         }
+                    } else {
+                        panic!("Only numeric types (u16, u32, i64, etc) can be variably sized!");
                     }
                 }
-                _ => {}
             }
+            _ => {}
         }
 
         index += 1;

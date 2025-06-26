@@ -43,7 +43,8 @@ impl McDeserializer {
 ///
 /// # Errors
 /// Returns an error if the deserialization fails.
-#[inline]
+#[inline(always)]
+#[expect(clippy::inline_always)]
 pub fn deserialize<'input: 'facet, 'facet, 'shape, T: AssertProtocol<'facet>>(
     input: &'input [u8],
 ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'facet, 'shape>> {
@@ -87,7 +88,7 @@ pub fn deserialize_iterative<
     }
 }
 
-#[expect(unused_variables)]
+#[expect(clippy::too_many_lines, unused_variables)]
 fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
     mut input: &'input [u8],
     mut partial: Partial<'facet, 'shape>,
@@ -126,7 +127,7 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                 }
 
                 match partial.shape().def {
-                    Def::Scalar(..) => match ScalarType::try_from_shape(partial.shape()) {
+                    Def::Scalar => match ScalarType::try_from_shape(partial.shape()) {
                         Some(ScalarType::Unit) => match de.deserialize_unit(input) {
                             Ok(((), remainder)) => {
                                 input = remainder;
@@ -309,7 +310,6 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                     Def::Option(_def) => todo!(),
                     Def::SmartPointer(_def) => todo!(),
                     Def::Undefined => todo!(),
-                    _ => todo!(),
                 }
             }
             DeserializationTask::FieldVariable(mut partial) => {
@@ -323,7 +323,6 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                     Type::Sequence(ty) => todo!(),
                     Type::User(ty) => todo!(),
                     Type::Pointer(ty) => todo!(),
-                    _ => todo!(),
                 }
             }
             DeserializationTask::Skip(len) => {

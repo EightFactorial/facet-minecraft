@@ -15,13 +15,31 @@ extern crate alloc;
 extern crate facet_core as facet;
 
 fn main() {
-    // let (de, rem) = deserialize::<u32>(&[0, 0, 0, 0]).unwrap();
-    // assert_eq!(de, 0u32);
-    // assert!(rem.is_empty());
+    // u8
+    let (de, rem) = deserialize::<u8>(&[0]).unwrap();
+    assert_eq!(de, 0u8);
+    assert!(rem.is_empty());
 
-    // let (de, rem) = deserialize::<u32>(&[127, 0, 0, 0]).unwrap();
-    // assert_eq!(de, 127u32);
-    // assert!(rem.is_empty());
+    let (de, rem) = deserialize::<u8>(&[127]).unwrap();
+    assert_eq!(de, 127u8);
+
+    // u32
+    let (de, rem) = deserialize::<u32>(&[0, 0, 0, 0]).unwrap();
+    assert_eq!(de, 0u32);
+    assert!(rem.is_empty());
+
+    let (de, rem) = deserialize::<u32>(&[127, 0, 0, 0]).unwrap();
+    assert_eq!(de, 127u32);
+    assert!(rem.is_empty());
+
+    // u128
+    let (de, rem) = deserialize::<u128>(&[0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+    assert_eq!(de, 0u128);
+    assert!(rem.is_empty());
+
+    let (de, rem) = deserialize::<u128>(&[127, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+    assert_eq!(de, 127u128);
+    assert!(rem.is_empty());
 
     // let (de, rem) = deserialize::<Variable<u32>>(&[0]).unwrap();
     // assert_eq!(de.0, 0u32);

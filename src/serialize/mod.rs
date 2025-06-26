@@ -17,14 +17,55 @@ mod error;
 pub use error::SerializeError;
 
 /// A serializer for Minecraft protocol data.
+#[repr(transparent)]
 #[derive(Debug, Default, Clone, Copy)]
 pub struct McSerializer<W: WriteAdapter>(pub W);
 
+impl<W: WriteAdapter> McSerializer<W> {
+    /// Serialize a type into this writer.
+    ///
+    /// This is a wrapper around [`serialize_iterative`],
+    /// using [`McSerializer`] as the serializer.
+    ///
+    /// # Errors
+    /// Returns an error if the serialization fails.
+    #[inline(always)]
+    #[expect(clippy::inline_always)]
+    pub fn serialize<'mem, 'facet, 'shape, T: AssertProtocol<'facet>>(
+        &mut self,
+        value: &'mem T,
+    ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
+        let () = const { <T as AssertProtocol<'facet>>::ASSERT };
+
+        serialize_iterative::<Self>(Peek::new(value), self)
+    }
+
+    /// Serialize a type to the given writer.
+    ///
+    /// This is a wrapper around [`serialize_iterative`],
+    /// using [`McSerializer`] as the serializer.
+    ///
+    /// # Errors
+    /// Returns an error if the serialization fails.
+    #[inline(always)]
+    #[expect(clippy::inline_always)]
+    pub fn serialize_into<'mem, 'facet, 'shape, T: AssertProtocol<'facet>>(
+        value: &'mem T,
+        writer: W,
+    ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
+        Self::serialize::<T>(&mut Self(writer), value)
+    }
+}
+
 /// Serialize a type to the given writer.
+///
+/// This is a wrapper around [`serialize_iterative`],
+/// using [`McSerializer`] as the serializer.
 ///
 /// # Errors
 /// Returns an error if the serialization fails.
-#[inline]
+#[inline(always)]
+#[expect(clippy::inline_always)]
 pub fn serialize<'mem, 'facet, 'shape, T, W>(
     value: &'mem T,
     writer: W,
@@ -33,9 +74,7 @@ where
     T: AssertProtocol<'facet>,
     W: WriteAdapter,
 {
-    let () = const { <T as AssertProtocol<'facet>>::ASSERT };
-
-    serialize_iterative(Peek::new(value), &mut McSerializer(writer))
+    McSerializer::<W>::serialize_into::<T>(value, writer)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -87,7 +126,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
 
                 // Serialize the value based on its definition.
                 match peek.shape().def {
-                    Def::Scalar(..) => match peek.scalar_type() {
+                    Def::Scalar => match peek.scalar_type() {
                         Some(ScalarType::Unit) => writer.serialize_unit()?,
                         Some(ScalarType::Bool) => {
                             writer.serialize_bool(*peek.get::<bool>().unwrap())?;
@@ -229,7 +268,6 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                         }
                         _ => {}
                     },
-                    _ => {}
                 }
             }
             SerializationTask::ValueVariable(mut peek) => {
@@ -241,7 +279,7 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
 
                 // Serialize the value based on its definition.
                 match peek.shape().def {
-                    Def::Scalar(..) => match peek.scalar_type() {
+                    Def::Scalar => match peek.scalar_type() {
                         Some(ScalarType::U16) => {
                             writer.serialize_var_u16(*peek.get::<u16>().unwrap())?;
                         }
