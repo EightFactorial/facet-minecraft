@@ -15,6 +15,23 @@ pub use error::DeserializeError;
 mod traits;
 pub use traits::{Deserializer, DeserializerExt};
 
+/// Deserialize a type from the given byte slice.
+///
+/// This is a wrapper around [`deserialize_iterative`],
+/// using [`McDeserializer`] as the deserializer.
+///
+/// # Errors
+/// Returns an error if the deserialization fails.
+#[inline(always)]
+#[expect(clippy::inline_always)]
+pub fn deserialize<'input: 'facet, 'facet, 'shape, T: AssertProtocol<'facet>>(
+    input: &'input [u8],
+) -> Result<(T, &'input [u8]), DeserializeError<'input, 'facet, 'shape>> {
+    McDeserializer::deserialize::<T>(input)
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// A deserializer for Minecraft protocol data.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct McDeserializer;
@@ -32,25 +49,10 @@ impl McDeserializer {
     pub fn deserialize<'input: 'facet, 'facet, 'shape, T: AssertProtocol<'facet>>(
         input: &'input [u8],
     ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'facet, 'shape>> {
-        deserialize::<T>(input)
+        let () = const { <T as AssertProtocol<'facet>>::ASSERT };
+
+        deserialize_iterative::<T, McDeserializer>(input, T::SHAPE, McDeserializer)
     }
-}
-
-/// Deserialize a type from the given byte slice.
-///
-/// This is a wrapper around [`deserialize_iterative`],
-/// using [`McDeserializer`] as the deserializer.
-///
-/// # Errors
-/// Returns an error if the deserialization fails.
-#[inline(always)]
-#[expect(clippy::inline_always)]
-pub fn deserialize<'input: 'facet, 'facet, 'shape, T: AssertProtocol<'facet>>(
-    input: &'input [u8],
-) -> Result<(T, &'input [u8]), DeserializeError<'input, 'facet, 'shape>> {
-    let () = const { <T as AssertProtocol<'facet>>::ASSERT };
-
-    deserialize_iterative::<T, McDeserializer>(input, T::SHAPE, McDeserializer)
 }
 
 // -------------------------------------------------------------------------------------------------

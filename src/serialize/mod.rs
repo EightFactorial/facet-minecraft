@@ -16,47 +16,6 @@ pub use traits::{OwnedPeek, Serializer, SerializerExt};
 mod error;
 pub use error::SerializeError;
 
-/// A serializer for Minecraft protocol data.
-#[repr(transparent)]
-#[derive(Debug, Default, Clone, Copy)]
-pub struct McSerializer<W: WriteAdapter>(pub W);
-
-impl<W: WriteAdapter> McSerializer<W> {
-    /// Serialize a type into this writer.
-    ///
-    /// This is a wrapper around [`serialize_iterative`],
-    /// using [`McSerializer`] as the serializer.
-    ///
-    /// # Errors
-    /// Returns an error if the serialization fails.
-    #[inline(always)]
-    #[expect(clippy::inline_always)]
-    pub fn serialize<'mem, 'facet, 'shape, T: AssertProtocol<'facet>>(
-        &mut self,
-        value: &'mem T,
-    ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
-        let () = const { <T as AssertProtocol<'facet>>::ASSERT };
-
-        serialize_iterative::<Self>(Peek::new(value), self)
-    }
-
-    /// Serialize a type to the given writer.
-    ///
-    /// This is a wrapper around [`serialize_iterative`],
-    /// using [`McSerializer`] as the serializer.
-    ///
-    /// # Errors
-    /// Returns an error if the serialization fails.
-    #[inline(always)]
-    #[expect(clippy::inline_always)]
-    pub fn serialize_into<'mem, 'facet, 'shape, T: AssertProtocol<'facet>>(
-        value: &'mem T,
-        writer: W,
-    ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
-        Self::serialize::<T>(&mut Self(writer), value)
-    }
-}
-
 /// Serialize a type to the given writer.
 ///
 /// This is a wrapper around [`serialize_iterative`],
@@ -75,6 +34,49 @@ where
     W: WriteAdapter,
 {
     McSerializer::<W>::serialize_into::<T>(value, writer)
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// A serializer for Minecraft protocol data.
+#[repr(transparent)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct McSerializer<W: WriteAdapter>(pub W);
+
+impl<W: WriteAdapter> McSerializer<W> {
+    /// Serialize a type to the given writer.
+    ///
+    /// This is a wrapper around [`serialize_iterative`],
+    /// using [`McSerializer`] as the serializer.
+    ///
+    /// # Errors
+    /// Returns an error if the serialization fails.
+    #[inline(always)]
+    #[expect(clippy::inline_always)]
+    pub fn serialize_into<'mem, 'facet, 'shape, T: AssertProtocol<'facet>>(
+        value: &'mem T,
+        writer: W,
+    ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
+        Self::serialize::<T>(&mut Self(writer), value)
+    }
+
+    /// Serialize a type into this writer.
+    ///
+    /// This is a wrapper around [`serialize_iterative`],
+    /// using [`McSerializer`] as the serializer.
+    ///
+    /// # Errors
+    /// Returns an error if the serialization fails.
+    #[inline(always)]
+    #[expect(clippy::inline_always)]
+    pub fn serialize<'mem, 'facet, 'shape, T: AssertProtocol<'facet>>(
+        &mut self,
+        value: &'mem T,
+    ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
+        let () = const { <T as AssertProtocol<'facet>>::ASSERT };
+
+        serialize_iterative::<Self>(Peek::new(value), self)
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
