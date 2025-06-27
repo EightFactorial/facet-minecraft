@@ -6,14 +6,13 @@
 #![allow(dead_code, unused_imports)]
 #![no_std]
 
-use alloc::{boxed::Box, vec, vec::Vec};
-
 use facet_derive::Facet;
 use facet_minecraft::deserialize;
 
 extern crate alloc;
 extern crate facet_core as facet;
 
+#[rustfmt::skip]
 fn main() {
     // u8
     let (de, rem) = deserialize::<u8>(&[0]).unwrap();
@@ -22,6 +21,7 @@ fn main() {
 
     let (de, rem) = deserialize::<u8>(&[127]).unwrap();
     assert_eq!(de, 127u8);
+    assert!(rem.is_empty());
 
     // u32
     let (de, rem) = deserialize::<u32>(&[0, 0, 0, 0]).unwrap();
@@ -33,11 +33,11 @@ fn main() {
     assert!(rem.is_empty());
 
     // u128
-    let (de, rem) = deserialize::<u128>(&[0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+    let (de, rem) = deserialize::<u128>(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
     assert_eq!(de, 0u128);
     assert!(rem.is_empty());
 
-    let (de, rem) = deserialize::<u128>(&[127, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+    let (de, rem) = deserialize::<u128>(&[127, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
     assert_eq!(de, 127u128);
     assert!(rem.is_empty());
 
@@ -52,5 +52,5 @@ fn main() {
 
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Facet)]
-struct Variable<T>(#[facet(var)] T);
+// #[derive(Facet)]
+// struct Variable<T>(#[facet(var)] T);

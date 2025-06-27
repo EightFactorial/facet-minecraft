@@ -82,7 +82,7 @@ nightly = ["parking_lot?/nightly"]
 
 [[example]]
 name = "custom"
-required-features = ["custom", "deserialize", "serialize"]
+required-features = ["custom", "full"]
 
 [[bench]]
 harness = false

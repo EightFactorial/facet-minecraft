@@ -7,40 +7,41 @@
 //! [Minecraft Wiki]: https://minecraft.wiki/w/Java_Edition_protocol/Packets
 #![no_std]
 
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 use facet_derive::Facet;
-use facet_minecraft::{SerializationTask, custom::FacetOverride, serialize};
+use facet_minecraft::{SerializationTask, custom::FacetOverride, deserialize, serialize};
 use facet_reflect::Peek;
 
 extern crate alloc;
 extern crate facet_core as facet;
 
+#[rustfmt::skip]
 fn main() {
     let mut buffer = Vec::new();
 
     // A traditional `u64` serialization.
     serialize(&1024u64, &mut buffer).unwrap();
-    assert_eq!(buffer, vec![0, 4, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(buffer, &[0, 4, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(deserialize::<u64>(&buffer).unwrap().0, 1024u64);
     buffer.clear();
 
     // Using `LikeU32` to serialize a `u64` as a `u32`.
     serialize(&LikeU32(1024u64), &mut buffer).unwrap();
-    assert_eq!(buffer, vec![0, 4, 0, 0]);
+    assert_eq!(buffer, &[0, 4, 0, 0]);
+    // assert_eq!(deserialize::<LikeU32>(&buffer).unwrap().0, LikeU32(1024u64));
     buffer.clear();
 
     // Using `Reversed` to serialize a string in reverse.
     serialize(&Reversed("Hello, World!"), &mut buffer).unwrap();
-    assert_eq!(
-        buffer,
-        vec![13u8, b'!', b'd', b'l', b'r', b'o', b'W', b' ', b',', b'o', b'l', b'l', b'e', b'H']
-    );
+    assert_eq!(buffer, &[13u8, b'!', b'd', b'l', b'r', b'o', b'W', b' ', b',', b'o', b'l', b'l', b'e', b'H']);
+    // assert_eq!(deserialize::<Reversed>(&buffer).unwrap().0, Reversed("Hello, World!"));
     buffer.clear();
 }
 
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Facet)]
+#[derive(Debug, PartialEq, Eq, Facet)]
 #[facet(custom)]
 struct LikeU32(u64);
 
@@ -61,7 +62,7 @@ facet_minecraft::custom::submit! {
 
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Facet)]
+#[derive(Debug, PartialEq, Eq, Facet)]
 #[facet(custom)]
 struct Reversed(&'static str);
 
