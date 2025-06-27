@@ -23,8 +23,8 @@ pub mod custom;
 mod deserialize;
 #[cfg(feature = "deserialize")]
 pub use deserialize::{
-    DeserializationTask, DeserializeError, Deserializer, DeserializerExt, McDeserializer,
-    deserialize, deserialize_iterative,
+    DeserializeError, Deserializer, DeserializerExt, McDeserializer, deserialize,
+    deserialize_iterative,
 };
 
 #[cfg(feature = "serialize")]

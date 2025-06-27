@@ -116,14 +116,12 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                 // If the shape has a `custom` attribute,
                 // check for a custom serialization function.
                 #[cfg(feature = "custom")]
-                #[allow(clippy::collapsible_if)]
-                if peek.shape().attributes.contains(CUSTOM) {
-                    if let Some(custom) = overrides.iter().find(|o| o.id == peek.shape().id) {
-                        if let Some(ser) = custom.serialize {
-                            ser(peek, &mut stack);
-                            continue;
-                        }
-                    }
+                if peek.shape().attributes.contains(CUSTOM)
+                    && let Some(custom) = overrides.iter().find(|o| o.id == peek.shape().id)
+                    && let Some(ser) = custom.serialize
+                {
+                    ser(peek, &mut stack);
+                    continue;
                 }
 
                 // Serialize the value based on its definition.

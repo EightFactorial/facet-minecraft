@@ -1,8 +1,10 @@
-use alloc::{borrow::Cow, string::ToString, vec};
+use alloc::{borrow::Cow, string::ToString};
+use core::ops::SubAssign;
+use std::collections::{HashMap, hash_map::Entry};
 
 #[cfg(feature = "custom")]
 use facet::ShapeAttribute;
-use facet::{Def, FieldAttribute, Shape, Type};
+use facet::{ArrayType, Def, FieldAttribute, SequenceType, Shape, SliceType, Type};
 use facet_reflect::{HeapValue, Partial, ScalarType};
 
 use crate::assert::AssertProtocol;
@@ -105,248 +107,346 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
     #[cfg(feature = "custom")]
     let overrides = FacetOverride::global();
 
-    let mut stack = vec![DeserializationTask::Object(&mut partial)];
+    let mut current = &mut partial;
+    let mut lists = HashMap::new();
 
-    while let Some(task) = stack.pop() {
-        match task {
-            DeserializationTask::Object(mut partial) => {
-                // Use the inner type if the shape has the `transparent` attribute.
-                if partial.shape().attributes.contains(&ShapeAttribute::Transparent) {
-                    partial = partial.begin_inner().unwrap();
+    loop {
+        // Use the inner type if the shape has the `transparent` attribute.
+        if current.shape().attributes.contains(&ShapeAttribute::Transparent) {
+            current = current.begin_inner().unwrap();
+        }
+
+        // If the shape has a `custom` attribute,
+        // check for a custom deserialization function.
+        #[cfg(feature = "custom")]
+        if current.shape().attributes.contains(CUSTOM)
+            && let Some(custom) = overrides.iter().find(|o| o.id == current.shape().id)
+            && let Some(de) = custom.deserialize
+        {
+            match de(current, input) {
+                Ok((part, rem)) => {
+                    current = part;
+                    input = rem;
+                    continue;
                 }
+                Err(_err) => todo!(),
+            }
+        }
 
-                // If the shape has a `custom` attribute,
-                // check for a custom serialization function.
-                #[cfg(feature = "custom")]
-                #[allow(clippy::collapsible_if)]
-                if partial.shape().attributes.contains(CUSTOM) {
-                    if let Some(custom) = overrides.iter().find(|o| o.id == partial.shape().id) {
-                        if let Some(de) = custom.deserialize {
-                            de(input, &mut stack);
-                            continue;
+        // Deserialize the value
+        match current.shape().def {
+            Def::Scalar => match current.shape().ty {
+                Type::Primitive(..) => {
+                    match deserialize_primitive(current, &mut lists, input, de) {
+                        Ok((part, rem)) => {
+                            current = part;
+                            input = rem;
                         }
+                        Err(_err) => todo!(),
                     }
                 }
+                Type::Sequence(ty) => {
+                    match deserialize_sequence(current, &mut lists, input, ty, de) {
+                        Ok((part, rem)) => {
+                            current = part;
+                            input = rem;
+                        }
+                        Err(_err) => todo!(),
+                    }
+                }
+                Type::Pointer(ty) => todo!(),
+                Type::User(ty) => todo!(),
+            },
+            Def::Slice(def) => {
+                let ty = SequenceType::Slice(SliceType { t: def.t() });
+                match deserialize_sequence(current, &mut lists, input, ty, de) {
+                    Ok((part, rem)) => {
+                        current = part;
+                        input = rem;
+                    }
+                    Err(_err) => todo!(),
+                }
+            }
+            Def::List(def) => {
+                let ty = SequenceType::Slice(SliceType { t: def.t() });
+                match deserialize_sequence(current, &mut lists, input, ty, de) {
+                    Ok((part, rem)) => {
+                        current = part;
+                        input = rem;
+                    }
+                    Err(_err) => todo!(),
+                }
+            }
+            Def::Array(def) => {
+                let ty = SequenceType::Array(ArrayType { t: def.t, n: def.n });
+                match deserialize_sequence(current, &mut lists, input, ty, de) {
+                    Ok((part, rem)) => {
+                        current = part;
+                        input = rem;
+                    }
+                    Err(_err) => todo!(),
+                }
+            }
+            Def::Map(def) => todo!(),
+            Def::Set(def) => todo!(),
+            Def::Option(def) => todo!(),
+            Def::SmartPointer(def) => todo!(),
+            Def::Undefined => todo!(),
+        }
 
-                match partial.shape().def {
-                    Def::Scalar => match ScalarType::try_from_shape(partial.shape()) {
-                        Some(ScalarType::Unit) => match de.deserialize_unit(input) {
-                            Ok(((), remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(()) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::Bool) => match de.deserialize_bool(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::Str) => match de.deserialize_str(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::String) => match de.deserialize_str(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value.to_string()) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::CowStr) => match de.deserialize_str(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(Cow::Borrowed(value)) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::F32) => match de.deserialize_f32(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::F64) => match de.deserialize_f64(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::U8) => match de.deserialize_u8(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::U16) => match de.deserialize_u16(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::U32) => match de.deserialize_u32(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::U64) => match de.deserialize_u64(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::U128) => match de.deserialize_u128(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::USize) => match de.deserialize_usize(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::I8) => match de.deserialize_i8(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::I16) => match de.deserialize_i16(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::I32) => match de.deserialize_i32(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::I64) => match de.deserialize_i64(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::I128) => match de.deserialize_i128(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(ScalarType::ISize) => match de.deserialize_isize(input) {
-                            Ok((value, remainder)) => {
-                                input = remainder;
-                                if let Err(err) = partial.set(value) {
-                                    todo!();
-                                }
-                            }
-                            Err(err) => todo!(),
-                        },
-                        Some(..) => todo!(),
-                        None => todo!(),
-                    },
-                    Def::Map(_def) => todo!(),
-                    Def::Set(_def) => todo!(),
-                    Def::List(_def) => todo!(),
-                    Def::Array(_def) => todo!(),
-                    Def::Slice(_def) => todo!(),
-                    Def::Option(_def) => todo!(),
-                    Def::SmartPointer(_def) => todo!(),
-                    Def::Undefined => todo!(),
-                }
-            }
-            DeserializationTask::FieldVariable(mut partial) => {
-                // Use the inner type if the shape has the `transparent` attribute.
-                if partial.shape().attributes.contains(&ShapeAttribute::Transparent) {
-                    partial = partial.begin_inner().unwrap();
-                }
-
-                match partial.shape().ty {
-                    Type::Primitive(ty) => todo!(),
-                    Type::Sequence(ty) => todo!(),
-                    Type::User(ty) => todo!(),
-                    Type::Pointer(ty) => todo!(),
-                }
-            }
-            DeserializationTask::Skip(len) => {
-                if let Some((_, remainder)) = input.split_at_checked(len) {
-                    input = remainder;
-                } else {
-                    todo!();
-                }
-            }
+        // If we've finished the last frame, break the loop.
+        if current.frame_count() == 1 {
+            break;
         }
     }
 
+    // Build the deserialized value.
     match partial.build() {
         Ok(heap) => Ok((heap, input)),
         Err(_err) => todo!(),
     }
 }
 
-/// A task to be performed during deserialization.
-#[expect(missing_docs)]
-pub enum DeserializationTask<'stack, 'facet, 'shape> {
-    Object(&'stack mut Partial<'facet, 'shape>),
-    FieldVariable(&'stack mut Partial<'facet, 'shape>),
-    Skip(usize),
+// -------------------------------------------------------------------------------------------------
+
+fn deserialize_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet, 'shape>,
+    lists: &mut HashMap<usize, usize>,
+    input: &'input [u8],
+    de: &mut D,
+) -> Result<
+    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+    DeserializeError<'input, 'facet, 'shape>,
+>
+where
+    'input: 'partial + 'facet,
+{
+    macro_rules! deserialize_scalar {
+        ($deserialize_fn:ident) => {
+            match de.$deserialize_fn(input) {
+                Ok((val, rem)) => match current.set(val) {
+                    Ok(partial) => handle_list_result(partial, rem, lists),
+                    Err(_err) => todo!(),
+                },
+                Err(_err) => todo!(),
+            }
+        };
+        ($deserialize_fn:ident, $($map_fn:tt)+) => {
+            match de.$deserialize_fn(input).map($($map_fn)+) {
+                Ok((val, rem)) => match current.set(val) {
+                    Ok(partial) => handle_list_result(partial, rem, lists),
+                    Err(_err) => todo!(),
+                },
+                Err(_err) => todo!(),
+            }
+        };
+    }
+
+    fn handle_list_result<'input, 'partial, 'facet, 'shape>(
+        mut partial: &'partial mut Partial<'facet, 'shape>,
+        input: &'input [u8],
+        lists: &mut HashMap<usize, usize>,
+    ) -> Result<
+        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+        DeserializeError<'input, 'facet, 'shape>,
+    > {
+        let frame_count = partial.frame_count().saturating_sub(1);
+        if let Some(n) = lists.get_mut(&frame_count) {
+            *n = n.saturating_sub(1);
+
+            match partial.end() {
+                Ok(part) => partial = part,
+                Err(_err) => todo!(),
+            }
+
+            if *n == 0 {
+                lists.remove(&frame_count);
+
+                Ok((partial, input))
+            } else {
+                match partial.begin_list_item() {
+                    Ok(part) => Ok((part, input)),
+                    Err(_err) => todo!(),
+                }
+            }
+        } else {
+            Ok((partial, input))
+        }
+    }
+
+    #[cfg_attr(rustfmt, rustfmt::skip)]
+    match ScalarType::try_from_shape(current.shape()) {
+        Some(ScalarType::Unit) => deserialize_scalar!(deserialize_unit),
+        Some(ScalarType::Bool) => deserialize_scalar!(deserialize_bool),
+        Some(ScalarType::U8) => deserialize_scalar!(deserialize_u8),
+        Some(ScalarType::U16) => deserialize_scalar!(deserialize_u16),
+        Some(ScalarType::U32) => deserialize_scalar!(deserialize_u32),
+        Some(ScalarType::U64) => deserialize_scalar!(deserialize_u64),
+        Some(ScalarType::U128) => deserialize_scalar!(deserialize_u128),
+        Some(ScalarType::USize) => deserialize_scalar!(deserialize_usize),
+        Some(ScalarType::I8) => deserialize_scalar!(deserialize_i8),
+        Some(ScalarType::I16) => deserialize_scalar!(deserialize_i16),
+        Some(ScalarType::I32) => deserialize_scalar!(deserialize_i32),
+        Some(ScalarType::I64) => deserialize_scalar!(deserialize_i64),
+        Some(ScalarType::I128) => deserialize_scalar!(deserialize_i128),
+        Some(ScalarType::ISize) => deserialize_scalar!(deserialize_isize),
+        Some(ScalarType::F32) => deserialize_scalar!(deserialize_f32),
+        Some(ScalarType::F64) => deserialize_scalar!(deserialize_f64),
+        Some(ScalarType::Str) => deserialize_scalar!(deserialize_str),
+        Some(ScalarType::String) => deserialize_scalar!(deserialize_str, |(s, r)| (s.to_string(), r)),
+        Some(ScalarType::CowStr) => deserialize_scalar!(deserialize_str, |(s, r)| (Cow::Borrowed(s), r)),
+        Some(..) => todo!(),
+        None => todo!(),
+    }
+}
+
+#[expect(dead_code)]
+fn deserialize_var_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet, 'shape>,
+    lists: &mut HashMap<usize, usize>,
+    input: &'input [u8],
+    de: &mut D,
+) -> Result<
+    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+    DeserializeError<'input, 'facet, 'shape>,
+>
+where
+    'input: 'partial + 'facet,
+{
+    macro_rules! var_deserialize_scalar {
+        ($deserialize_fn:ident) => {
+            match de.$deserialize_fn(input) {
+                Ok((val, rem)) => match current.set(val) {
+                    Ok(partial) => handle_list_result(partial, rem, lists),
+                    Err(_err) => todo!(),
+                },
+                Err(_err) => todo!(),
+            }
+        };
+    }
+
+    fn handle_list_result<'input, 'partial, 'facet, 'shape>(
+        mut partial: &'partial mut Partial<'facet, 'shape>,
+        input: &'input [u8],
+        lists: &mut HashMap<usize, usize>,
+    ) -> Result<
+        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+        DeserializeError<'input, 'facet, 'shape>,
+    > {
+        let frame_count = partial.frame_count().saturating_sub(1);
+        if let Some(n) = lists.get_mut(&frame_count) {
+            *n = n.saturating_sub(1);
+
+            match partial.end() {
+                Ok(part) => partial = part,
+                Err(_err) => todo!(),
+            }
+
+            if *n == 0 {
+                lists.remove(&frame_count);
+
+                Ok((partial, input))
+            } else {
+                match partial.begin_list_item() {
+                    Ok(part) => Ok((part, input)),
+                    Err(_err) => todo!(),
+                }
+            }
+        } else {
+            Ok((partial, input))
+        }
+    }
+
+    #[cfg_attr(rustfmt, rustfmt::skip)]
+    match ScalarType::try_from_shape(current.shape()) {
+        Some(ScalarType::U16) => var_deserialize_scalar!(deserialize_var_u16),
+        Some(ScalarType::U32) => var_deserialize_scalar!(deserialize_var_u32),
+        Some(ScalarType::U64) => var_deserialize_scalar!(deserialize_var_u64),
+        Some(ScalarType::U128) => var_deserialize_scalar!(deserialize_var_u128),
+        Some(ScalarType::USize) => var_deserialize_scalar!(deserialize_var_usize),
+        Some(ScalarType::I16) => var_deserialize_scalar!(deserialize_var_i16),
+        Some(ScalarType::I32) => var_deserialize_scalar!(deserialize_var_i32),
+        Some(ScalarType::I64) => var_deserialize_scalar!(deserialize_var_i64),
+        Some(ScalarType::I128) => var_deserialize_scalar!(deserialize_var_i128),
+        Some(ScalarType::ISize) => var_deserialize_scalar!(deserialize_var_isize),
+        Some(..) => todo!(),
+        None => todo!(),
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+fn deserialize_sequence<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet, 'shape>,
+    lists: &mut HashMap<usize, usize>,
+    mut input: &'input [u8],
+    ty: SequenceType,
+    de: &mut D,
+) -> Result<
+    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+    DeserializeError<'input, 'facet, 'shape>,
+>
+where
+    'input: 'partial + 'facet,
+{
+    match lists.entry(current.frame_count()) {
+        Entry::Occupied(mut entry) => {
+            match *entry.get() {
+                // Remove the entry and finish the list.
+                0 => {
+                    // Remove the list from the map.
+                    entry.remove();
+
+                    // Finish the list.
+                    match current.end() {
+                        Ok(part) => Ok((part, input)),
+                        Err(_err) => todo!(),
+                    }
+                }
+                _ => {
+                    // Decrement the remaining item count.
+                    entry.get_mut().sub_assign(1);
+
+                    // Begin the next item.
+                    match current.begin_list_item() {
+                        Ok(part) => Ok((part, input)),
+                        Err(_err) => todo!(),
+                    }
+                }
+            }
+        }
+        Entry::Vacant(entry) => {
+            // Get the list length.
+            let len = match ty {
+                // Use the given item count.
+                SequenceType::Array(ty) => ty.n,
+                // Read the item count.
+                SequenceType::Slice(..) => match de.deserialize_var_usize(input) {
+                    Ok((len, rem)) => {
+                        input = rem;
+                        len
+                    }
+                    Err(_err) => todo!(),
+                },
+            };
+
+            // Begin the list.
+            let Ok(part) = current.begin_list() else { todo!() };
+
+            match len {
+                // Return the empty list.
+                0 => Ok((part, input)),
+                // Begin the first item.
+                other => {
+                    // Keep track of the number of remaining items.
+                    entry.insert(other);
+
+                    match part.begin_list_item() {
+                        Ok(part) => Ok((part, input)),
+                        Err(_err) => todo!(),
+                    }
+                }
+            }
+        }
+    }
 }

@@ -6,6 +6,8 @@
 #![allow(dead_code, unused_imports)]
 #![no_std]
 
+use alloc::vec::Vec;
+
 use facet_derive::Facet;
 use facet_minecraft::deserialize;
 
@@ -23,6 +25,11 @@ fn main() {
     assert_eq!(de, 127u8);
     assert!(rem.is_empty());
 
+    // Vec<u8>
+    let (de, rem) = deserialize::<Vec<u8>>(&[3, 0, 0, 0]).unwrap();
+    assert_eq!(de, &[0, 0, 0]);
+    assert!(rem.is_empty());
+
     // u32
     let (de, rem) = deserialize::<u32>(&[0, 0, 0, 0]).unwrap();
     assert_eq!(de, 0u32);
@@ -32,6 +39,11 @@ fn main() {
     assert_eq!(de, 127u32);
     assert!(rem.is_empty());
 
+    // Vec<u32>
+    let (de, rem) = deserialize::<Vec<u32>>(&[4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
+    assert_eq!(de, &[0u32, 0u32, 0u32, 0u32]);
+    assert!(rem.is_empty());
+
     // u128
     let (de, rem) = deserialize::<u128>(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
     assert_eq!(de, 0u128);
@@ -39,6 +51,11 @@ fn main() {
 
     let (de, rem) = deserialize::<u128>(&[127, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
     assert_eq!(de, 127u128);
+    assert!(rem.is_empty());
+
+    // Vec<u128>
+    let (de, rem) = deserialize::<Vec<u128>>(&[0]).unwrap();
+    assert_eq!(de, &[]);
     assert!(rem.is_empty());
 
     // let (de, rem) = deserialize::<Variable<u32>>(&[0]).unwrap();

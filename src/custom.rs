@@ -6,13 +6,15 @@
 use alloc::vec::Vec;
 
 use facet::{ConstTypeId, Facet};
-#[cfg(any(feature = "serialize", feature = "deserialize"))]
+#[cfg(feature = "deserialize")]
+use facet_reflect::Partial;
+#[cfg(feature = "serialize")]
 use facet_reflect::Peek;
 pub use inventory::submit;
 use once_cell::sync::OnceCell;
 
 #[cfg(feature = "deserialize")]
-use crate::deserialize::DeserializationTask;
+use crate::DeserializeError;
 #[cfg(feature = "serialize")]
 use crate::serialize::SerializationTask;
 
@@ -34,10 +36,13 @@ type SerializeFn = for<'mem, 'facet, 'shape> fn(
     &mut Vec<SerializationTask<'mem, 'facet, 'shape>>,
 );
 #[cfg(feature = "deserialize")]
-type DeserializeFn = for<'input, 'stack, 'facet, 'shape> fn(
+type DeserializeFn = for<'input, 'partial, 'facet, 'shape> fn(
+    &'partial mut Partial<'facet, 'shape>,
     &'input [u8],
-    &mut Vec<DeserializationTask<'stack, 'facet, 'shape>>,
-);
+) -> Result<
+    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+    DeserializeError<'input, 'facet, 'shape>,
+>;
 
 impl FacetOverride {
     /// Returns a static slice of all registered [`FacetOverride`]s.
