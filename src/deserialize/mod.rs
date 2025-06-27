@@ -92,7 +92,7 @@ pub fn deserialize_iterative<
     }
 }
 
-#[expect(clippy::too_many_lines, unused_variables)]
+#[expect(unused_variables)]
 fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
     mut input: &'input [u8],
     mut partial: Partial<'facet, 'shape>,
@@ -274,7 +274,6 @@ where
         }
     }
 
-    #[cfg_attr(rustfmt, rustfmt::skip)]
     match ScalarType::try_from_shape(current.shape()) {
         Some(ScalarType::Unit) => deserialize_scalar!(deserialize_unit),
         Some(ScalarType::Bool) => deserialize_scalar!(deserialize_bool),
@@ -293,8 +292,12 @@ where
         Some(ScalarType::F32) => deserialize_scalar!(deserialize_f32),
         Some(ScalarType::F64) => deserialize_scalar!(deserialize_f64),
         Some(ScalarType::Str) => deserialize_scalar!(deserialize_str),
-        Some(ScalarType::String) => deserialize_scalar!(deserialize_str, |(s, r)| (s.to_string(), r)),
-        Some(ScalarType::CowStr) => deserialize_scalar!(deserialize_str, |(s, r)| (Cow::Borrowed(s), r)),
+        Some(ScalarType::String) => {
+            deserialize_scalar!(deserialize_str, |(s, r)| (s.to_string(), r))
+        }
+        Some(ScalarType::CowStr) => {
+            deserialize_scalar!(deserialize_str, |(s, r)| (Cow::Borrowed(s), r))
+        }
         Some(..) => todo!(),
         None => todo!(),
     }
@@ -357,7 +360,6 @@ where
         }
     }
 
-    #[cfg_attr(rustfmt, rustfmt::skip)]
     match ScalarType::try_from_shape(current.shape()) {
         Some(ScalarType::U16) => var_deserialize_scalar!(deserialize_var_u16),
         Some(ScalarType::U32) => var_deserialize_scalar!(deserialize_var_u32),
@@ -391,27 +393,23 @@ where
 {
     match lists.entry(current.frame_count()) {
         Entry::Occupied(mut entry) => {
-            match *entry.get() {
-                // Remove the entry and finish the list.
-                0 => {
-                    // Remove the list from the map.
-                    entry.remove();
+            if *entry.get() == 0 {
+                // Remove the list from the map.
+                entry.remove();
 
-                    // Finish the list.
-                    match current.end() {
-                        Ok(part) => Ok((part, input)),
-                        Err(_err) => todo!(),
-                    }
+                // Finish the list.
+                match current.end() {
+                    Ok(part) => Ok((part, input)),
+                    Err(_err) => todo!(),
                 }
-                _ => {
-                    // Decrement the remaining item count.
-                    entry.get_mut().sub_assign(1);
+            } else {
+                // Decrement the remaining item count.
+                entry.get_mut().sub_assign(1);
 
-                    // Begin the next item.
-                    match current.begin_list_item() {
-                        Ok(part) => Ok((part, input)),
-                        Err(_err) => todo!(),
-                    }
+                // Begin the next item.
+                match current.begin_list_item() {
+                    Ok(part) => Ok((part, input)),
+                    Err(_err) => todo!(),
                 }
             }
         }
