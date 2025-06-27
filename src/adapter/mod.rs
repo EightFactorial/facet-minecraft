@@ -1,6 +1,9 @@
 mod write;
 pub use write::WriteAdapter;
 
+mod write_cursor;
+pub use write_cursor::SliceCursor;
+
 #[cfg(feature = "json")]
 mod json;
 

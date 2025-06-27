@@ -11,7 +11,7 @@ extern crate facet_core as facet;
 extern crate std;
 
 mod adapter;
-pub use adapter::{FacetAdapter, WriteAdapter};
+pub use adapter::{FacetAdapter, SliceCursor, WriteAdapter};
 
 mod assert;
 pub use assert::AssertProtocol;
