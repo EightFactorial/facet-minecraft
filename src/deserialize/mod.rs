@@ -225,7 +225,7 @@ where
         ($deserialize_fn:ident) => {
             match de.$deserialize_fn(input) {
                 Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => handle_list_result(partial, rem, lists),
+                    Ok(partial) => handle_item_from_list(partial, rem, lists),
                     Err(_err) => todo!(),
                 },
                 Err(_err) => todo!(),
@@ -234,44 +234,12 @@ where
         ($deserialize_fn:ident, $($map_fn:tt)+) => {
             match de.$deserialize_fn(input).map($($map_fn)+) {
                 Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => handle_list_result(partial, rem, lists),
+                    Ok(partial) => handle_item_from_list(partial, rem, lists),
                     Err(_err) => todo!(),
                 },
                 Err(_err) => todo!(),
             }
         };
-    }
-
-    fn handle_list_result<'input, 'partial, 'facet, 'shape>(
-        mut partial: &'partial mut Partial<'facet, 'shape>,
-        input: &'input [u8],
-        lists: &mut HashMap<usize, usize>,
-    ) -> Result<
-        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-        DeserializeError<'input, 'facet, 'shape>,
-    > {
-        let frame_count = partial.frame_count().saturating_sub(1);
-        if let Some(n) = lists.get_mut(&frame_count) {
-            *n = n.saturating_sub(1);
-
-            match partial.end() {
-                Ok(part) => partial = part,
-                Err(_err) => todo!(),
-            }
-
-            if *n == 0 {
-                lists.remove(&frame_count);
-
-                Ok((partial, input))
-            } else {
-                match partial.begin_list_item() {
-                    Ok(part) => Ok((part, input)),
-                    Err(_err) => todo!(),
-                }
-            }
-        } else {
-            Ok((partial, input))
-        }
     }
 
     match ScalarType::try_from_shape(current.shape()) {
@@ -320,44 +288,12 @@ where
         ($deserialize_fn:ident) => {
             match de.$deserialize_fn(input) {
                 Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => handle_list_result(partial, rem, lists),
+                    Ok(partial) => handle_item_from_list(partial, rem, lists),
                     Err(_err) => todo!(),
                 },
                 Err(_err) => todo!(),
             }
         };
-    }
-
-    fn handle_list_result<'input, 'partial, 'facet, 'shape>(
-        mut partial: &'partial mut Partial<'facet, 'shape>,
-        input: &'input [u8],
-        lists: &mut HashMap<usize, usize>,
-    ) -> Result<
-        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-        DeserializeError<'input, 'facet, 'shape>,
-    > {
-        let frame_count = partial.frame_count().saturating_sub(1);
-        if let Some(n) = lists.get_mut(&frame_count) {
-            *n = n.saturating_sub(1);
-
-            match partial.end() {
-                Ok(part) => partial = part,
-                Err(_err) => todo!(),
-            }
-
-            if *n == 0 {
-                lists.remove(&frame_count);
-
-                Ok((partial, input))
-            } else {
-                match partial.begin_list_item() {
-                    Ok(part) => Ok((part, input)),
-                    Err(_err) => todo!(),
-                }
-            }
-        } else {
-            Ok((partial, input))
-        }
     }
 
     match ScalarType::try_from_shape(current.shape()) {
@@ -446,5 +382,41 @@ where
                 }
             }
         }
+    }
+}
+
+/// Handle an item that may be part of a list.
+///
+/// If the item is from a list, decrement the remaining item count.
+/// If the count reaches zero, remove the list from the map.
+fn handle_item_from_list<'input, 'partial, 'facet, 'shape>(
+    mut partial: &'partial mut Partial<'facet, 'shape>,
+    input: &'input [u8],
+    lists: &mut HashMap<usize, usize>,
+) -> Result<
+    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+    DeserializeError<'input, 'facet, 'shape>,
+> {
+    let frame_count = partial.frame_count().saturating_sub(1);
+    if let Some(n) = lists.get_mut(&frame_count) {
+        *n = n.saturating_sub(1);
+
+        match partial.end() {
+            Ok(part) => partial = part,
+            Err(_err) => todo!(),
+        }
+
+        if *n == 0 {
+            lists.remove(&frame_count);
+
+            Ok((partial, input))
+        } else {
+            match partial.begin_list_item() {
+                Ok(part) => Ok((part, input)),
+                Err(_err) => todo!(),
+            }
+        }
+    } else {
+        Ok((partial, input))
     }
 }
