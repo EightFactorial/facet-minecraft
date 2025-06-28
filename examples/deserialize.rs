@@ -39,6 +39,15 @@ fn main() {
     assert_eq!(de, 127u32);
     assert!(rem.is_empty());
 
+    // Variable<u32>
+    let (de, rem) = deserialize::<Variable<u32>>(&[0]).unwrap();
+    assert_eq!(de.0, 0u32);
+    assert!(rem.is_empty());
+
+    let (de, rem) = deserialize::<Variable<u32>>(&[127]).unwrap();
+    assert_eq!(de.0, 127u32);
+    assert!(rem.is_empty());
+
     // Vec<u32>
     let (de, rem) = deserialize::<Vec<u32>>(&[4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]).unwrap();
     assert_eq!(de, &[0u32, 0u32, 0u32, 0u32]);
@@ -53,21 +62,23 @@ fn main() {
     assert_eq!(de, 127u128);
     assert!(rem.is_empty());
 
+    // Variable<u128>
+    let (de, rem) = deserialize::<Variable<u128>>(&[0]).unwrap();
+    assert_eq!(de.0, 0u128);
+    assert!(rem.is_empty());
+
+    let (de, rem) = deserialize::<Variable<u128>>(&[127]).unwrap();
+    assert_eq!(de.0, 127u128);
+    assert!(rem.is_empty());
+
     // Vec<u128>
     let (de, rem) = deserialize::<Vec<u128>>(&[0]).unwrap();
     assert_eq!(de, &[]);
     assert!(rem.is_empty());
 
-    // let (de, rem) = deserialize::<Variable<u32>>(&[0]).unwrap();
-    // assert_eq!(de.0, 0u32);
-    // assert!(rem.is_empty());
-
-    // let (de, rem) = deserialize::<Variable<u32>>(&[127]).unwrap();
-    // assert_eq!(de.0, 127u32);
-    // assert!(rem.is_empty());
 }
 
 // -------------------------------------------------------------------------------------------------
 
-// #[derive(Facet)]
-// struct Variable<T>(#[facet(var)] T);
+#[derive(Facet)]
+struct Variable<T>(#[facet(var)] T);

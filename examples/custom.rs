@@ -10,8 +10,11 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
 use facet_derive::Facet;
-use facet_minecraft::{SerializationTask, custom::FacetOverride, deserialize, serialize};
-use facet_reflect::Peek;
+use facet_minecraft::{
+    DeserializeError, Deserializer, McDeserializer, SerializationTask, custom::FacetOverride,
+    deserialize, serialize,
+};
+use facet_reflect::{Partial, Peek};
 
 extern crate alloc;
 extern crate facet_core as facet;
@@ -29,7 +32,7 @@ fn main() {
     // Using `LikeU32` to serialize a `u64` as a `u32`.
     serialize(&LikeU32(1024u64), &mut buffer).unwrap();
     assert_eq!(buffer, &[0, 4, 0, 0]);
-    // assert_eq!(deserialize::<LikeU32>(&buffer).unwrap().0, LikeU32(1024u64));
+    assert_eq!(deserialize::<LikeU32>(&buffer).unwrap().0, LikeU32(1024u64));
     buffer.clear();
 
     // Using `Reversed` to serialize a string in reverse.
@@ -54,10 +57,26 @@ impl LikeU32 {
         let val = peek.get::<Self>().unwrap().0 as u32;
         stack.push(SerializationTask::ValueOwned(Box::new(val)));
     }
+
+    fn deserialize<'input, 'partial, 'facet, 'shape>(
+        partial: &'partial mut Partial<'facet, 'shape>,
+        input: &'input [u8],
+    ) -> Result<
+        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+        DeserializeError<'input, 'facet, 'shape>,
+    > {
+        match McDeserializer.deserialize_u32(input) {
+            Ok((val, remainder)) => match partial.set(LikeU32(val as u64)) {
+                Ok(partial) => Ok((partial, remainder)),
+                Err(err) => panic!("Failed to set LikeU32: {err:?}"),
+            },
+            Err(err) => panic!("Failed to deserialize LikeU32: {err:?}"),
+        }
+    }
 }
 
 facet_minecraft::custom::submit! {
-    FacetOverride::new::<LikeU32>().with_ser(LikeU32::serialize)
+    FacetOverride::new::<LikeU32>().with_ser(LikeU32::serialize).with_de(LikeU32::deserialize)
 }
 
 // -------------------------------------------------------------------------------------------------

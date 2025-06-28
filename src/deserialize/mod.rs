@@ -1,10 +1,9 @@
-use alloc::{borrow::Cow, string::ToString};
-use core::ops::SubAssign;
-use std::collections::{HashMap, hash_map::Entry};
+use alloc::{borrow::Cow, string::ToString, vec::Vec};
+use core::ops::AddAssign;
 
 #[cfg(feature = "custom")]
 use facet::ShapeAttribute;
-use facet::{ArrayType, Def, FieldAttribute, SequenceType, Shape, SliceType, Type};
+use facet::{ArrayType, Def, FieldAttribute, SequenceType, Shape, SliceType, Type, UserType};
 use facet_reflect::{HeapValue, Partial, ScalarType};
 
 use crate::assert::AssertProtocol;
@@ -59,6 +58,13 @@ impl McDeserializer {
 
 // -------------------------------------------------------------------------------------------------
 
+static VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
+#[cfg(feature = "json")]
+static JSON: &FieldAttribute = &FieldAttribute::Arbitrary("json");
+
+#[cfg(feature = "custom")]
+static CUSTOM: &ShapeAttribute = &ShapeAttribute::Arbitrary("custom");
+
 /// Iteratively deserialize a type from the given bytes.
 ///
 /// Avoids recursion to prevent depth issues with large structures.
@@ -98,17 +104,13 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
     mut partial: Partial<'facet, 'shape>,
     de: &mut D,
 ) -> Result<(HeapValue<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'facet, 'shape>> {
-    static _VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
-    #[cfg(feature = "json")]
-    static _JSON: &FieldAttribute = &FieldAttribute::Arbitrary("json");
-
-    #[cfg(feature = "custom")]
-    static CUSTOM: &ShapeAttribute = &ShapeAttribute::Arbitrary("custom");
     #[cfg(feature = "custom")]
     let overrides = FacetOverride::global();
 
     let mut current = &mut partial;
-    let mut lists = HashMap::new();
+    let mut counters = Vec::<(PartialType, usize)>::new();
+
+    let (mut var, mut json) = (false, false);
 
     loop {
         // Use the inner type if the shape has the `transparent` attribute.
@@ -127,26 +129,50 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                 Ok((part, rem)) => {
                     current = part;
                     input = rem;
-                    continue;
+
+                    if current.frame_count() == 1 {
+                        // If we've finished the last frame, break the loop.
+                        break;
+                    } else {
+                        // Otherwise continue to the next iteration.
+                        continue;
+                    }
                 }
                 Err(_err) => todo!(),
             }
         }
 
+        #[cfg(feature = "json")]
+        if json {
+            todo!()
+        }
+
         // Deserialize the value
         match current.shape().def {
-            Def::Scalar => match current.shape().ty {
+            Def::Scalar | Def::Undefined => match current.shape().ty {
                 Type::Primitive(..) => {
-                    match deserialize_primitive(current, &mut lists, input, de) {
-                        Ok((part, rem)) => {
-                            current = part;
-                            input = rem;
+                    if var {
+                        let flags = (&mut var, &mut json);
+                        match deserialize_var_primitive(current, &mut counters, flags, input, de) {
+                            Ok((part, rem)) => {
+                                current = part;
+                                input = rem;
+                            }
+                            Err(_err) => todo!(),
                         }
-                        Err(_err) => todo!(),
+                    } else {
+                        let flags = (&mut var, &mut json);
+                        match deserialize_primitive(current, &mut counters, flags, input, de) {
+                            Ok((part, rem)) => {
+                                current = part;
+                                input = rem;
+                            }
+                            Err(_err) => todo!(),
+                        }
                     }
                 }
                 Type::Sequence(ty) => {
-                    match deserialize_sequence(current, &mut lists, input, ty, de) {
+                    match deserialize_sequence(current, &mut counters, input, ty, de) {
                         Ok((part, rem)) => {
                             current = part;
                             input = rem;
@@ -155,11 +181,62 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                     }
                 }
                 Type::Pointer(ty) => todo!(),
-                Type::User(ty) => todo!(),
+                Type::User(UserType::Struct(ty)) => match ty.fields.len() {
+                    0 => todo!(),
+                    other => {
+                        // Mark the field to be variably deserialized.
+                        if ty.fields[0].attributes.contains(VAR) {
+                            var = true;
+                        }
+
+                        // Mark the field to be deserialized as JSON.
+                        #[cfg(feature = "json")]
+                        if ty.fields[0].attributes.contains(JSON) {
+                            json = true;
+                        }
+
+                        counters.push((PartialType::StructField(1), other));
+                        match current.begin_nth_field(0) {
+                            Ok(part) => current = part,
+                            Err(_err) => todo!(),
+                        }
+                    }
+                },
+                Type::User(UserType::Enum(ty)) => {
+                    let Ok((variant, rem)) = de.deserialize_var_usize(input) else { todo!() };
+                    input = rem;
+
+                    if let Some(variant) = ty.variants.get(variant) {
+                        match variant.data.fields.len() {
+                            0 => todo!(),
+                            other => {
+                                // Mark the field to be variably deserialized.
+                                if variant.data.fields[0].attributes.contains(VAR) {
+                                    var = true;
+                                }
+
+                                // Mark the field to be deserialized as JSON.
+                                #[cfg(feature = "json")]
+                                if variant.data.fields[0].attributes.contains(JSON) {
+                                    json = true;
+                                }
+
+                                counters.push((PartialType::EnumField(other, 1), other));
+                                match current.begin_nth_enum_field(0) {
+                                    Ok(part) => current = part,
+                                    Err(_err) => todo!(),
+                                }
+                            }
+                        }
+                    } else {
+                        todo!();
+                    }
+                }
+                Type::User(..) => todo!(),
             },
             Def::Slice(def) => {
                 let ty = SequenceType::Slice(SliceType { t: def.t() });
-                match deserialize_sequence(current, &mut lists, input, ty, de) {
+                match deserialize_sequence(current, &mut counters, input, ty, de) {
                     Ok((part, rem)) => {
                         current = part;
                         input = rem;
@@ -169,7 +246,7 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
             }
             Def::List(def) => {
                 let ty = SequenceType::Slice(SliceType { t: def.t() });
-                match deserialize_sequence(current, &mut lists, input, ty, de) {
+                match deserialize_sequence(current, &mut counters, input, ty, de) {
                     Ok((part, rem)) => {
                         current = part;
                         input = rem;
@@ -179,7 +256,7 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
             }
             Def::Array(def) => {
                 let ty = SequenceType::Array(ArrayType { t: def.t, n: def.n });
-                match deserialize_sequence(current, &mut lists, input, ty, de) {
+                match deserialize_sequence(current, &mut counters, input, ty, de) {
                     Ok((part, rem)) => {
                         current = part;
                         input = rem;
@@ -191,7 +268,6 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
             Def::Set(def) => todo!(),
             Def::Option(def) => todo!(),
             Def::SmartPointer(def) => todo!(),
-            Def::Undefined => todo!(),
         }
 
         // If we've finished the last frame, break the loop.
@@ -203,15 +279,23 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
     // Build the deserialized value.
     match partial.build() {
         Ok(heap) => Ok((heap, input)),
-        Err(_err) => todo!(),
+        Err(err) => todo!("Failed to build: {err}"),
     }
+}
+
+#[derive(Debug)]
+enum PartialType {
+    Sequence,
+    StructField(usize),
+    EnumField(usize, usize),
 }
 
 // -------------------------------------------------------------------------------------------------
 
 fn deserialize_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
-    lists: &mut HashMap<usize, usize>,
+    counters: &mut Vec<(PartialType, usize)>,
+    flags: (&mut bool, &mut bool),
     input: &'input [u8],
     de: &mut D,
 ) -> Result<
@@ -225,7 +309,7 @@ where
         ($deserialize_fn:ident) => {
             match de.$deserialize_fn(input) {
                 Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => handle_item_from_list(partial, rem, lists),
+                    Ok(partial) => handle_item(partial, rem, flags, counters),
                     Err(_err) => todo!(),
                 },
                 Err(_err) => todo!(),
@@ -234,7 +318,7 @@ where
         ($deserialize_fn:ident, $($map_fn:tt)+) => {
             match de.$deserialize_fn(input).map($($map_fn)+) {
                 Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => handle_item_from_list(partial, rem, lists),
+                    Ok(partial) => handle_item(partial, rem, flags, counters),
                     Err(_err) => todo!(),
                 },
                 Err(_err) => todo!(),
@@ -271,10 +355,10 @@ where
     }
 }
 
-#[expect(dead_code)]
 fn deserialize_var_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
-    lists: &mut HashMap<usize, usize>,
+    counters: &mut Vec<(PartialType, usize)>,
+    flags: (&mut bool, &mut bool),
     input: &'input [u8],
     de: &mut D,
 ) -> Result<
@@ -284,11 +368,11 @@ fn deserialize_var_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerEx
 where
     'input: 'partial + 'facet,
 {
-    macro_rules! var_deserialize_scalar {
+    macro_rules! deserialize_var_scalar {
         ($deserialize_fn:ident) => {
             match de.$deserialize_fn(input) {
                 Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => handle_item_from_list(partial, rem, lists),
+                    Ok(partial) => handle_item(partial, rem, flags, counters),
                     Err(_err) => todo!(),
                 },
                 Err(_err) => todo!(),
@@ -297,16 +381,16 @@ where
     }
 
     match ScalarType::try_from_shape(current.shape()) {
-        Some(ScalarType::U16) => var_deserialize_scalar!(deserialize_var_u16),
-        Some(ScalarType::U32) => var_deserialize_scalar!(deserialize_var_u32),
-        Some(ScalarType::U64) => var_deserialize_scalar!(deserialize_var_u64),
-        Some(ScalarType::U128) => var_deserialize_scalar!(deserialize_var_u128),
-        Some(ScalarType::USize) => var_deserialize_scalar!(deserialize_var_usize),
-        Some(ScalarType::I16) => var_deserialize_scalar!(deserialize_var_i16),
-        Some(ScalarType::I32) => var_deserialize_scalar!(deserialize_var_i32),
-        Some(ScalarType::I64) => var_deserialize_scalar!(deserialize_var_i64),
-        Some(ScalarType::I128) => var_deserialize_scalar!(deserialize_var_i128),
-        Some(ScalarType::ISize) => var_deserialize_scalar!(deserialize_var_isize),
+        Some(ScalarType::U16) => deserialize_var_scalar!(deserialize_var_u16),
+        Some(ScalarType::U32) => deserialize_var_scalar!(deserialize_var_u32),
+        Some(ScalarType::U64) => deserialize_var_scalar!(deserialize_var_u64),
+        Some(ScalarType::U128) => deserialize_var_scalar!(deserialize_var_u128),
+        Some(ScalarType::USize) => deserialize_var_scalar!(deserialize_var_usize),
+        Some(ScalarType::I16) => deserialize_var_scalar!(deserialize_var_i16),
+        Some(ScalarType::I32) => deserialize_var_scalar!(deserialize_var_i32),
+        Some(ScalarType::I64) => deserialize_var_scalar!(deserialize_var_i64),
+        Some(ScalarType::I128) => deserialize_var_scalar!(deserialize_var_i128),
+        Some(ScalarType::ISize) => deserialize_var_scalar!(deserialize_var_isize),
         Some(..) => todo!(),
         None => todo!(),
     }
@@ -316,7 +400,7 @@ where
 
 fn deserialize_sequence<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
-    lists: &mut HashMap<usize, usize>,
+    counters: &mut Vec<(PartialType, usize)>,
     mut input: &'input [u8],
     ty: SequenceType,
     de: &mut D,
@@ -327,59 +411,34 @@ fn deserialize_sequence<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
 where
     'input: 'partial + 'facet,
 {
-    match lists.entry(current.frame_count()) {
-        Entry::Occupied(mut entry) => {
-            if *entry.get() == 0 {
-                // Remove the list from the map.
-                entry.remove();
-
-                // Finish the list.
-                match current.end() {
-                    Ok(part) => Ok((part, input)),
-                    Err(_err) => todo!(),
-                }
-            } else {
-                // Decrement the remaining item count.
-                entry.get_mut().sub_assign(1);
-
-                // Begin the next item.
-                match current.begin_list_item() {
-                    Ok(part) => Ok((part, input)),
-                    Err(_err) => todo!(),
-                }
+    // Get the list length.
+    let len = match ty {
+        // Use the given item count.
+        SequenceType::Array(ty) => ty.n,
+        // Read the item count.
+        SequenceType::Slice(..) => match de.deserialize_var_usize(input) {
+            Ok((len, rem)) => {
+                input = rem;
+                len
             }
-        }
-        Entry::Vacant(entry) => {
-            // Get the list length.
-            let len = match ty {
-                // Use the given item count.
-                SequenceType::Array(ty) => ty.n,
-                // Read the item count.
-                SequenceType::Slice(..) => match de.deserialize_var_usize(input) {
-                    Ok((len, rem)) => {
-                        input = rem;
-                        len
-                    }
-                    Err(_err) => todo!(),
-                },
-            };
+            Err(_err) => todo!(),
+        },
+    };
 
-            // Begin the list.
-            let Ok(part) = current.begin_list() else { todo!() };
+    // Begin the list.
+    let Ok(part) = current.begin_list() else { todo!() };
 
-            match len {
-                // Return the empty list.
-                0 => Ok((part, input)),
-                // Begin the first item.
-                other => {
-                    // Keep track of the number of remaining items.
-                    entry.insert(other);
+    match len {
+        // Return the empty list.
+        0 => Ok((part, input)),
+        // Begin the first item.
+        other => {
+            // Keep track of the number of remaining items.
+            counters.push((PartialType::Sequence, other));
 
-                    match part.begin_list_item() {
-                        Ok(part) => Ok((part, input)),
-                        Err(_err) => todo!(),
-                    }
-                }
+            match part.begin_list_item() {
+                Ok(part) => Ok((part, input)),
+                Err(_err) => todo!(),
             }
         }
     }
@@ -389,16 +448,20 @@ where
 ///
 /// If the item is from a list, decrement the remaining item count.
 /// If the count reaches zero, remove the list from the map.
-fn handle_item_from_list<'input, 'partial, 'facet, 'shape>(
+fn handle_item<'input, 'partial, 'facet, 'shape>(
     mut partial: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    lists: &mut HashMap<usize, usize>,
+    flags: (&mut bool, &mut bool),
+    counters: &mut Vec<(PartialType, usize)>,
 ) -> Result<
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
     DeserializeError<'input, 'facet, 'shape>,
 > {
-    let frame_count = partial.frame_count().saturating_sub(1);
-    if let Some(n) = lists.get_mut(&frame_count) {
+    // Reset the field flags.
+    *flags.0 = false;
+    *flags.1 = false;
+
+    if let Some((ty, n)) = counters.last_mut() {
         *n = n.saturating_sub(1);
 
         match partial.end() {
@@ -407,13 +470,67 @@ fn handle_item_from_list<'input, 'partial, 'facet, 'shape>(
         }
 
         if *n == 0 {
-            lists.remove(&frame_count);
+            counters.pop();
 
             Ok((partial, input))
         } else {
-            match partial.begin_list_item() {
-                Ok(part) => Ok((part, input)),
-                Err(_err) => todo!(),
+            match ty {
+                PartialType::Sequence => match partial.begin_list_item() {
+                    Ok(part) => Ok((part, input)),
+                    Err(_err) => todo!(),
+                },
+                PartialType::StructField(field_n) => {
+                    let Type::User(UserType::Struct(ty)) = partial.shape().ty else { todo!() };
+                    if let Some(field) = ty.fields.get(*field_n) {
+                        // Mark the field to be variably deserialized.
+                        if field.attributes.contains(VAR) {
+                            *flags.0 = true;
+                        }
+
+                        // Mark the field to be deserialized as JSON.
+                        #[cfg(feature = "json")]
+                        if field.attributes.contains(JSON) {
+                            *flags.1 = true;
+                        }
+
+                        match partial.begin_nth_field(*field_n) {
+                            Ok(part) => {
+                                field_n.add_assign(1);
+                                Ok((part, input))
+                            }
+                            Err(_err) => todo!(),
+                        }
+                    } else {
+                        todo!();
+                    }
+                }
+                PartialType::EnumField(variant_n, field_n) => {
+                    let Type::User(UserType::Enum(ty)) = partial.shape().ty else { todo!() };
+                    if let Some(variant) = ty.variants.get(*variant_n)
+                        && let Some(field) = variant.data.fields.get(*field_n)
+                    {
+                        // Mark the field to be variably deserialized.
+                        if field.attributes.contains(VAR) {
+                            *flags.0 = true;
+                        }
+
+                        // Mark the field to be deserialized as JSON.
+                        #[cfg(feature = "json")]
+                        if field.attributes.contains(JSON) {
+                            *flags.1 = true;
+                        }
+
+                        match partial.begin_nth_enum_field(*field_n) {
+                            Ok(part) => {
+                                field_n.add_assign(1);
+                                Ok((part, input))
+                            }
+                            Err(_err) => todo!(),
+                        }
+                    } else {
+                        todo!()
+                    }
+                }
             }
         }
     } else {
