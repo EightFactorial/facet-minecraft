@@ -60,12 +60,6 @@ impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
     }
 }
 
-impl<T> From<T> for SerializeError<'_, '_, '_, T> {
-    fn from(err: T) -> Self { SerializeError::WriteError(err) }
-}
-
-// -------------------------------------------------------------------------------------------------
-
 impl<T: Display + Error> Error for SerializeError<'_, '_, '_, T> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
@@ -75,6 +69,13 @@ impl<T: Display + Error> Error for SerializeError<'_, '_, '_, T> {
     }
 }
 
+impl<T> From<T> for SerializeError<'_, '_, '_, T> {
+    fn from(err: T) -> Self { SerializeError::WriteError(err) }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+#[cfg(not(feature = "rich-diagnostics"))]
 impl<T: Display> Debug for SerializeError<'_, '_, '_, T> {
     #[inline(always)]
     #[expect(clippy::inline_always)]
@@ -102,6 +103,15 @@ impl<T: Display> Display for SerializeError<'_, '_, '_, T> {
             }
         }
     }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+#[cfg(feature = "rich-diagnostics")]
+impl<T: Display> Debug for SerializeError<'_, '_, '_, T> {
+    #[inline(always)]
+    #[expect(clippy::inline_always)]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { Display::fmt(self, f) }
 }
 
 #[cfg(feature = "rich-diagnostics")]

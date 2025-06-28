@@ -47,6 +47,7 @@ owo-colors = { features = ["alloc"], version = "4.2" }
 
 # Optional dependencies
 ariadne = { default-features = false, optional = true, version = "0.5" }
+facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
 facet-json = { default-features = false, optional = true, version = "0.24" }
 facet-reflect = { default-features = false, features = ["alloc", "uuid"], optional = true, version = "0.27" }
 inventory = { optional = true, version = "0.3" }
@@ -71,7 +72,7 @@ json = ["dep:facet-json", "dep:facet-reflect"]
 rich-diagnostics = ["dep:ariadne", "facet-json?/rich-diagnostics", "std"]
 
 # Enable deserialization support
-deserialize = ["dep:facet-reflect"]
+deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
 # Enable serialization support
 serialize = ["dep:facet-reflect"]
 
@@ -101,3 +102,4 @@ required-features = ["serialize", "std"]
 [[example]]
 name = "serialize"
 required-features = ["serialize"]
+# Enable deserialization support

@@ -36,9 +36,9 @@ fn main() {
     buffer.clear();
 
     // Using `Reversed` to serialize a string in reverse.
-    serialize(&Reversed("Hello, World!"), &mut buffer).unwrap();
+    serialize(&Reversed(String::from("Hello, World!")), &mut buffer).unwrap();
     assert_eq!(buffer, &[13u8, b'!', b'd', b'l', b'r', b'o', b'W', b' ', b',', b'o', b'l', b'l', b'e', b'H']);
-    // assert_eq!(deserialize::<Reversed>(&buffer).unwrap().0, Reversed("Hello, World!"));
+    assert_eq!(deserialize::<Reversed>(&buffer).unwrap().0, Reversed(String::from("Hello, World!")));
     buffer.clear();
 }
 
@@ -83,7 +83,7 @@ facet_minecraft::custom::submit! {
 
 #[derive(Debug, PartialEq, Eq, Facet)]
 #[facet(custom)]
-struct Reversed(&'static str);
+struct Reversed(String);
 
 impl Reversed {
     /// A custom serialization method that reverses the string.
@@ -91,12 +91,28 @@ impl Reversed {
         peek: Peek<'_, 'facet, 'shape>,
         stack: &mut Vec<SerializationTask<'mem, 'facet, 'shape>>,
     ) {
-        let val = peek.get::<Self>().unwrap().0;
+        let val = &peek.get::<Self>().unwrap().0;
         let rev: String = val.chars().rev().collect();
         stack.push(SerializationTask::ValueOwned(Box::new(rev)));
+    }
+
+    fn deserialize<'input, 'partial, 'facet, 'shape>(
+        partial: &'partial mut Partial<'facet, 'shape>,
+        input: &'input [u8],
+    ) -> Result<
+        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
+        DeserializeError<'input, 'facet, 'shape>,
+    > {
+        match McDeserializer.deserialize_str(input) {
+            Ok((val, remainder)) => match partial.set(Reversed(val.chars().rev().collect())) {
+                Ok(partial) => Ok((partial, remainder)),
+                Err(err) => panic!("Failed to set Reversed: {err:?}"),
+            },
+            Err(err) => panic!("Failed to deserialize Reversed: {err:?}"),
+        }
     }
 }
 
 facet_minecraft::custom::submit! {
-    FacetOverride::new::<Reversed>().with_ser(Reversed::serialize)
+    FacetOverride::new::<Reversed>().with_ser(Reversed::serialize).with_de(Reversed::deserialize)
 }
