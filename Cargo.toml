@@ -105,7 +105,7 @@ required-features = ["serialize"]
 
 [[example]]
 name = "server_status"
-required-features = ["full"]
+required-features = ["full", "std"]
 
 [[example]]
 name = "zerocopy"
