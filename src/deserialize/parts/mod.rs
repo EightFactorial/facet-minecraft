@@ -8,7 +8,7 @@ mod option;
 pub(super) use option::deserialize_option;
 
 mod pointer;
-pub(super) use pointer::deserialize_smartpointer;
+pub(super) use pointer::{deserialize_pointer, deserialize_smartpointer};
 
 mod primitive;
 pub(super) use primitive::deserialize_primitive;

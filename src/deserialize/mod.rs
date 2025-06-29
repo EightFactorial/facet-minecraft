@@ -17,8 +17,9 @@ pub use error::DeserializeError;
 
 mod parts;
 use parts::{
-    deserialize_json, deserialize_map, deserialize_option, deserialize_primitive,
-    deserialize_sequence, deserialize_set, deserialize_smartpointer, deserialize_user,
+    deserialize_json, deserialize_map, deserialize_option, deserialize_pointer,
+    deserialize_primitive, deserialize_sequence, deserialize_set, deserialize_smartpointer,
+    deserialize_user,
 };
 
 mod traits;
@@ -196,7 +197,13 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                         current = partial;
                         input = remaining;
                     }
-                    Type::Pointer(_ty) => todo!(),
+                    Type::Pointer(ty) => {
+                        let (partial, remaining) =
+                            deserialize_pointer(ty, current, input, &mut state, de)?;
+                        // Re-assign the current partial and consume the input.
+                        current = partial;
+                        input = remaining;
+                    }
                 }
             }
             Def::Array(def) => {

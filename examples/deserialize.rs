@@ -113,10 +113,10 @@ fn main() {
     let (de, rem) = deserialize::<ExampleEnum>(&[3, 2, 1, b'a', 1, b'1', 1, b'b', 1, b'2']).unwrap();
     assert_eq!(
         de,
-        ExampleEnum::D({BTreeMap::from_iter([
+        ExampleEnum::D(BTreeMap::from_iter([
             (String::from("a"), String::from("1")),
             (String::from("b"), String::from("2")),
-        ])})
+        ]))
     );
     assert!(rem.is_empty());
 
