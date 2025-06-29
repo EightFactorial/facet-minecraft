@@ -81,18 +81,10 @@ std = ["facet-core/std", "facet-reflect?/std", "once_cell?/std"]
 # Enable features using the nightly toolchain
 nightly = ["parking_lot?/nightly"]
 
-[[example]]
-name = "custom"
-required-features = ["custom", "full"]
-
 [[bench]]
 harness = false
 name = "deserialize"
 required-features = ["deserialize", "std"]
-
-[[example]]
-name = "deserialize"
-required-features = ["deserialize"]
 
 [[bench]]
 harness = false
@@ -100,6 +92,21 @@ name = "serialize"
 required-features = ["serialize", "std"]
 
 [[example]]
+name = "custom"
+required-features = ["custom", "full"]
+
+[[example]]
+name = "deserialize"
+required-features = ["deserialize"]
+
+[[example]]
 name = "serialize"
 required-features = ["serialize"]
-# Enable deserialization support
+
+[[example]]
+name = "server_status"
+required-features = ["full"]
+
+[[example]]
+name = "zerocopy"
+required-features = ["deserialize"]

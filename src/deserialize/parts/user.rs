@@ -73,7 +73,7 @@ fn deserialize_enum<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     let Some(variant_indx) =
         ty.variants.iter().position(|v| v.discriminant.unwrap_or_default() == variant_disc)
     else {
-        todo!()
+        todo!("No variant for {:?}", current.shape());
     };
 
     let ty_variant = &ty.variants[variant_indx];
