@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use alloc::vec::Vec;
 
 #[cfg(feature = "custom")]
@@ -98,7 +96,6 @@ pub fn deserialize_iterative<
     }
 }
 
-#[expect(unused_variables)]
 fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
     mut input: &'input [u8],
     mut partial: Partial<'facet, 'shape>,
@@ -191,7 +188,7 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                         current = partial;
                         input = remaining;
                     }
-                    Type::Pointer(ty) => todo!(),
+                    Type::Pointer(_ty) => todo!(),
                 }
             }
             Def::Array(def) => {
@@ -218,10 +215,10 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                 current = partial;
                 input = remaining;
             }
-            Def::Option(def) => todo!(),
-            Def::Map(def) => todo!(),
-            Def::Set(def) => todo!(),
-            Def::SmartPointer(def) => todo!(),
+            Def::Option(_def) => todo!(),
+            Def::Map(_def) => todo!(),
+            Def::Set(_def) => todo!(),
+            Def::SmartPointer(_def) => todo!(),
         }
 
         // If we've finished the last frame, break the loop.

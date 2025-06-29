@@ -41,7 +41,10 @@ fn deserialize_struct<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
 > {
     state.steps.push(StepType::Struct(ty, 0));
 
-    if ty.fields.len() != 0 {
+    if ty.fields.is_empty() {
+        // Unit struct, return immediately.
+        Ok((current, input))
+    } else {
         // Begin the first field in the struct.
         let field = current.begin_nth_field(0).map_err(|err| state.handle_reflect_error(err))?;
 
@@ -49,9 +52,6 @@ fn deserialize_struct<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
         state.update_flags(&ty.fields[0]);
 
         Ok((field, input))
-    } else {
-        // Unit struct, return immediately.
-        Ok((current, input))
     }
 }
 
@@ -75,7 +75,10 @@ fn deserialize_enum<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     let variant =
         current.select_nth_variant(variant).map_err(|err| state.handle_reflect_error(err))?;
 
-    if ty_variant.data.fields.len() != 0 {
+    if ty_variant.data.fields.is_empty() {
+        // Unit struct, return immediately.
+        Ok((variant, remaining))
+    } else {
         // Begin the first field in the enum.
         let field =
             variant.begin_nth_enum_field(0).map_err(|err| state.handle_reflect_error(err))?;
@@ -84,8 +87,5 @@ fn deserialize_enum<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
         state.update_flags(&ty_variant.data.fields[0]);
 
         Ok((field, remaining))
-    } else {
-        // Unit struct, return immediately.
-        Ok((variant, remaining))
     }
 }
