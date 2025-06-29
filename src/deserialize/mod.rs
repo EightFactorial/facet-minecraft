@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use facet::ShapeAttribute;
 use facet::{
     ArrayType, Def, Field, FieldAttribute, SequenceType, Shape, SliceType, StructType, Type,
-    UserType, Variant,
+    Variant,
 };
 use facet_reflect::{HeapValue, Partial, ReflectError};
 
@@ -18,7 +18,7 @@ mod error;
 pub use error::DeserializeError;
 
 mod parts;
-use parts::{deserialize_json, deserialize_primitive, deserialize_sequence};
+use parts::{deserialize_json, deserialize_primitive, deserialize_sequence, deserialize_user};
 
 mod traits;
 pub use traits::{Deserializer, DeserializerExt};
@@ -184,10 +184,14 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                         current = partial;
                         input = remaining;
                     }
+                    Type::User(ty) => {
+                        let (partial, remaining) =
+                            deserialize_user(ty, current, input, &mut state, de)?;
+                        // Re-assign the current partial and consume the input.
+                        current = partial;
+                        input = remaining;
+                    }
                     Type::Pointer(ty) => todo!(),
-                    Type::User(UserType::Struct(ty)) => todo!(),
-                    Type::User(UserType::Enum(ty)) => todo!(),
-                    Type::User(..) => todo!(),
                 }
             }
             Def::Array(def) => {
@@ -245,7 +249,7 @@ struct DeserializerState<'shape> {
 #[derive(Debug)]
 enum StepType<'shape> {
     Sequence(usize, usize),
-    Struct(&'shape StructType<'shape>, usize),
+    Struct(StructType<'shape>, usize),
     Enum(&'shape Variant<'shape>, usize),
 }
 
@@ -277,37 +281,88 @@ impl<'shape> DeserializerState<'shape> {
 
         // Otherwise, end the current step and continue the previous.
         match partial.end() {
-            #[expect(unused_assignments)]
             Ok(part) => partial = part,
             Err(err) => return Err(self.handle_reflect_error(err)),
         }
 
         match self.steps.last_mut() {
-            Some(StepType::Sequence(_length, current)) => {
+            Some(StepType::Sequence(length, current)) => {
                 // Increment the current item index.
                 *current += 1;
 
-                todo!();
+                if *current >= *length {
+                    // Finish the sequence.
+                    self.steps.pop();
+
+                    // If the frame count is greater than 1, finish the partial.
+                    if partial.frame_count() > 1 {
+                        partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
+                    }
+
+                    Ok((partial, input))
+                } else {
+                    // Begin a new list item.
+                    let list_item =
+                        partial.begin_list_item().map_err(|err| self.handle_reflect_error(err))?;
+
+                    Ok((list_item, input))
+                }
             }
             Some(StepType::Struct(shape, current)) => {
                 // Increment the current field index.
                 *current += 1;
 
-                // Update the flags based on the current field.
-                let field = &shape.fields[*current];
-                self.update_flags(field);
+                if *current >= shape.fields.len() {
+                    // Finish the struct.
+                    self.steps.pop();
 
-                todo!();
+                    // If the frame count is greater than 1, finish the partial.
+                    if partial.frame_count() > 1 {
+                        partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
+                    }
+
+                    Ok((partial, input))
+                } else {
+                    let ty_field = &shape.fields[*current];
+
+                    // Begin the next field in the struct.
+                    let field = partial
+                        .begin_nth_field(*current)
+                        .map_err(|err| self.handle_reflect_error(err))?;
+
+                    // Update the flags based on the current field.
+                    self.update_flags(ty_field);
+
+                    Ok((field, input))
+                }
             }
             Some(StepType::Enum(variant, current)) => {
                 // Increment the current field index.
                 *current += 1;
 
-                // Update the flags based on the current field.
-                let field = &variant.data.fields[*current];
-                self.update_flags(field);
+                if *current >= variant.data.fields.len() {
+                    // Finish the enum.
+                    self.steps.pop();
 
-                todo!();
+                    // If the frame count is greater than 1, finish the partial.
+                    if partial.frame_count() > 1 {
+                        partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
+                    }
+
+                    Ok((partial, input))
+                } else {
+                    let ty_field = &variant.data.fields[*current];
+
+                    // Begin the next field in the enum.
+                    let field = partial
+                        .begin_nth_enum_field(*current)
+                        .map_err(|err| self.handle_reflect_error(err))?;
+
+                    // Update the flags based on the current field.
+                    self.update_flags(ty_field);
+
+                    Ok((field, input))
+                }
             }
             None => todo!(),
         }
