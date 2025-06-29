@@ -68,7 +68,7 @@ pub(crate) fn deserialize_smartpointer<'input, 'partial, 'facet, 'shape, D: Dese
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
     DeserializeError<'input, 'facet, 'shape>,
 > {
-    state.steps.push(StepType::SmartPointer);
+    state.steps.push(StepType::ValueHolder);
 
     // Begin the smart pointer.
     let pointer = current.begin_smart_ptr().map_err(|err| state.handle_reflect_error(err))?;

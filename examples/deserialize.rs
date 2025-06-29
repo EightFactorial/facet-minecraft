@@ -129,6 +129,15 @@ fn main() {
     let (de, rem) = deserialize::<ExampleEnum>(&[5, 4, 5, 255, 1]).unwrap();
     assert_eq!(de, ExampleEnum::F(Arc::new(ExampleEnum::E(Box::new(ExampleEnum::F(Arc::new(ExampleEnum::Z)))))));
     assert!(rem.is_empty());
+
+    // ExampleEnum::G
+    let (de, rem) = deserialize::<ExampleEnum>(&[6, 1, 255, 255, 127]).unwrap();
+    assert_eq!(de, ExampleEnum::G(Some(-1)));
+    assert!(rem.is_empty());
+
+    let (de, rem) = deserialize::<ExampleEnum>(&[6, 0]).unwrap();
+    assert_eq!(de, ExampleEnum::G(None));
+    assert!(rem.is_empty());
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -145,5 +154,6 @@ enum ExampleEnum {
     D(BTreeMap<String, String>),
     E(Box<ExampleEnum>),
     F(Arc<ExampleEnum>),
+    G(#[facet(var)] Option<i16>),
     Z = 255,
 }

@@ -286,7 +286,7 @@ enum StepType<'shape> {
     Enum(&'shape Variant<'shape>, usize),
     Map(usize, usize),
     Set(usize, usize),
-    SmartPointer,
+    ValueHolder,
 }
 
 impl<'shape> DeserializerState<'shape> {
@@ -336,8 +336,8 @@ impl<'shape> DeserializerState<'shape> {
                         partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
                     }
 
-                    if let Some(StepType::SmartPointer) = self.steps.last() {
-                        // Re-update the state if finishing a smart pointer.
+                    if let Some(StepType::ValueHolder) = self.steps.last() {
+                        // Re-update the state if finishing a value holder.
                         self.update_state(partial, input)
                     } else {
                         // Otherwise return the partial and input.
@@ -364,7 +364,8 @@ impl<'shape> DeserializerState<'shape> {
                         partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
                     }
 
-                    if let Some(StepType::SmartPointer) = self.steps.last() {
+                    if let Some(StepType::ValueHolder) = self.steps.last() {
+                        // Re-update the state if finishing a value holder.
                         self.update_state(partial, input)
                     } else {
                         Ok((partial, input))
@@ -396,8 +397,8 @@ impl<'shape> DeserializerState<'shape> {
                         partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
                     }
 
-                    if let Some(StepType::SmartPointer) = self.steps.last() {
-                        // Re-update the state if finishing a smart pointer.
+                    if let Some(StepType::ValueHolder) = self.steps.last() {
+                        // Re-update the state if finishing a value holder.
                         self.update_state(partial, input)
                     } else {
                         // Otherwise return the partial and input.
@@ -430,8 +431,8 @@ impl<'shape> DeserializerState<'shape> {
                         partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
                     }
 
-                    if let Some(StepType::SmartPointer) = self.steps.last() {
-                        // Re-update the state if finishing a smart pointer.
+                    if let Some(StepType::ValueHolder) = self.steps.last() {
+                        // Re-update the state if finishing a value holder.
                         self.update_state(partial, input)
                     } else {
                         // Otherwise return the partial and input.
@@ -472,8 +473,8 @@ impl<'shape> DeserializerState<'shape> {
                         partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
                     }
 
-                    if let Some(StepType::SmartPointer) = self.steps.last() {
-                        // Re-update the state if finishing a smart pointer.
+                    if let Some(StepType::ValueHolder) = self.steps.last() {
+                        // Re-update the state if finishing a value holder.
                         self.update_state(partial, input)
                     } else {
                         // Otherwise return the partial and input.
@@ -488,7 +489,7 @@ impl<'shape> DeserializerState<'shape> {
                     Ok((list_item, input))
                 }
             }
-            Some(StepType::SmartPointer) => {
+            Some(StepType::ValueHolder) => {
                 self.steps.pop();
 
                 // If the frame count is greater than 1, finish the partial.
