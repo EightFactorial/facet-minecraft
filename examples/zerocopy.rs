@@ -58,6 +58,22 @@ fn main() {
 
     // And to demonstrate `is_static` requires static values, this will fail to compile:
     // assert!(is_static(&alloc::string::String::from("Non-Static String")));
+
+    // TODO: Fix soundness issues
+    // // `StaticRef`
+    // let str_ref = {
+    //     #[derive(Facet)]
+    //     struct StaticRef(&'static str);
+    //
+    //     let data = PREFIXED_DATA.to_vec();
+    //     let (str_ref, rem) = deserialize::<StaticRef>(&data).unwrap();
+    //     assert_eq!(str_ref.0, "Hello, World!");
+    //     assert!(rem.is_empty());
+    //     assert!(is_static(str_ref.0));
+    //
+    //     str_ref
+    // };
+    // assert_eq!(str_ref.0, "Hello, World!");
 }
 
 // -------------------------------------------------------------------------------------------------

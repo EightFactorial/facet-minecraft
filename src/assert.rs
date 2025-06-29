@@ -9,14 +9,14 @@ use facet::{
 };
 
 /// A trait for asserting that a type can be read and written.
-pub trait AssertProtocol<'a>: Facet<'a> {
+pub trait AssertProtocol<'facet>: Facet<'facet> {
     /// An assertion that the type can be read and written.
     const ASSERT: () = assert!(valid_shape(Self::SHAPE), "Type cannot be read/written!");
     /// An assertion that the type can be read and written.
     fn assert() { const { Self::ASSERT } }
 }
 
-impl<'a, T: Facet<'a>> AssertProtocol<'a> for T {}
+impl<'facet, T: Facet<'facet>> AssertProtocol<'facet> for T {}
 
 // -------------------------------------------------------------------------------------------------
 
