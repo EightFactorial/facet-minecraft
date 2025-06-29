@@ -15,10 +15,7 @@ pub(crate) fn deserialize_sequence<'input, 'partial, 'facet, 'shape, D: Deserial
 ) -> Result<
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
     DeserializeError<'input, 'facet, 'shape>,
->
-where
-    'input: 'partial + 'facet,
-{
+> {
     match ty {
         SequenceType::Array(ty) => deserialize_array(current, input, ty.n, state, de),
         SequenceType::Slice(..) => deserialize_list(current, input, state, de),
@@ -30,22 +27,19 @@ where
 fn deserialize_array<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    size: usize,
+    length: usize,
     state: &mut DeserializerState<'shape>,
     _de: &mut D,
 ) -> Result<
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
     DeserializeError<'input, 'facet, 'shape>,
->
-where
-    'input: 'partial + 'facet,
-{
-    state.steps.push(StepType::Sequence(size, 0));
+> {
+    state.steps.push(StepType::Sequence(length, 0));
 
     // Begin the list.
     let list = current.begin_list().map_err(|err| state.handle_reflect_error(err))?;
 
-    if size != 0 {
+    if length != 0 {
         // Begin the first item in the list.
         let item = list.begin_list_item().map_err(|err| state.handle_reflect_error(err))?;
 
@@ -64,14 +58,11 @@ fn deserialize_list<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
 ) -> Result<
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
     DeserializeError<'input, 'facet, 'shape>,
->
-where
-    'input: 'partial + 'facet,
-{
+> {
     // Deserialize the size of the list.
-    let (size, remaining) =
+    let (length, remaining) =
         de.deserialize_var_usize(input).map_err(|err| state.handle_deserialize_error(err))?;
 
     // Then deserialize exactly like the array.
-    deserialize_array(current, remaining, size, state, de)
+    deserialize_array(current, remaining, length, state, de)
 }

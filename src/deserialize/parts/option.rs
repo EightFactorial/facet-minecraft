@@ -2,7 +2,7 @@ use facet_reflect::Partial;
 
 use crate::{DeserializeError, DeserializerExt, deserialize::DeserializerState};
 
-pub(crate) fn deserialize_json<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+pub(crate) fn deserialize_option<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     _current: &'partial mut Partial<'facet, 'shape>,
     _input: &'input [u8],
     _state: &mut DeserializerState<'shape>,
@@ -11,12 +11,5 @@ pub(crate) fn deserialize_json<'input, 'partial, 'facet, 'shape, D: Deserializer
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
     DeserializeError<'input, 'facet, 'shape>,
 > {
-    // let owned = Partial::alloc_shape(current.shape())
-    //     .map_err(|err| todo!("TODO: Handle JSON error: {err}"))?;
-
-    // let value = facet_deserialize::deserialize_wip(owned, input,
-    // facet_json::Json)     .map_err(|err| todo!("TODO: Handle JSON error:
-    // {err}"))?;
-
     todo!()
 }

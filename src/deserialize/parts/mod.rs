@@ -1,6 +1,15 @@
 mod json;
 pub(super) use json::deserialize_json;
 
+mod map;
+pub(super) use map::{deserialize_map, deserialize_set};
+
+mod option;
+pub(super) use option::deserialize_option;
+
+mod pointer;
+pub(super) use pointer::deserialize_smartpointer;
+
 mod primitive;
 pub(super) use primitive::deserialize_primitive;
 

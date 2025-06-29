@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 
 #[cfg(feature = "custom")]
 use facet::ShapeAttribute;
@@ -16,7 +16,10 @@ mod error;
 pub use error::DeserializeError;
 
 mod parts;
-use parts::{deserialize_json, deserialize_primitive, deserialize_sequence, deserialize_user};
+use parts::{
+    deserialize_json, deserialize_map, deserialize_option, deserialize_primitive,
+    deserialize_sequence, deserialize_set, deserialize_smartpointer, deserialize_user,
+};
 
 mod traits;
 pub use traits::{Deserializer, DeserializerExt};
@@ -96,6 +99,7 @@ pub fn deserialize_iterative<
     }
 }
 
+#[expect(clippy::too_many_lines)]
 fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
     mut input: &'input [u8],
     mut partial: Partial<'facet, 'shape>,
@@ -182,8 +186,12 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                         input = remaining;
                     }
                     Type::User(ty) => {
-                        let (partial, remaining) =
-                            deserialize_user(ty, current, input, &mut state, de)?;
+                        let (partial, remaining) = if current.shape().is_type::<String>() {
+                            deserialize_primitive(current, input, &mut state, de)?
+                        } else {
+                            deserialize_user(ty, current, input, &mut state, de)?
+                        };
+
                         // Re-assign the current partial and consume the input.
                         current = partial;
                         input = remaining;
@@ -215,10 +223,31 @@ fn deserialize_value<'input: 'facet, 'facet, 'shape, D: DeserializerExt>(
                 current = partial;
                 input = remaining;
             }
-            Def::Option(_def) => todo!(),
-            Def::Map(_def) => todo!(),
-            Def::Set(_def) => todo!(),
-            Def::SmartPointer(_def) => todo!(),
+            Def::Option(..) => {
+                let (partial, remaining) = deserialize_option(current, input, &mut state, de)?;
+                // Re-assign the current partial and consume the input.
+                current = partial;
+                input = remaining;
+            }
+            Def::Map(def) => {
+                let (partial, remaining) = deserialize_map(def, current, input, &mut state, de)?;
+                // Re-assign the current partial and consume the input.
+                current = partial;
+                input = remaining;
+            }
+            Def::Set(def) => {
+                let (partial, remaining) = deserialize_set(def, current, input, &mut state, de)?;
+                // Re-assign the current partial and consume the input.
+                current = partial;
+                input = remaining;
+            }
+            Def::SmartPointer(..) => {
+                let (partial, remaining) =
+                    deserialize_smartpointer(current, input, &mut state, de)?;
+                // Re-assign the current partial and consume the input.
+                current = partial;
+                input = remaining;
+            }
         }
 
         // If we've finished the last frame, break the loop.
@@ -248,6 +277,9 @@ enum StepType<'shape> {
     Sequence(usize, usize),
     Struct(StructType<'shape>, usize),
     Enum(&'shape Variant<'shape>, usize),
+    Map(usize, usize),
+    Set(usize, usize),
+    SmartPointer,
 }
 
 impl<'shape> DeserializerState<'shape> {
@@ -263,6 +295,7 @@ impl<'shape> DeserializerState<'shape> {
     ///
     /// Provides better error handling, manages the current step,
     /// and updates flags for variable and JSON encoding.
+    #[expect(clippy::too_many_lines)]
     fn update_state<'input, 'partial, 'facet>(
         &mut self,
         mut partial: &'partial mut Partial<'facet, 'shape>,
@@ -296,7 +329,13 @@ impl<'shape> DeserializerState<'shape> {
                         partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
                     }
 
-                    Ok((partial, input))
+                    if let Some(StepType::SmartPointer) = self.steps.last() {
+                        // Re-update the state if finishing a smart pointer.
+                        self.update_state(partial, input)
+                    } else {
+                        // Otherwise return the partial and input.
+                        Ok((partial, input))
+                    }
                 } else {
                     // Begin a new list item.
                     let list_item =
@@ -318,7 +357,11 @@ impl<'shape> DeserializerState<'shape> {
                         partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
                     }
 
-                    Ok((partial, input))
+                    if let Some(StepType::SmartPointer) = self.steps.last() {
+                        self.update_state(partial, input)
+                    } else {
+                        Ok((partial, input))
+                    }
                 } else {
                     let ty_field = &shape.fields[*current];
 
@@ -346,7 +389,13 @@ impl<'shape> DeserializerState<'shape> {
                         partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
                     }
 
-                    Ok((partial, input))
+                    if let Some(StepType::SmartPointer) = self.steps.last() {
+                        // Re-update the state if finishing a smart pointer.
+                        self.update_state(partial, input)
+                    } else {
+                        // Otherwise return the partial and input.
+                        Ok((partial, input))
+                    }
                 } else {
                     let ty_field = &variant.data.fields[*current];
 
@@ -360,6 +409,87 @@ impl<'shape> DeserializerState<'shape> {
 
                     Ok((field, input))
                 }
+            }
+            Some(StepType::Map(length, current)) => {
+                // Increment the current item index.
+                *current += 1;
+
+                if *current >= *length * 2 {
+                    // Finish the map.
+                    self.steps.pop();
+
+                    // If the frame count is greater than 1, finish the partial.
+                    if partial.frame_count() > 1 {
+                        partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
+                    }
+
+                    if let Some(StepType::SmartPointer) = self.steps.last() {
+                        // Re-update the state if finishing a smart pointer.
+                        self.update_state(partial, input)
+                    } else {
+                        // Otherwise return the partial and input.
+                        Ok((partial, input))
+                    }
+                } else {
+                    match *current % 2 {
+                        0 => {
+                            // Begin the next key in the map.
+                            let key = partial
+                                .begin_key()
+                                .map_err(|err| self.handle_reflect_error(err))?;
+
+                            Ok((key, input))
+                        }
+                        1 => {
+                            // Begin the next value in the map.
+                            let value = partial
+                                .begin_value()
+                                .map_err(|err| self.handle_reflect_error(err))?;
+
+                            Ok((value, input))
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+            }
+            Some(StepType::Set(length, current)) => {
+                // Increment the current item index.
+                *current += 1;
+
+                if *current >= *length {
+                    // Finish the set.
+                    self.steps.pop();
+
+                    // If the frame count is greater than 1, finish the partial.
+                    if partial.frame_count() > 1 {
+                        partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
+                    }
+
+                    if let Some(StepType::SmartPointer) = self.steps.last() {
+                        // Re-update the state if finishing a smart pointer.
+                        self.update_state(partial, input)
+                    } else {
+                        // Otherwise return the partial and input.
+                        Ok((partial, input))
+                    }
+                } else {
+                    // Begin a new set item.
+                    // TODO: Use the correct `begin_set_item` method when available.
+                    let list_item =
+                        partial.begin_key().map_err(|err| self.handle_reflect_error(err))?;
+
+                    Ok((list_item, input))
+                }
+            }
+            Some(StepType::SmartPointer) => {
+                self.steps.pop();
+
+                // If the frame count is greater than 1, finish the partial.
+                if partial.frame_count() > 1 {
+                    partial = partial.end().map_err(|err| self.handle_reflect_error(err))?;
+                }
+
+                self.update_state(partial, input)
             }
             None => todo!(),
         }

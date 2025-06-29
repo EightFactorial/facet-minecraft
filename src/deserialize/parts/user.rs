@@ -22,8 +22,8 @@ where
     match ty {
         UserType::Struct(ty) => deserialize_struct(ty, current, input, state, de),
         UserType::Enum(ty) => deserialize_enum(ty, current, input, state, de),
-        UserType::Union(..) => todo!(),
-        UserType::Opaque => todo!(),
+        UserType::Union(..) => todo!("Unsupported Union type, {:?}", current.shape()),
+        UserType::Opaque => todo!("Unsupported Opaque type, {:?}", current.shape()),
     }
 }
 
@@ -43,7 +43,7 @@ fn deserialize_struct<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
 
     if ty.fields.is_empty() {
         // Unit struct, return immediately.
-        Ok((current, input))
+        state.update_state(current, input)
     } else {
         // Begin the first field in the struct.
         let field = current.begin_nth_field(0).map_err(|err| state.handle_reflect_error(err))?;
@@ -65,19 +65,27 @@ fn deserialize_enum<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
     DeserializeError<'input, 'facet, 'shape>,
 > {
-    // Read the variant index from the input.
-    let (variant, remaining) =
-        de.deserialize_var_usize(input).map_err(|err| state.handle_deserialize_error(err))?;
-    let Some(ty_variant) = ty.variants.get(variant) else { todo!() };
+    // Read the variant discriminant from the input.
+    let (variant_disc, remaining) =
+        de.deserialize_var_i64(input).map_err(|err| state.handle_deserialize_error(err))?;
 
+    // Get the variant index from the discriminant.
+    let Some(variant_indx) =
+        ty.variants.iter().position(|v| v.discriminant.unwrap_or_default() == variant_disc)
+    else {
+        todo!()
+    };
+
+    let ty_variant = &ty.variants[variant_indx];
     state.steps.push(StepType::Enum(ty_variant, 0));
 
+    // Start the enum variant.
     let variant =
-        current.select_nth_variant(variant).map_err(|err| state.handle_reflect_error(err))?;
+        current.select_nth_variant(variant_indx).map_err(|err| state.handle_reflect_error(err))?;
 
     if ty_variant.data.fields.is_empty() {
         // Unit struct, return immediately.
-        Ok((variant, remaining))
+        state.update_state(variant, remaining)
     } else {
         // Begin the first field in the enum.
         let field =

@@ -6,7 +6,7 @@
 #![allow(dead_code)]
 #![no_std]
 
-use alloc::vec::Vec;
+use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 
 use facet_derive::Facet;
 use facet_minecraft::deserialize;
@@ -109,6 +109,26 @@ fn main() {
     assert_eq!(de, ExampleEnum::C(Variable(2)));
     assert!(rem.is_empty());
 
+    // ExampleEnum::D
+    let (de, rem) = deserialize::<ExampleEnum>(&[3, 2, 1, b'a', 1, b'1', 1, b'b', 1, b'2']).unwrap();
+    assert_eq!(
+        de,
+        ExampleEnum::D({BTreeMap::from_iter([
+            (String::from("a"), String::from("1")),
+            (String::from("b"), String::from("2")),
+        ])})
+    );
+    assert!(rem.is_empty());
+
+    // ExampleEnum::E && ExampleEnum::Z
+    let (de, rem) = deserialize::<ExampleEnum>(&[4, 4, 4, 255, 1]).unwrap();
+    assert_eq!(de, ExampleEnum::E(Box::new(ExampleEnum::E(Box::new(ExampleEnum::E(Box::new(ExampleEnum::Z)))))));
+    assert!(rem.is_empty());
+
+    // ExampleEnum::E && ExampleEnum::F && ExampleEnum::Z
+    let (de, rem) = deserialize::<ExampleEnum>(&[5, 4, 5, 255, 1]).unwrap();
+    assert_eq!(de, ExampleEnum::F(Arc::new(ExampleEnum::E(Box::new(ExampleEnum::F(Arc::new(ExampleEnum::Z)))))));
+    assert!(rem.is_empty());
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -122,4 +142,8 @@ enum ExampleEnum {
     A(u32),
     B(#[facet(var)] u32, u32),
     C(Variable<u64>),
+    D(BTreeMap<String, String>),
+    E(Box<ExampleEnum>),
+    F(Arc<ExampleEnum>),
+    Z = 255,
 }
