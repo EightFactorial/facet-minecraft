@@ -226,7 +226,7 @@ impl Deserializer for McDeserializer {
         if let Some((&byte, remainder)) = input.split_first() {
             Ok((byte, remainder))
         } else {
-            Err(DeserializeError::new(input, u8::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, u8::SHAPE, ErrorReason::EndOfInput).with_length(1))
         }
     }
 
@@ -237,7 +237,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<2>() {
             Ok((u16::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, u16::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, u16::SHAPE, ErrorReason::EndOfInput).with_length(2))
         }
     }
 
@@ -248,7 +248,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<4>() {
             Ok((u32::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, u32::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, u32::SHAPE, ErrorReason::EndOfInput).with_length(4))
         }
     }
 
@@ -259,7 +259,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<8>() {
             Ok((u64::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, u64::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, u64::SHAPE, ErrorReason::EndOfInput).with_length(8))
         }
     }
 
@@ -270,7 +270,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<16>() {
             Ok((u128::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, u128::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, u128::SHAPE, ErrorReason::EndOfInput).with_length(16))
         }
     }
 
@@ -282,7 +282,7 @@ impl Deserializer for McDeserializer {
         if let Some((&byte, remainder)) = input.split_first() {
             Ok((byte as i8, remainder))
         } else {
-            Err(DeserializeError::new(input, i8::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, i8::SHAPE, ErrorReason::EndOfInput).with_length(1))
         }
     }
 
@@ -293,7 +293,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<2>() {
             Ok((i16::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, i16::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, i16::SHAPE, ErrorReason::EndOfInput).with_length(2))
         }
     }
 
@@ -304,7 +304,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<4>() {
             Ok((i32::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, i32::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, i32::SHAPE, ErrorReason::EndOfInput).with_length(4))
         }
     }
 
@@ -315,7 +315,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<8>() {
             Ok((i64::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, i64::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, i64::SHAPE, ErrorReason::EndOfInput).with_length(8))
         }
     }
 
@@ -326,7 +326,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<16>() {
             Ok((i128::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, i128::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, i128::SHAPE, ErrorReason::EndOfInput).with_length(16))
         }
     }
 
@@ -337,7 +337,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<4>() {
             Ok((f32::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, f32::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, f32::SHAPE, ErrorReason::EndOfInput).with_length(4))
         }
     }
 
@@ -348,7 +348,7 @@ impl Deserializer for McDeserializer {
         if let Some((&chunk, remainder)) = input.split_first_chunk::<8>() {
             Ok((f64::from_le_bytes(chunk), remainder))
         } else {
-            Err(DeserializeError::new(input, f64::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(input, f64::SHAPE, ErrorReason::EndOfInput).with_length(8))
         }
     }
 
@@ -364,10 +364,12 @@ impl Deserializer for McDeserializer {
                     input,
                     str::SHAPE,
                     ErrorReason::InvalidUtf8(err.valid_up_to()),
-                )),
+                )
+                .with_length(len - err.valid_up_to())),
             }
         } else {
-            Err(DeserializeError::new(input, str::SHAPE, ErrorReason::EndOfInput))
+            Err(DeserializeError::new(remainder, str::SHAPE, ErrorReason::EndOfInput)
+                .with_length(len))
         }
     }
 }
@@ -388,7 +390,8 @@ impl DeserializerExt for McDeserializer {
                     break;
                 }
             } else {
-                Err(DeserializeError::new(original, u16::SHAPE, ErrorReason::EndOfInput))?;
+                Err(DeserializeError::new(original, u16::SHAPE, ErrorReason::EndOfInput)
+                    .with_length(i))?;
             }
         }
         Ok((number, input))
@@ -409,7 +412,8 @@ impl DeserializerExt for McDeserializer {
                     break;
                 }
             } else {
-                Err(DeserializeError::new(original, u32::SHAPE, ErrorReason::EndOfInput))?;
+                Err(DeserializeError::new(original, u32::SHAPE, ErrorReason::EndOfInput)
+                    .with_length(i))?;
             }
         }
         Ok((number, input))
@@ -430,7 +434,8 @@ impl DeserializerExt for McDeserializer {
                     break;
                 }
             } else {
-                Err(DeserializeError::new(original, u64::SHAPE, ErrorReason::EndOfInput))?;
+                Err(DeserializeError::new(original, u64::SHAPE, ErrorReason::EndOfInput)
+                    .with_length(i))?;
             }
         }
         Ok((number, input))
@@ -451,7 +456,8 @@ impl DeserializerExt for McDeserializer {
                     break;
                 }
             } else {
-                Err(DeserializeError::new(original, u128::SHAPE, ErrorReason::EndOfInput))?;
+                Err(DeserializeError::new(original, u128::SHAPE, ErrorReason::EndOfInput)
+                    .with_length(i))?;
             }
         }
         Ok((number, input))

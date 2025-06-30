@@ -26,19 +26,19 @@ fn main() {
     // A traditional `u64` serialization.
     serialize(&1024u64, &mut buffer).unwrap();
     assert_eq!(buffer, &[0, 4, 0, 0, 0, 0, 0, 0]);
-    assert_eq!(deserialize::<u64>(&buffer).unwrap().0, 1024u64);
+    assert_eq!(deserialize::<u64>(&buffer).unwrap(), 1024u64);
     buffer.clear();
 
     // Using `LikeU32` to serialize a `u64` as a `u32`.
     serialize(&LikeU32(1024u64), &mut buffer).unwrap();
     assert_eq!(buffer, &[0, 4, 0, 0]);
-    assert_eq!(deserialize::<LikeU32>(&buffer).unwrap().0, LikeU32(1024u64));
+    assert_eq!(deserialize::<LikeU32>(&buffer).unwrap(), LikeU32(1024u64));
     buffer.clear();
 
     // Using `Reversed` to serialize a string in reverse.
     serialize(&Reversed(String::from("Hello, World!")), &mut buffer).unwrap();
     assert_eq!(buffer, &[13u8, b'!', b'd', b'l', b'r', b'o', b'W', b' ', b',', b'o', b'l', b'l', b'e', b'H']);
-    assert_eq!(deserialize::<Reversed>(&buffer).unwrap().0, Reversed(String::from("Hello, World!")));
+    assert_eq!(deserialize::<Reversed>(&buffer).unwrap(), Reversed(String::from("Hello, World!")));
     buffer.clear();
 }
 
@@ -63,7 +63,7 @@ impl LikeU32 {
         input: &'input [u8],
     ) -> Result<
         (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-        DeserializeError<'input, 'facet, 'shape>,
+        DeserializeError<'input, 'shape>,
     > {
         match McDeserializer.deserialize_u32(input) {
             Ok((val, remainder)) => match partial.set(LikeU32(val as u64)) {
@@ -101,7 +101,7 @@ impl Reversed {
         input: &'input [u8],
     ) -> Result<
         (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-        DeserializeError<'input, 'facet, 'shape>,
+        DeserializeError<'input, 'shape>,
     > {
         match McDeserializer.deserialize_str(input) {
             Ok((val, remainder)) => match partial.set(Reversed(val.chars().rev().collect())) {

@@ -38,24 +38,20 @@ where
     'input: 'partial + 'facet,
 {
     macro_rules! deserialize_scalar {
-        ($deserialize_fn:ident) => {
-            match de.$deserialize_fn(input) {
-                Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => state.update_state(partial, rem),
-                    Err(err) => Err(state.handle_reflect_error(err)),
-                },
-                Err(_err) => todo!(),
+        ($deserialize_fn:ident) => {{
+            let (val, rem) = de.$deserialize_fn(input).map_err(|err| state.handle_deserialize_error(err))?;
+            match current.set(val) {
+                Ok(partial) => state.update_state(partial, rem),
+                Err(err) => Err(state.handle_reflect_error(err)),
             }
-        };
-        ($deserialize_fn:ident, $($map_fn:tt)+) => {
-            match de.$deserialize_fn(input).map($($map_fn)+) {
-                Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => state.update_state(partial, rem),
-                    Err(err) => Err(state.handle_reflect_error(err)),
-                },
-                Err(_err) => todo!(),
+        }};
+        ($deserialize_fn:ident, $($map_fn:tt)+) => {{
+            let (val, rem) = de.$deserialize_fn(input).map_or_else(|err| Err(state.handle_deserialize_error(err)), $($map_fn)+)?;
+            match current.set(val) {
+                Ok(partial) => state.update_state(partial, rem),
+                Err(err) => Err(state.handle_reflect_error(err)),
             }
-        };
+        }};
     }
 
     match ScalarType::try_from_shape(current.shape()) {
@@ -77,10 +73,10 @@ where
         Some(ScalarType::F64) => deserialize_scalar!(deserialize_f64),
         Some(ScalarType::Str) => deserialize_scalar!(deserialize_str),
         Some(ScalarType::String) => {
-            deserialize_scalar!(deserialize_str, |(s, r)| (s.to_string(), r))
+            deserialize_scalar!(deserialize_str, |(s, r)| Ok((s.to_string(), r)))
         }
         Some(ScalarType::CowStr) => {
-            deserialize_scalar!(deserialize_str, |(s, r)| (Cow::Borrowed(s), r))
+            deserialize_scalar!(deserialize_str, |(s, r)| Ok((Cow::Borrowed(s), r)))
         }
         Some(..) => todo!(),
         None => todo!(),
@@ -99,15 +95,14 @@ where
     'input: 'partial + 'facet,
 {
     macro_rules! deserialize_var_scalar {
-        ($deserialize_fn:ident) => {
-            match de.$deserialize_fn(input) {
-                Ok((val, rem)) => match current.set(val) {
-                    Ok(partial) => state.update_state(partial, rem),
-                    Err(err) => Err(state.handle_reflect_error(err)),
-                },
-                Err(_err) => todo!(),
+        ($deserialize_fn:ident) => {{
+            let (val, rem) =
+                de.$deserialize_fn(input).map_err(|err| state.handle_deserialize_error(err))?;
+            match current.set(val) {
+                Ok(partial) => state.update_state(partial, rem),
+                Err(err) => Err(state.handle_reflect_error(err)),
             }
-        };
+        }};
     }
 
     match ScalarType::try_from_shape(current.shape()) {

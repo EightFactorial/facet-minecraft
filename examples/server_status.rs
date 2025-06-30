@@ -43,7 +43,7 @@ fn main() -> Result<(), Error> {
 
     // Read the status response
     let response = read_bytes(&mut stream)?;
-    let (response, _) = McDeserializer::deserialize::<ClientboundStatus>(&response).unwrap();
+    let response = McDeserializer::deserialize::<ClientboundStatus>(&response).unwrap();
     match response {
         ClientboundStatus::PongResponse(..) => panic!("Expected to receive a status response?"),
         ClientboundStatus::StatusResponse(response) => println!("Server Status:\n{response}"),
@@ -58,7 +58,7 @@ fn main() -> Result<(), Error> {
 
     // Read the ping response
     let response = read_bytes(&mut stream)?;
-    let (response, _) = McDeserializer::deserialize::<ClientboundStatus>(&response).unwrap();
+    let response = McDeserializer::deserialize::<ClientboundStatus>(&response).unwrap();
     match response {
         ClientboundStatus::StatusResponse(..) => panic!("Expected to receive a pong response?"),
         ClientboundStatus::PongResponse(response) => {

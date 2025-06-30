@@ -66,11 +66,14 @@ fn deserialize_enum<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt
     let Some(variant_indx) =
         ty.variants.iter().position(|v| v.discriminant.unwrap_or_default() == variant_disc)
     else {
-        return Err(state.handle_deserialize_error(DeserializeError::new(
-            input,
-            current.shape(),
-            ErrorReason::InvalidVariant(variant_disc),
-        )));
+        return Err(state.handle_deserialize_error(
+            DeserializeError::new(
+                input,
+                current.shape(),
+                ErrorReason::InvalidVariant(variant_disc),
+            )
+            .with_length(input.len() - remaining.len()),
+        ));
     };
 
     let ty_variant = &ty.variants[variant_indx];

@@ -34,8 +34,25 @@ pub use traits::{Deserializer, DeserializerExt};
 #[expect(clippy::inline_always)]
 pub fn deserialize<'input: 'facet, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
     input: &'input [u8],
-) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
+) -> Result<T, DeserializeError<'input, 'shape>> {
     McDeserializer::deserialize::<T>(input)
+}
+
+/// Deserialize a type from the given byte slice.
+///
+/// Returns the deserialized value and any remaining bytes.
+///
+/// This is a wrapper around [`deserialize_iterative`],
+/// using [`McDeserializer`] as the deserializer.
+///
+/// # Errors
+/// Returns an error if the deserialization fails.
+#[inline(always)]
+#[expect(clippy::inline_always)]
+pub fn deserialize_remainder<'input: 'facet, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
+    input: &'input [u8],
+) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
+    McDeserializer::deserialize_remainder::<T>(input)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -55,6 +72,30 @@ impl McDeserializer {
     #[inline(always)]
     #[expect(clippy::inline_always)]
     pub fn deserialize<'input: 'facet, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
+        input: &'input [u8],
+    ) -> Result<T, DeserializeError<'input, 'shape>> {
+        let () = const { <T as AssertProtocol<'facet>>::ASSERT };
+
+        deserialize_iterative::<T, McDeserializer>(input, T::SHAPE, McDeserializer).map(|(v, _)| v)
+    }
+
+    /// Deserialize a type from the given byte slice.
+    ///
+    /// Returns the deserialized value and any remaining bytes.
+    ///
+    /// This is a wrapper around [`deserialize_iterative`],
+    /// using [`McDeserializer`] as the deserializer.
+    ///
+    /// # Errors
+    /// Returns an error if the deserialization fails.
+    #[inline(always)]
+    #[expect(clippy::inline_always)]
+    pub fn deserialize_remainder<
+        'input: 'facet,
+        'facet: 'shape,
+        'shape,
+        T: AssertProtocol<'facet>,
+    >(
         input: &'input [u8],
     ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
         let () = const { <T as AssertProtocol<'facet>>::ASSERT };

@@ -25,7 +25,7 @@ mod deserialize;
 #[cfg(feature = "deserialize")]
 pub use deserialize::{
     DeserializeError, Deserializer, DeserializerExt, McDeserializer, deserialize,
-    deserialize_iterative,
+    deserialize_iterative, deserialize_remainder,
 };
 
 #[cfg(feature = "serialize")]

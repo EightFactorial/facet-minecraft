@@ -16,7 +16,7 @@
 #![no_std]
 
 use facet_derive::Facet;
-use facet_minecraft::deserialize;
+use facet_minecraft::deserialize_remainder;
 
 extern crate alloc;
 extern crate facet_core as facet;
@@ -27,19 +27,19 @@ fn main() {
         &[13u8, b'H', b'e', b'l', b'l', b'o', b',', b' ', b'W', b'o', b'r', b'l', b'd', b'!'];
 
     // `&str`
-    let (str, rem) = deserialize::<&str>(PREFIXED_DATA).unwrap();
+    let (str, rem) = deserialize_remainder::<&str>(PREFIXED_DATA).unwrap();
     assert_eq!(str, "Hello, World!");
     assert!(rem.is_empty());
     assert!(is_static(str));
 
     // `StringRef`
-    let (str_ref, rem) = deserialize::<StringRef>(PREFIXED_DATA).unwrap();
+    let (str_ref, rem) = deserialize_remainder::<StringRef>(PREFIXED_DATA).unwrap();
     assert_eq!(str_ref.0, "Hello, World!");
     assert!(rem.is_empty());
     assert!(is_static(str_ref.0));
 
     // `&[u8]`
-    let (dat, rem) = deserialize::<&[u8]>(PREFIXED_DATA).unwrap();
+    let (dat, rem) = deserialize_remainder::<&[u8]>(PREFIXED_DATA).unwrap();
     assert_eq!(
         dat,
         &[b'H', b'e', b'l', b'l', b'o', b',', b' ', b'W', b'o', b'r', b'l', b'd', b'!']
@@ -48,7 +48,7 @@ fn main() {
     assert!(is_static(dat));
 
     // `ByteRef`
-    let (byte_ref, rem) = deserialize::<ByteRef>(PREFIXED_DATA).unwrap();
+    let (byte_ref, rem) = deserialize_remainder::<ByteRef>(PREFIXED_DATA).unwrap();
     assert_eq!(
         byte_ref.0,
         &[b'H', b'e', b'l', b'l', b'o', b',', b' ', b'W', b'o', b'r', b'l', b'd', b'!']
@@ -66,7 +66,7 @@ fn main() {
     //     struct StaticRef(&'static str);
     //
     //     let data = PREFIXED_DATA.to_vec();
-    //     let (str_ref, rem) = deserialize::<StaticRef>(&data).unwrap();
+    //     let (str_ref, rem) = deserialize_remainder::<StaticRef>(&data).unwrap();
     //     assert_eq!(str_ref.0, "Hello, World!");
     //     assert!(rem.is_empty());
     //     assert!(is_static(str_ref.0));

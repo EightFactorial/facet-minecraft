@@ -12,12 +12,14 @@ use core::{
 use ariadne::{Label, Report, ReportKind, Source};
 use facet::{Shape, Type, UserType};
 
-use crate::deserialize::StepType;
+use crate::{DeserializerExt, McDeserializer, deserialize::StepType};
 
 /// An error that occurred during deserialization.
 pub struct DeserializeError<'input, 'shape> {
     origin: Option<(&'input [u8], &'shape Shape<'shape>)>,
     error: (&'input [u8], &'shape Shape<'shape>),
+    #[allow(dead_code)]
+    length: Option<usize>,
 
     state: Vec<StepType<'shape>>,
     reason: ErrorReason,
@@ -32,8 +34,12 @@ impl<'input, 'shape> DeserializeError<'input, 'shape> {
         shape: &'shape Shape<'shape>,
         reason: ErrorReason,
     ) -> Self {
-        Self { origin: None, error: (input, shape), state: Vec::new(), reason }
+        Self { origin: None, error: (input, shape), length: None, state: Vec::new(), reason }
     }
+
+    /// Set the number of bytes that caused the error.
+    #[must_use]
+    pub fn with_length(self, length: usize) -> Self { Self { length: Some(length), ..self } }
 
     /// Add the original input and shape to the error.
     #[must_use]
@@ -85,9 +91,9 @@ impl ErrorReason {
         }
     }
 
-    /// Get a detailed error message for the error.
+    /// Get a label describing what caused the error.
     #[must_use]
-    pub fn error_message(&self, shape: &Shape<'_>) -> String {
+    pub fn error_label(&self) -> String {
         match self {
             ErrorReason::EndOfInput => {
                 String::from("The input ended unexpectedly while parsing data.")
@@ -95,29 +101,47 @@ impl ErrorReason {
             ErrorReason::InvalidBool(byte) => {
                 format!("Expected either `true` (1) or `false` (0), but found `{byte}`.")
             }
-            // TODO: Figure out how to get multi-line error messages working.
-            ErrorReason::InvalidVariant(var) => {
-                let mut message = format!("Invalid enum variant `{var}`, expected one of: ");
+            ErrorReason::InvalidVariant(var) => format!("Invalid enum variant `{var}`"),
+            ErrorReason::InvalidUtf8(..) => {
+                String::from("Strings must be valid UTF-8, but the input contained invalid bytes.")
+            }
+        }
+    }
+
+    /// Get a note describing what was expected.
+    #[must_use]
+    pub fn expected_note(&self, input: &[u8], shape: &Shape<'_>) -> Option<String> {
+        match self {
+            ErrorReason::InvalidVariant(_) => {
                 if let Type::User(UserType::Enum(ty)) = shape.ty {
+                    let mut message = String::from("Expected one of:\n");
+
+                    // Add each enum variant to the message.
                     for (index, variant) in ty.variants.iter().enumerate() {
                         write!(
                             message,
-                            "{} ({})",
+                            "{}::{} ({})",
+                            shape.type_identifier,
                             variant.name,
                             variant.discriminant.unwrap_or_default()
                         )
                         .unwrap();
-                        if index < ty.variants.len() - 1 {
-                            message.push_str(", ");
+                        if index < ty.variants.len().saturating_sub(1) {
+                            message.push('\n');
                         }
                     }
-                }
 
-                message
+                    Some(message)
+                } else {
+                    None
+                }
             }
-            ErrorReason::InvalidUtf8(..) => {
-                String::from("Strings must be valid UTF-8, but the input contained invalid bytes.")
+            ErrorReason::InvalidUtf8(pos) => {
+                let (len, rem) = McDeserializer.deserialize_var_usize(input).ok()?;
+                let slice = str::from_utf8(&rem[..len - len.saturating_sub(*pos)]).unwrap();
+                Some(format!("Valid string slice: \"{slice}\""))
             }
+            _ => None,
         }
     }
 }
@@ -127,14 +151,14 @@ impl ErrorReason {
 #[cfg(not(feature = "rich-diagnostics"))]
 impl Debug for DeserializeError<'_, '_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.reason.error_message(self.error.1))
+        f.write_str(&self.reason.error_label())
     }
 }
 
 #[cfg(not(feature = "rich-diagnostics"))]
 impl Display for DeserializeError<'_, '_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.reason.error_message(self.error.1))
+        f.write_str(&self.reason.error_label())
     }
 }
 
@@ -160,25 +184,70 @@ impl Display for DeserializeError<'_, '_> {
 
 #[cfg(feature = "rich-diagnostics")]
 impl DeserializeError<'_, '_> {
-    /// Create and print a [`Report`] to `stderr`.
-    pub fn eprintln(&self) {
-        let (source, span) = self.build_source();
-
-        let mut builder =
-            Report::build(ReportKind::Error, (self.identifier().to_string(), 0..source.len()));
-
-        // Add the error label and message.
-        builder = builder.with_label(self.build_reason(span));
-        builder = builder.with_message(self.reason.error_reason());
-
-        // Finish and print the report.
-        let _ = builder.finish().eprint((self.identifier().to_string(), source));
+    /// Print the error report to stdout.
+    ///
+    /// In most cases, [`DeserializeError::eprint`] is the
+    /// ['more correct'](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)) function to use.
+    #[expect(clippy::doc_link_with_quotes)]
+    pub fn println(&self) {
+        let (report, source) = self.report();
+        let _ = report.print((self.identifier().to_string(), source));
     }
 
-    fn build_reason(&self, span: Range<usize>) -> Label<(String, Range<usize>)> {
+    /// Print the error report to stderr.
+    pub fn eprintln(&self) {
+        let (report, source) = self.report();
+        let _ = report.eprint((self.identifier().to_string(), source));
+    }
+
+    /// Write the error report to the given writer.
+    ///
+    /// If you are writing to stdout or stderr, consider using
+    /// [`DeserializeError::println`] or [`DeserializeError::eprintln`] instead.
+    ///
+    /// # Errors
+    /// Returns an error if the writer fails to write the report.
+    pub fn write(&self, writer: impl std::io::Write) -> std::io::Result<()> {
+        let (report, source) = self.report();
+        report.write((self.identifier().to_string(), source), writer)
+    }
+
+    /// Build a [`Report`] for the error.
+    #[must_use]
+    pub fn report(&self) -> (Report<'_, (String, Range<usize>)>, Source) {
+        let (mut source, error_span) = self.build_source();
+        let structure_span = self.build_structure(&mut source);
+
+        let mut builder =
+            Report::build(ReportKind::Error, (self.identifier().to_string(), error_span.clone()));
+
+        // Add the error message and label.
+        builder = builder.with_message(self.reason.error_reason());
+        builder = builder.with_label(self.reason_label(error_span));
+
+        // If there is a structure label, add it.
+        if let Some(span) = structure_span {
+            builder = builder.with_label(self.structure_label(span));
+        }
+
+        // If the error has a note, add it.
+        if let Some(note) = self.reason.expected_note(self.error.0, self.error.1) {
+            builder = builder.with_note(note);
+        }
+
+        // Finish and print the report.
+        (builder.finish(), Source::from(source))
+    }
+
+    fn reason_label(&self, span: Range<usize>) -> Label<(String, Range<usize>)> {
         Label::new((self.identifier().to_string(), span))
-            .with_message(self.reason.error_message(self.error.1))
+            .with_message(self.reason.error_label())
             .with_order(-128)
+    }
+
+    fn structure_label(&self, span: Range<usize>) -> Label<(String, Range<usize>)> {
+        Label::new((self.identifier().to_string(), span))
+            .with_message("Error occurred reading this field")
     }
 
     /// Build a [`Source`] for the error to use.
@@ -197,23 +266,11 @@ impl DeserializeError<'_, '_> {
     /// Input: [..., 4, 5, 6, 7, 8, 9, 10, 11, ...]
     ///         ___
     ///          |---> Reason For Error
-    ///
-    /// MyStruct {
-    ///     ... # Other fields
-    ///     relevant_field: FieldType {
-    ///         previous_field: u32,
-    ///         current_field: u32,
-    ///         ___________
-    ///              |---> Error Occurred Here
-    ///         future_field: u32,
-    ///         }
-    ///     ... # Other fields
-    /// }
     /// ```
     #[must_use]
-    fn build_source(&self) -> (Source, Range<usize>) {
+    fn build_source(&self) -> (String, Range<usize>) {
         let mut source = String::new();
-        let mut span = 0..0;
+        let mut span = 8..8;
 
         if let Some((input, ..)) = self.origin {
             // Print the input that caused the error.
@@ -227,9 +284,19 @@ impl DeserializeError<'_, '_> {
                 // Print 8 bytes around the error, truncating the ends if necessary.
                 // Ex: "Input: [..., 4, 5, 6, 7, 8, 9, 10, 11, ...]"
 
+                // Get the position of the error in the input.
+                let error_pos = match self.reason {
+                    ErrorReason::EndOfInput => input.len().saturating_sub(1),
+                    ErrorReason::InvalidUtf8(pos) => input.len() - self.error.0.len() + pos + 1,
+                    _ => input.len().saturating_sub(self.error.0.len()),
+                };
+
                 // Get the start and end of the span to print.
-                let error_pos = input.len().saturating_sub(self.error.0.len());
-                let (start, end) = (error_pos.saturating_sub(4), (error_pos + 4).min(input.len()));
+                let (start, mut end) =
+                    (error_pos.saturating_sub(4), (error_pos + 4).min(input.len()));
+                if end - start < 8 {
+                    end = (end + 8 - (end - start)).min(input.len());
+                }
 
                 source.push('[');
                 // Add an ellipsis if the array is truncated.
@@ -241,8 +308,19 @@ impl DeserializeError<'_, '_> {
                 for index in start..end {
                     // Set the span to the error position.
                     let value = input[index].to_string();
-                    if index == error_pos {
-                        span = source.len()..source.len() + value.len();
+
+                    if let Some(length) = self.length
+                        && span.start != 8
+                    {
+                        // Grow the span to include the new value.
+                        if (error_pos..(error_pos + length)).contains(&index) {
+                            span = span.start..span.end + 2 + value.len();
+                        }
+                    } else {
+                        // Set the span to the error position.
+                        if index == error_pos {
+                            span = source.len()..source.len() + value.len();
+                        }
                     }
 
                     // Push the value to the source.
@@ -258,9 +336,6 @@ impl DeserializeError<'_, '_> {
                 }
                 source.push(']');
             }
-
-            // Build the structure leading to the error.
-            source.push_str(&self.build_structure());
         } else {
             // Print the input that caused the error.
             source.push_str("Input: ");
@@ -282,15 +357,39 @@ impl DeserializeError<'_, '_> {
             }
 
             if !self.error.0.is_empty() {
-                // Set the span to the first byte of the error.
-                let first = self.error.0.first().copied().unwrap_or_default().to_string();
-                span = 8..8 + first.len();
+                let take = self.length.unwrap_or_default().max(1);
+                for byte in self.error.0.iter().take(take) {
+                    span = span.start..span.end + byte.to_string().len();
+                }
             }
         }
 
-        (Source::from(source), span)
+        (source, span)
     }
 
-    #[expect(clippy::unused_self)]
-    fn build_structure(&self) -> String { String::new() }
+    /// Build a [`Source`] for the error to use.
+    ///
+    /// This will provide content for the error report to use.
+    ///
+    /// # Example:
+    ///
+    /// ```text
+    /// # If no origin is provided:
+    ///
+    /// # If the origin is provided:
+    ///
+    /// MyStruct {
+    ///     ... # Other fields
+    ///     relevant_field: FieldType {
+    ///         previous_field: u32,
+    ///         current_field: u32,
+    ///         ___________
+    ///              |---> Error Occurred Here
+    ///         future_field: u32,
+    ///         }
+    ///     ... # Other fields
+    /// }
+    /// ```
+    #[expect(clippy::ptr_arg, clippy::unused_self)]
+    fn build_structure(&self, _source: &mut String) -> Option<Range<usize>> { None }
 }

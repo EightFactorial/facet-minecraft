@@ -77,6 +77,8 @@ deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
 # Enable serialization support
 serialize = ["dep:facet-reflect"]
 
+# Enable support for the `uuid` crate
+uuid = ["facet-core/uuid", "facet-reflect?/uuid"]
 # Enable support for the standard library
 std = ["facet-core/std", "facet-reflect?/std", "once_cell?/std"]
 # Enable features using the nightly toolchain
@@ -99,6 +101,10 @@ required-features = ["custom", "full"]
 [[example]]
 name = "deserialize"
 required-features = ["deserialize"]
+
+[[example]]
+name = "error_message"
+required-features = ["full", "rich-diagnostics"]
 
 [[example]]
 name = "serialize"
