@@ -6,11 +6,11 @@ use crate::{DeserializeError, DeserializerExt, deserialize::DeserializerState};
 pub(crate) fn deserialize_json<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
 ) -> Result<
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
+    DeserializeError<'input, 'shape>,
 > {
     // Deserialize the string from the input.
     let (_content, _remaining) =

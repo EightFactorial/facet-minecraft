@@ -4,15 +4,18 @@ use facet_reflect::{Partial, ScalarType};
 
 use crate::{DeserializeError, DeserializerExt, deserialize::DeserializerState};
 
-pub(crate) fn deserialize_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+pub(crate) fn deserialize_primitive<
+    'input,
+    'partial,
+    'facet: 'shape,
+    'shape,
+    D: DeserializerExt,
+>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
->
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
 where
     'input: 'partial + 'facet,
 {
@@ -25,15 +28,12 @@ where
 
 // -------------------------------------------------------------------------------------------------
 
-fn primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+fn primitive<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
->
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
 where
     'input: 'partial + 'facet,
 {
@@ -89,15 +89,12 @@ where
 
 // -------------------------------------------------------------------------------------------------
 
-fn var_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+fn var_primitive<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
->
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
 where
     'input: 'partial + 'facet,
 {

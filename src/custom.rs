@@ -41,7 +41,7 @@ type DeserializeFn = for<'input, 'partial, 'facet, 'shape> fn(
     &'input [u8],
 ) -> Result<
     (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
+    DeserializeError<'input, 'shape>,
 >;
 
 impl FacetOverride {

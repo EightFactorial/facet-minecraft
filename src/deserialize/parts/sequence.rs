@@ -10,12 +10,10 @@ pub(crate) fn deserialize_sequence<'input, 'partial, 'facet, 'shape, D: Deserial
     ty: SequenceType,
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
-> {
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
+{
     match ty {
         SequenceType::Array(ty) => deserialize_array(current, input, ty.n, state, de),
         SequenceType::Slice(..) => deserialize_list(current, input, state, de),
@@ -28,12 +26,10 @@ fn deserialize_array<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
     length: usize,
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     _de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
-> {
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
+{
     state.steps.push(StepType::Sequence(length, 0));
 
     // Begin the list.
@@ -53,12 +49,10 @@ fn deserialize_array<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
 fn deserialize_list<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
-> {
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
+{
     // Deserialize the size of the list.
     let (length, remaining) =
         de.deserialize_var_usize(input).map_err(|err| state.handle_deserialize_error(err))?;

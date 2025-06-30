@@ -10,16 +10,13 @@ use crate::{
 ///
 /// It is currently possible to deserialize a value into a static reference.
 /// This is fine for static inputs, but not for non-static inputs!
-pub(crate) fn deserialize_pointer<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+pub(crate) fn deserialize_pointer<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
     ty: PointerType<'shape>,
     mut current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
->
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
 where
     'input: 'partial + 'facet,
 {
@@ -62,12 +59,10 @@ where
 pub(crate) fn deserialize_smartpointer<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     _de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
-> {
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
+{
     state.steps.push(StepType::ValueHolder);
 
     // Begin the smart pointer.

@@ -10,12 +10,10 @@ pub(crate) fn deserialize_map<'input, 'partial, 'facet, 'shape, D: DeserializerE
     _def: MapDef<'shape>,
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
-> {
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
+{
     let (length, remaining) =
         de.deserialize_var_usize(input).map_err(|err| state.handle_deserialize_error(err))?;
 
@@ -41,12 +39,10 @@ pub(crate) fn deserialize_set<'input, 'partial, 'facet, 'shape, D: DeserializerE
     _def: SetDef<'shape>,
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
-    state: &mut DeserializerState<'shape>,
+    state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
-) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'facet, 'shape>,
-> {
+) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
+{
     let (length, remaining) =
         de.deserialize_var_usize(input).map_err(|err| state.handle_deserialize_error(err))?;
 

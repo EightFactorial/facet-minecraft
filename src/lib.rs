@@ -3,6 +3,7 @@
 #![cfg_attr(feature = "nightly", feature(core_io_borrowed_buf))]
 #![no_std]
 
+#[allow(dead_code)]
 const ERROR_SOURCE: &str = env!("CARGO_CRATE_NAME");
 
 extern crate alloc;

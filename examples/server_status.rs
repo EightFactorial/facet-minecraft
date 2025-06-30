@@ -24,6 +24,7 @@ fn main() -> Result<(), Error> {
     let mut buffer = Vec::new();
 
     let handshake = ServerboundHandshake::Handshake(HandshakePacket {
+        // Version 1.21.6
         protocol: 771,
         address: SERVER_ADDRESS.to_string(),
         port: SERVER_PORT,
@@ -49,10 +50,9 @@ fn main() -> Result<(), Error> {
     }
 
     let timestamp = UNIX_EPOCH.elapsed().unwrap().as_millis() as u64;
-    let request = ServerboundStatus::PingRequest(timestamp);
 
     // Send the ping request
-    McSerializer::serialize_into(&request, &mut buffer).unwrap();
+    McSerializer::serialize_into(&ServerboundStatus::PingRequest(timestamp), &mut buffer).unwrap();
     send_bytes(&buffer, &mut stream)?;
     buffer.clear();
 
