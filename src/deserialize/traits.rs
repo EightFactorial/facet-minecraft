@@ -357,11 +357,11 @@ impl Deserializer for McDeserializer {
         input: &'input [u8],
     ) -> Result<(&'input str, &'input [u8]), DeserializeError<'input, 'shape>> {
         let (len, remainder) = self.deserialize_var_usize(input)?;
-        if let Some((str_bytes, remainder)) = remainder.split_at_checked(len) {
+        if let Some((str_bytes, rem_bytes)) = remainder.split_at_checked(len) {
             match core::str::from_utf8(str_bytes) {
-                Ok(s) => Ok((s, remainder)),
+                Ok(s) => Ok((s, rem_bytes)),
                 Err(err) => Err(DeserializeError::new(
-                    input,
+                    remainder,
                     str::SHAPE,
                     ErrorReason::InvalidUtf8(err.valid_up_to()),
                 )

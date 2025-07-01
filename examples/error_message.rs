@@ -10,22 +10,27 @@ fn main() {
     const INVALID_UTF8: &[u8] = &[8, b'a', b'a', b'a', b'a', b'a', b'a', 0xc3, 0x28, 1, 1, 0];
 
     let failed = McDeserializer::deserialize::<ExampleProperty>(INVALID_UTF8);
-    failed.unwrap_err().eprintln();
+    failed.unwrap_err().eprint();
 
     const INVALID_BOOL: &[u8] = &[2, b'a', b'a', 0, 2];
 
     let failed = McDeserializer::deserialize::<ExampleProperty>(INVALID_BOOL);
-    failed.unwrap_err().eprintln();
+    failed.unwrap_err().eprint();
 
     const INVALID_VARIANT: &[u8] = &[2, b'a', b'a', 128, 2, 0, 0, 0, 0];
 
     let failed = McDeserializer::deserialize::<ExampleProperty>(INVALID_VARIANT);
-    failed.unwrap_err().eprintln();
+    failed.unwrap_err().eprint();
 
-    const END_OF_STREAM: &[u8] = &[0, 1];
+    const END_OF_STREAM_STR: &[u8] = &[4, b'a'];
 
-    let failed = McDeserializer::deserialize::<ExampleProperty>(END_OF_STREAM);
-    failed.unwrap_err().eprintln();
+    let failed = McDeserializer::deserialize::<ExampleProperty>(END_OF_STREAM_STR);
+    failed.unwrap_err().eprint();
+
+    const END_OF_STREAM_LONG: &[u8] = &[0, 4, 0, 0, 0];
+
+    let failed = McDeserializer::deserialize::<ExampleProperty>(END_OF_STREAM_LONG);
+    failed.unwrap_err().eprint();
 }
 
 // -------------------------------------------------------------------------------------------------

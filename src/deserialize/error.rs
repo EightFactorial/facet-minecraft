@@ -12,7 +12,7 @@ use core::{
 use ariadne::{Label, Report, ReportKind, Source};
 use facet::{Shape, Type, UserType};
 
-use crate::{DeserializerExt, McDeserializer, deserialize::StepType};
+use crate::deserialize::StepType;
 
 /// An error that occurred during deserialization.
 pub struct DeserializeError<'input, 'shape> {
@@ -72,6 +72,7 @@ impl Error for DeserializeError<'_, '_> {}
 
 // -------------------------------------------------------------------------------------------------
 
+#[non_exhaustive]
 pub enum ErrorReason {
     EndOfInput,
     InvalidBool(u8),
@@ -110,10 +111,30 @@ impl ErrorReason {
 
     /// Get a note describing what was expected.
     #[must_use]
-    pub fn expected_note(&self, input: &[u8], shape: &Shape<'_>) -> Option<String> {
+    pub fn expected_note(&self, error: &DeserializeError<'_, '_>) -> Option<String> {
         match self {
+            ErrorReason::EndOfInput => {
+                if let Some((input, _)) = error.origin
+                    && let Some(length) = error.length
+                {
+                    let start = input.len().saturating_sub(error.error.0.len());
+                    match length - (input.len() - start) {
+                        0 => None,
+                        1 => Some(format!(
+                            "Expected 1 more byte for a `{}`",
+                            error.error.1.type_identifier
+                        )),
+                        other => Some(format!(
+                            "Expected {other} more bytes for a `{}`",
+                            error.error.1.type_identifier
+                        )),
+                    }
+                } else {
+                    None
+                }
+            }
             ErrorReason::InvalidVariant(_) => {
-                if let Type::User(UserType::Enum(ty)) = shape.ty {
+                if let Type::User(UserType::Enum(ty)) = error.error.1.ty {
                     let mut message = String::from("Expected one of:\n");
 
                     // Add each enum variant to the message.
@@ -121,7 +142,7 @@ impl ErrorReason {
                         write!(
                             message,
                             "{}::{} ({})",
-                            shape.type_identifier,
+                            error.error.1.type_identifier,
                             variant.name,
                             variant.discriminant.unwrap_or_default()
                         )
@@ -137,9 +158,8 @@ impl ErrorReason {
                 }
             }
             ErrorReason::InvalidUtf8(pos) => {
-                let (len, rem) = McDeserializer.deserialize_var_usize(input).ok()?;
-                let slice = str::from_utf8(&rem[..len - len.saturating_sub(*pos)]).unwrap();
-                Some(format!("Valid string slice: \"{slice}\""))
+                let slice = str::from_utf8(&error.error.0[..*pos]).unwrap();
+                Some(format!("Valid string slice: \"{slice}\" (0..{pos})"))
             }
             _ => None,
         }
@@ -169,7 +189,7 @@ impl DeserializeError<'_, '_> {}
 #[cfg(feature = "rich-diagnostics")]
 impl Debug for DeserializeError<'_, '_> {
     fn fmt(&self, _: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.eprintln();
+        self.eprint();
         Ok(())
     }
 }
@@ -177,7 +197,7 @@ impl Debug for DeserializeError<'_, '_> {
 #[cfg(feature = "rich-diagnostics")]
 impl Display for DeserializeError<'_, '_> {
     fn fmt(&self, _: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.eprintln();
+        self.eprint();
         Ok(())
     }
 }
@@ -189,21 +209,21 @@ impl DeserializeError<'_, '_> {
     /// In most cases, [`DeserializeError::eprint`] is the
     /// ['more correct'](https://en.wikipedia.org/wiki/Standard_streams#Standard_error_(stderr)) function to use.
     #[expect(clippy::doc_link_with_quotes)]
-    pub fn println(&self) {
+    pub fn print(&self) {
         let (report, source) = self.report();
         let _ = report.print((self.identifier().to_string(), source));
     }
 
     /// Print the error report to stderr.
-    pub fn eprintln(&self) {
+    pub fn eprint(&self) {
         let (report, source) = self.report();
         let _ = report.eprint((self.identifier().to_string(), source));
     }
 
     /// Write the error report to the given writer.
     ///
-    /// If you are writing to stdout or stderr, consider using
-    /// [`DeserializeError::println`] or [`DeserializeError::eprintln`] instead.
+    /// If you are writing to `stdout` or `stderr`, consider using
+    /// [`DeserializeError::print`] or [`DeserializeError::eprint`] instead.
     ///
     /// # Errors
     /// Returns an error if the writer fails to write the report.
@@ -231,7 +251,7 @@ impl DeserializeError<'_, '_> {
         }
 
         // If the error has a note, add it.
-        if let Some(note) = self.reason.expected_note(self.error.0, self.error.1) {
+        if let Some(note) = self.reason.expected_note(self) {
             builder = builder.with_note(note);
         }
 
@@ -286,8 +306,9 @@ impl DeserializeError<'_, '_> {
 
                 // Get the position of the error in the input.
                 let error_pos = match self.reason {
-                    ErrorReason::EndOfInput => input.len().saturating_sub(1),
-                    ErrorReason::InvalidUtf8(pos) => input.len() - self.error.0.len() + pos + 1,
+                    ErrorReason::InvalidUtf8(pos) => {
+                        input.len().saturating_sub(self.error.0.len()) + pos
+                    }
                     _ => input.len().saturating_sub(self.error.0.len()),
                 };
 
