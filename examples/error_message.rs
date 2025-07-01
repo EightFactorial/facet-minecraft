@@ -27,6 +27,11 @@ fn main() {
     let failed = McDeserializer::deserialize::<ExampleProperty>(END_OF_STREAM_STR);
     failed.unwrap_err().eprint();
 
+    const END_OF_STREAM_VAR_SHORT: &[u8] = &[1, b'a', 2, 128, 128];
+
+    let failed = McDeserializer::deserialize::<ExampleProperty>(END_OF_STREAM_VAR_SHORT);
+    failed.unwrap_err().eprint();
+
     const END_OF_STREAM_LONG: &[u8] = &[0, 4, 0, 0, 0];
 
     let failed = McDeserializer::deserialize::<ExampleProperty>(END_OF_STREAM_LONG);
@@ -46,7 +51,7 @@ struct ExampleProperty {
 enum ExampleValue {
     Bool(bool) = 0,
     Byte(u8),
-    Short(u16),
+    Short(#[facet(var)] u16),
     Int(u32),
     Long(u64),
 }

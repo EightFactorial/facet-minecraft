@@ -391,7 +391,7 @@ impl DeserializerExt for McDeserializer {
                 }
             } else {
                 Err(DeserializeError::new(original, u16::SHAPE, ErrorReason::EndOfInput)
-                    .with_length(i))?;
+                    .with_length(i + 1))?;
             }
         }
         Ok((number, input))
@@ -413,7 +413,7 @@ impl DeserializerExt for McDeserializer {
                 }
             } else {
                 Err(DeserializeError::new(original, u32::SHAPE, ErrorReason::EndOfInput)
-                    .with_length(i))?;
+                    .with_length(i + 1))?;
             }
         }
         Ok((number, input))
@@ -435,7 +435,7 @@ impl DeserializerExt for McDeserializer {
                 }
             } else {
                 Err(DeserializeError::new(original, u64::SHAPE, ErrorReason::EndOfInput)
-                    .with_length(i))?;
+                    .with_length(i + 1))?;
             }
         }
         Ok((number, input))
@@ -457,7 +457,7 @@ impl DeserializerExt for McDeserializer {
                 }
             } else {
                 Err(DeserializeError::new(original, u128::SHAPE, ErrorReason::EndOfInput)
-                    .with_length(i))?;
+                    .with_length(i + 1))?;
             }
         }
         Ok((number, input))

@@ -305,12 +305,16 @@ impl DeserializeError<'_, '_> {
                 // Ex: "Input: [..., 4, 5, 6, 7, 8, 9, 10, 11, ...]"
 
                 // Get the position of the error in the input.
-                let error_pos = match self.reason {
+                let mut error_pos = match self.reason {
                     ErrorReason::InvalidUtf8(pos) => {
                         input.len().saturating_sub(self.error.0.len()) + pos
                     }
                     _ => input.len().saturating_sub(self.error.0.len()),
                 };
+                // Never point past the end of the input.
+                if error_pos == input.len() {
+                    error_pos = input.len().saturating_sub(1);
+                }
 
                 // Get the start and end of the span to print.
                 let (start, mut end) =
