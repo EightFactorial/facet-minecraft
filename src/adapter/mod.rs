@@ -4,8 +4,8 @@ pub use write::WriteAdapter;
 mod write_cursor;
 pub use write_cursor::SliceCursor;
 
-#[cfg(feature = "json")]
-mod json;
+// #[cfg(feature = "json")]
+// mod json;
 
 /// An adapter for [`facet_serialize`] and [`facet_deserialize`]
 /// traits to work with [`facet_minecraft`]'s traits and
