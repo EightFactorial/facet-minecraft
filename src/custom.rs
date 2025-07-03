@@ -7,9 +7,9 @@ use alloc::vec::Vec;
 
 use facet::{ConstTypeId, Facet};
 #[cfg(feature = "deserialize")]
-use facet_reflect::Partial;
+pub use facet_reflect::Partial;
 #[cfg(feature = "serialize")]
-use facet_reflect::Peek;
+pub use facet_reflect::Peek;
 pub use inventory::submit;
 use once_cell::sync::OnceCell;
 
