@@ -72,7 +72,9 @@ impl Error for DeserializeError<'_, '_> {}
 
 // -------------------------------------------------------------------------------------------------
 
+/// A reason for a [`DeserializeError`].
 #[non_exhaustive]
+#[expect(missing_docs)]
 pub enum ErrorReason {
     EndOfInput,
     InvalidBool(u8),

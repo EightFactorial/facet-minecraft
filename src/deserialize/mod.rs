@@ -11,7 +11,7 @@ use crate::assert::AssertProtocol;
 use crate::custom::FacetOverride;
 
 mod error;
-pub use error::DeserializeError;
+pub use error::{DeserializeError, ErrorReason};
 
 mod parts;
 use parts::{
