@@ -207,8 +207,8 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
                     Def::Set(..) => {
                         return Err(SerializeError::new(peek, "sets are not supported yet"));
                     }
-                    Def::SmartPointer(..) => {
-                        let peek = peek.into_smart_pointer().unwrap();
+                    Def::Pointer(..) => {
+                        let peek = peek.into_pointer().unwrap();
                         if let Some(inner) = peek.borrow_inner() {
                             stack.push(SerializationTask::Value(inner));
                         } else {

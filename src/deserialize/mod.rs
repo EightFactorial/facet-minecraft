@@ -283,7 +283,7 @@ fn deserialize_value<'input: 'facet, 'facet: 'shape, 'shape, D: DeserializerExt>
                 current = partial;
                 input = remaining;
             }
-            Def::SmartPointer(..) => {
+            Def::Pointer(..) => {
                 let (partial, remaining) =
                     deserialize_smartpointer(current, input, &mut state, de)?;
                 // Re-assign the current partial and consume the input.
