@@ -48,7 +48,7 @@ pub fn deserialize<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
 /// Returns an error if the deserialization fails.
 #[inline(always)]
 #[expect(clippy::inline_always)]
-pub fn deserialize_remainder<'input, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
+pub fn deserialize_remainder<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
     input: &'input [u8],
 ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
     McDeserializer::deserialize_remainder::<T>(input)
@@ -89,7 +89,7 @@ impl McDeserializer {
     /// Returns an error if the deserialization fails.
     #[inline(always)]
     #[expect(clippy::inline_always)]
-    pub fn deserialize_remainder<'input, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
+    pub fn deserialize_remainder<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
         input: &'input [u8],
     ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
         let () = const { <T as AssertProtocol<'facet>>::ASSERT };
@@ -130,7 +130,7 @@ pub fn deserialize_iterative<
 }
 
 #[expect(clippy::too_many_lines)]
-fn deserialize_value<'input, 'facet: 'shape, 'shape, D: DeserializerExt>(
+fn deserialize_value<'input, 'facet, 'shape, D: DeserializerExt>(
     mut input: &'input [u8],
     mut partial: Partial<'facet, 'shape>,
     de: &mut D,
