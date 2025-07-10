@@ -15,9 +15,8 @@ pub use error::{DeserializeError, ErrorReason};
 
 mod parts;
 use parts::{
-    deserialize_json, deserialize_map, deserialize_option, deserialize_pointer,
-    deserialize_primitive, deserialize_sequence, deserialize_set, deserialize_smartpointer,
-    deserialize_user,
+    deserialize_json, deserialize_map, deserialize_option, deserialize_primitive,
+    deserialize_sequence, deserialize_set, deserialize_smartpointer, deserialize_user,
 };
 
 mod traits;
@@ -32,7 +31,7 @@ pub use traits::{Deserializer, DeserializerExt};
 /// Returns an error if the deserialization fails.
 #[inline(always)]
 #[expect(clippy::inline_always)]
-pub fn deserialize<'input: 'facet, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
+pub fn deserialize<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
     input: &'input [u8],
 ) -> Result<T, DeserializeError<'input, 'shape>> {
     McDeserializer::deserialize::<T>(input)
@@ -49,7 +48,7 @@ pub fn deserialize<'input: 'facet, 'facet: 'shape, 'shape, T: AssertProtocol<'fa
 /// Returns an error if the deserialization fails.
 #[inline(always)]
 #[expect(clippy::inline_always)]
-pub fn deserialize_remainder<'input: 'facet, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
+pub fn deserialize_remainder<'input, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
     input: &'input [u8],
 ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
     McDeserializer::deserialize_remainder::<T>(input)
@@ -71,7 +70,7 @@ impl McDeserializer {
     /// Returns an error if the deserialization fails.
     #[inline(always)]
     #[expect(clippy::inline_always)]
-    pub fn deserialize<'input: 'facet, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
+    pub fn deserialize<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
         input: &'input [u8],
     ) -> Result<T, DeserializeError<'input, 'shape>> {
         let () = const { <T as AssertProtocol<'facet>>::ASSERT };
@@ -90,12 +89,7 @@ impl McDeserializer {
     /// Returns an error if the deserialization fails.
     #[inline(always)]
     #[expect(clippy::inline_always)]
-    pub fn deserialize_remainder<
-        'input: 'facet,
-        'facet: 'shape,
-        'shape,
-        T: AssertProtocol<'facet>,
-    >(
+    pub fn deserialize_remainder<'input, 'facet: 'shape, 'shape, T: AssertProtocol<'facet>>(
         input: &'input [u8],
     ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
         let () = const { <T as AssertProtocol<'facet>>::ASSERT };
@@ -113,8 +107,8 @@ impl McDeserializer {
 /// # Errors
 /// Returns an error if the deserialization fails.
 pub fn deserialize_iterative<
-    'input: 'facet,
-    'facet: 'shape,
+    'input,
+    'facet,
     'shape,
     T: AssertProtocol<'facet>,
     D: DeserializerExt,
@@ -136,7 +130,7 @@ pub fn deserialize_iterative<
 }
 
 #[expect(clippy::too_many_lines)]
-fn deserialize_value<'input: 'facet, 'facet: 'shape, 'shape, D: DeserializerExt>(
+fn deserialize_value<'input, 'facet: 'shape, 'shape, D: DeserializerExt>(
     mut input: &'input [u8],
     mut partial: Partial<'facet, 'shape>,
     de: &mut D,
@@ -232,12 +226,15 @@ fn deserialize_value<'input: 'facet, 'facet: 'shape, 'shape, D: DeserializerExt>
                         current = partial;
                         input = remaining;
                     }
-                    Type::Pointer(ty) => {
-                        let (partial, remaining) =
-                            deserialize_pointer(ty, current, input, &mut state, de)?;
-                        // Re-assign the current partial and consume the input.
-                        current = partial;
-                        input = remaining;
+                    Type::Pointer(_ty) => {
+                        todo!()
+
+                        // let (partial, remaining) =
+                        //     deserialize_pointer(ty, current, input, &mut
+                        // state, de)?; // Re-assign the
+                        // current partial and consume the input.
+                        // current = partial;
+                        // input = remaining;
                     }
                 }
             }

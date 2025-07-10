@@ -8,6 +8,7 @@ mod option;
 pub(super) use option::deserialize_option;
 
 mod pointer;
+#[expect(unused_imports)]
 pub(super) use pointer::{deserialize_pointer, deserialize_smartpointer};
 
 mod primitive;

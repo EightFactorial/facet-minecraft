@@ -10,15 +10,14 @@ use crate::{
 ///
 /// It is currently possible to deserialize a value into a static reference.
 /// This is fine for static inputs, but not for non-static inputs!
-pub(crate) fn deserialize_pointer<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
+#[expect(dead_code, unreachable_code, unused_variables)]
+pub(crate) fn deserialize_pointer<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     ty: PointerType<'shape>,
-    mut current: &'partial mut Partial<'facet, 'shape>,
+    current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
     state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
 ) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-where
-    'input: 'partial + 'facet,
 {
     match ty {
         PointerType::Function(..) | PointerType::Raw(..) => todo!(),
@@ -27,8 +26,9 @@ where
                 // Deserialize a string from the input.
                 let (content, remaining) =
                     de.deserialize_str(input).map_err(|err| state.handle_deserialize_error(err))?;
-                // Set the value in the current partial.
-                current = current.set(content).map_err(|err| state.handle_reflect_error(err))?;
+                todo!("Set the value in the current partial");
+                // current = current.set(content).map_err(|err|
+                // state.handle_reflect_error(err))?;
 
                 state.update_state(current, remaining)
             } else if current.shape().is_type::<&[u8]>() {
@@ -39,7 +39,7 @@ where
 
                 // Take the byte slice from the input.
                 if let Some((content, remaining)) = rem.split_at_checked(length) {
-                    // Set the value in the current partial.
+                    todo!("Set the value in the current partial");
                     current =
                         current.set(content).map_err(|err| state.handle_reflect_error(err))?;
 

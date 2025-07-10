@@ -6,15 +6,13 @@ use crate::{
     deserialize::{DeserializerState, StepType, error::ErrorReason},
 };
 
-pub(crate) fn deserialize_user<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
+pub(crate) fn deserialize_user<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     ty: UserType<'shape>,
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
     state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
 ) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-where
-    'input: 'partial + 'facet,
 {
     match ty {
         UserType::Struct(ty) => deserialize_struct(ty, current, input, state, de),
@@ -26,7 +24,7 @@ where
 
 // -------------------------------------------------------------------------------------------------
 
-fn deserialize_struct<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
+fn deserialize_struct<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     ty: StructType<'shape>,
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
@@ -50,7 +48,7 @@ fn deserialize_struct<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerE
     }
 }
 
-fn deserialize_enum<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
+fn deserialize_enum<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     ty: EnumType<'shape>,
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],

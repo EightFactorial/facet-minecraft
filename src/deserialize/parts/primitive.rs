@@ -1,23 +1,15 @@
-use alloc::{borrow::Cow, string::ToString};
+use alloc::string::ToString;
 
 use facet_reflect::{Partial, ScalarType};
 
 use crate::{DeserializeError, DeserializerExt, deserialize::DeserializerState};
 
-pub(crate) fn deserialize_primitive<
-    'input,
-    'partial,
-    'facet: 'shape,
-    'shape,
-    D: DeserializerExt,
->(
+pub(crate) fn deserialize_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
     state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
 ) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-where
-    'input: 'partial + 'facet,
 {
     if state.variable() {
         var_primitive(current, input, state, de)
@@ -28,14 +20,12 @@ where
 
 // -------------------------------------------------------------------------------------------------
 
-fn primitive<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
+fn primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
     state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
 ) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-where
-    'input: 'partial + 'facet,
 {
     macro_rules! deserialize_scalar {
         ($deserialize_fn:ident) => {{
@@ -71,12 +61,8 @@ where
         Some(ScalarType::ISize) => deserialize_scalar!(deserialize_isize),
         Some(ScalarType::F32) => deserialize_scalar!(deserialize_f32),
         Some(ScalarType::F64) => deserialize_scalar!(deserialize_f64),
-        Some(ScalarType::Str) => deserialize_scalar!(deserialize_str),
         Some(ScalarType::String) => {
             deserialize_scalar!(deserialize_str, |(s, r)| Ok((s.to_string(), r)))
-        }
-        Some(ScalarType::CowStr) => {
-            deserialize_scalar!(deserialize_str, |(s, r)| Ok((Cow::Borrowed(s), r)))
         }
         Some(..) => todo!(),
         None => todo!(),
@@ -85,14 +71,12 @@ where
 
 // -------------------------------------------------------------------------------------------------
 
-fn var_primitive<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
+fn var_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
     state: &mut DeserializerState<'input, 'shape>,
     de: &mut D,
 ) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-where
-    'input: 'partial + 'facet,
 {
     macro_rules! deserialize_var_scalar {
         ($deserialize_fn:ident) => {{

@@ -5,7 +5,7 @@ use crate::{
     deserialize::{DeserializerState, StepType},
 };
 
-pub(crate) fn deserialize_option<'input, 'partial, 'facet: 'shape, 'shape, D: DeserializerExt>(
+pub(crate) fn deserialize_option<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     current: &'partial mut Partial<'facet, 'shape>,
     input: &'input [u8],
     state: &mut DeserializerState<'input, 'shape>,

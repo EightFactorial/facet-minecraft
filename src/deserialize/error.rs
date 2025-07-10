@@ -113,6 +113,7 @@ impl ErrorReason {
 
     /// Get a note describing what was expected.
     #[must_use]
+    #[expect(clippy::missing_panics_doc)]
     pub fn expected_note(&self, error: &DeserializeError<'_, '_>) -> Option<String> {
         match self {
             ErrorReason::EndOfInput => {
