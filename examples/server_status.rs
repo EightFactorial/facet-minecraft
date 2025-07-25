@@ -11,7 +11,7 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-use facet_derive::Facet;
+use facet_macros::Facet;
 use facet_minecraft::{DeserializerExt, McDeserializer, McSerializer, SerializerExt};
 
 extern crate facet_core as facet;

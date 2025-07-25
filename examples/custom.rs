@@ -9,7 +9,7 @@
 
 use alloc::{boxed::Box, string::String, vec::Vec};
 
-use facet_derive::Facet;
+use facet_macros::Facet;
 use facet_minecraft::{
     DeserializeError, Deserializer, McDeserializer, SerializationTask, custom::FacetOverride,
     deserialize, serialize,
@@ -50,21 +50,18 @@ struct LikeU32(u64);
 
 impl LikeU32 {
     /// A custom serialization method that casts the `u64` to a `u32`.
-    fn serialize<'mem, 'facet, 'shape>(
-        peek: Peek<'_, 'facet, 'shape>,
-        stack: &mut Vec<SerializationTask<'mem, 'facet, 'shape>>,
+    fn serialize<'mem, 'facet>(
+        peek: Peek<'_, 'facet>,
+        stack: &mut Vec<SerializationTask<'mem, 'facet>>,
     ) {
         let val = peek.get::<Self>().unwrap().0 as u32;
         stack.push(SerializationTask::ValueOwned(Box::new(val)));
     }
 
-    fn deserialize<'input, 'partial, 'facet, 'shape>(
-        partial: &'partial mut Partial<'facet, 'shape>,
+    fn deserialize<'input, 'partial, 'facet>(
+        partial: &'partial mut Partial<'facet>,
         input: &'input [u8],
-    ) -> Result<
-        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-        DeserializeError<'input, 'shape>,
-    > {
+    ) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
         match McDeserializer.deserialize_u32(input) {
             Ok((val, remainder)) => match partial.set(LikeU32(val as u64)) {
                 Ok(partial) => Ok((partial, remainder)),
@@ -87,22 +84,19 @@ struct Reversed(String);
 
 impl Reversed {
     /// A custom serialization method that reverses the string.
-    fn serialize<'mem, 'facet, 'shape>(
-        peek: Peek<'_, 'facet, 'shape>,
-        stack: &mut Vec<SerializationTask<'mem, 'facet, 'shape>>,
+    fn serialize<'mem, 'facet>(
+        peek: Peek<'_, 'facet>,
+        stack: &mut Vec<SerializationTask<'mem, 'facet>>,
     ) {
         let val = &peek.get::<Self>().unwrap().0;
         let rev: String = val.chars().rev().collect();
         stack.push(SerializationTask::ValueOwned(Box::new(rev)));
     }
 
-    fn deserialize<'input, 'partial, 'facet, 'shape>(
-        partial: &'partial mut Partial<'facet, 'shape>,
+    fn deserialize<'input, 'partial, 'facet>(
+        partial: &'partial mut Partial<'facet>,
         input: &'input [u8],
-    ) -> Result<
-        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-        DeserializeError<'input, 'shape>,
-    > {
+    ) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
         match McDeserializer.deserialize_str(input) {
             Ok((val, remainder)) => match partial.set(Reversed(val.chars().rev().collect())) {
                 Ok(partial) => Ok((partial, remainder)),

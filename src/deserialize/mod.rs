@@ -31,9 +31,9 @@ pub use traits::{Deserializer, DeserializerExt};
 /// Returns an error if the deserialization fails.
 #[inline(always)]
 #[expect(clippy::inline_always)]
-pub fn deserialize<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
+pub fn deserialize<'input, 'facet, T: AssertProtocol<'facet>>(
     input: &'input [u8],
-) -> Result<T, DeserializeError<'input, 'shape>> {
+) -> Result<T, DeserializeError<'input>> {
     McDeserializer::deserialize::<T>(input)
 }
 
@@ -48,9 +48,9 @@ pub fn deserialize<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
 /// Returns an error if the deserialization fails.
 #[inline(always)]
 #[expect(clippy::inline_always)]
-pub fn deserialize_remainder<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
+pub fn deserialize_remainder<'input, 'facet, T: AssertProtocol<'facet>>(
     input: &'input [u8],
-) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
+) -> Result<(T, &'input [u8]), DeserializeError<'input>> {
     McDeserializer::deserialize_remainder::<T>(input)
 }
 
@@ -70,9 +70,9 @@ impl McDeserializer {
     /// Returns an error if the deserialization fails.
     #[inline(always)]
     #[expect(clippy::inline_always)]
-    pub fn deserialize<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
+    pub fn deserialize<'input, 'facet, T: AssertProtocol<'facet>>(
         input: &'input [u8],
-    ) -> Result<T, DeserializeError<'input, 'shape>> {
+    ) -> Result<T, DeserializeError<'input>> {
         let () = const { <T as AssertProtocol<'facet>>::ASSERT };
 
         deserialize_iterative::<T, McDeserializer>(input, T::SHAPE, McDeserializer).map(|(v, _)| v)
@@ -89,9 +89,9 @@ impl McDeserializer {
     /// Returns an error if the deserialization fails.
     #[inline(always)]
     #[expect(clippy::inline_always)]
-    pub fn deserialize_remainder<'input, 'facet, 'shape, T: AssertProtocol<'facet>>(
+    pub fn deserialize_remainder<'input, 'facet, T: AssertProtocol<'facet>>(
         input: &'input [u8],
-    ) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
+    ) -> Result<(T, &'input [u8]), DeserializeError<'input>> {
         let () = const { <T as AssertProtocol<'facet>>::ASSERT };
 
         deserialize_iterative::<T, McDeserializer>(input, T::SHAPE, McDeserializer)
@@ -106,17 +106,11 @@ impl McDeserializer {
 ///
 /// # Errors
 /// Returns an error if the deserialization fails.
-pub fn deserialize_iterative<
-    'input,
-    'facet,
-    'shape,
-    T: AssertProtocol<'facet>,
-    D: DeserializerExt,
->(
+pub fn deserialize_iterative<'input, 'facet, T: AssertProtocol<'facet>, D: DeserializerExt>(
     input: &'input [u8],
-    shape: &'shape Shape<'shape>,
+    shape: &'static Shape,
     mut de: D,
-) -> Result<(T, &'input [u8]), DeserializeError<'input, 'shape>> {
+) -> Result<(T, &'input [u8]), DeserializeError<'input>> {
     let partial = match Partial::alloc_shape(shape) {
         Ok(partial) => partial,
         Err(_err) => todo!(),
@@ -130,11 +124,11 @@ pub fn deserialize_iterative<
 }
 
 #[expect(clippy::too_many_lines)]
-fn deserialize_value<'input, 'facet, 'shape, D: DeserializerExt>(
+fn deserialize_value<'input, 'facet, D: DeserializerExt>(
     mut input: &'input [u8],
-    mut partial: Partial<'facet, 'shape>,
+    mut partial: Partial<'facet>,
     de: &mut D,
-) -> Result<(HeapValue<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>> {
+) -> Result<(HeapValue<'facet>, &'input [u8]), DeserializeError<'input>> {
     #[cfg(feature = "custom")]
     let overrides = FacetOverride::global();
 
@@ -305,29 +299,29 @@ fn deserialize_value<'input, 'facet, 'shape, D: DeserializerExt>(
 // -------------------------------------------------------------------------------------------------
 
 #[derive(Debug)]
-struct DeserializerState<'input, 'shape> {
+struct DeserializerState<'input> {
     /// The original input and shape being deserialized.
-    original: (&'input [u8], &'shape Shape<'shape>),
+    original: (&'input [u8], &'static Shape),
     /// The steps taken during deserialization.
-    steps: Vec<StepType<'shape>>,
+    steps: Vec<StepType>,
     /// Field flags: (var, json)
     flags: (bool, bool),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum StepType<'shape> {
+pub enum StepType {
     Sequence(usize, usize),
-    Struct(StructType<'shape>, usize),
-    Enum(&'shape Variant<'shape>, usize),
+    Struct(StructType, usize),
+    Enum(&'static Variant, usize),
     Map(usize, usize),
     Set(usize, usize),
     ValueHolder,
 }
 
-impl<'input, 'shape> DeserializerState<'input, 'shape> {
+impl<'input> DeserializerState<'input> {
     /// Create a new [`DeserializerState`].
     #[must_use]
-    const fn new(input: &'input [u8], shape: &'shape Shape<'shape>) -> Self {
+    const fn new(input: &'input [u8], shape: &'static Shape) -> Self {
         Self { original: (input, shape), steps: Vec::new(), flags: (false, false) }
     }
 
@@ -346,12 +340,9 @@ impl<'input, 'shape> DeserializerState<'input, 'shape> {
     #[expect(clippy::too_many_lines)]
     fn update_state<'partial, 'facet>(
         &mut self,
-        mut partial: &'partial mut Partial<'facet, 'shape>,
+        mut partial: &'partial mut Partial<'facet>,
         input: &'input [u8],
-    ) -> Result<
-        (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-        DeserializeError<'input, 'shape>,
-    > {
+    ) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
         // If the partial has no frames left, return it.
         if partial.frame_count() == 1 {
             return Ok((partial, input));
@@ -545,7 +536,7 @@ impl<'input, 'shape> DeserializerState<'input, 'shape> {
     }
 
     /// Updates the flags based on the current step.
-    fn update_flags(&mut self, field: &Field<'shape>) {
+    fn update_flags(&mut self, field: &Field) {
         #[cfg(feature = "json")]
         static JSON: &FieldAttribute = &FieldAttribute::Arbitrary("json");
         static VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
@@ -561,16 +552,13 @@ impl<'input, 'shape> DeserializerState<'input, 'shape> {
     }
 
     /// Populate a [`DeserializeError`] with location information.
-    fn handle_deserialize_error(
-        &self,
-        err: DeserializeError<'input, 'shape>,
-    ) -> DeserializeError<'input, 'shape> {
+    fn handle_deserialize_error(&self, err: DeserializeError<'input>) -> DeserializeError<'input> {
         err.with_origin(self.original.0, self.original.1).with_state(self.steps.clone())
     }
 
     /// Convert a [`ReflectError`] into a [`DeserializeError`]
     /// and populate it with location information.
-    fn handle_reflect_error(&self, err: ReflectError<'shape>) -> DeserializeError<'input, 'shape> {
+    fn handle_reflect_error(&self, err: ReflectError) -> DeserializeError<'input> {
         todo!("TODO: Handle ReflectError: {err}")
     }
 }

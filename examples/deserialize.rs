@@ -8,7 +8,7 @@
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 
-use facet_derive::Facet;
+use facet_macros::Facet;
 use facet_minecraft::deserialize_remainder;
 
 extern crate alloc;

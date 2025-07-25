@@ -25,10 +25,10 @@ pub use error::SerializeError;
 /// Returns an error if the serialization fails.
 #[inline(always)]
 #[expect(clippy::inline_always)]
-pub fn serialize<'mem, 'facet, 'shape, T, W>(
+pub fn serialize<'mem, 'facet, T, W>(
     value: &'mem T,
     writer: W,
-) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>>
+) -> Result<(), SerializeError<'mem, 'facet, W::Error>>
 where
     T: AssertProtocol<'facet>,
     W: WriteAdapter,
@@ -53,10 +53,10 @@ impl<W: WriteAdapter> McSerializer<W> {
     /// Returns an error if the serialization fails.
     #[inline(always)]
     #[expect(clippy::inline_always)]
-    pub fn serialize_into<'mem, 'facet, 'shape, T: AssertProtocol<'facet>>(
+    pub fn serialize_into<'mem, 'facet, T: AssertProtocol<'facet>>(
         value: &'mem T,
         writer: W,
-    ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
+    ) -> Result<(), SerializeError<'mem, 'facet, W::Error>> {
         Self::serialize::<T>(&mut Self(writer), value)
     }
 
@@ -69,10 +69,10 @@ impl<W: WriteAdapter> McSerializer<W> {
     /// Returns an error if the serialization fails.
     #[inline(always)]
     #[expect(clippy::inline_always)]
-    pub fn serialize<'mem, 'facet, 'shape, T: AssertProtocol<'facet>>(
+    pub fn serialize<'mem, 'facet, T: AssertProtocol<'facet>>(
         &mut self,
         value: &'mem T,
-    ) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
+    ) -> Result<(), SerializeError<'mem, 'facet, W::Error>> {
         let () = const { <T as AssertProtocol<'facet>>::ASSERT };
 
         serialize_iterative::<Self>(Peek::new(value), self)
@@ -88,10 +88,10 @@ impl<W: WriteAdapter> McSerializer<W> {
 /// # Errors
 /// Returns an error if the serialization fails.
 #[expect(clippy::missing_panics_doc, clippy::too_many_lines)]
-pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
-    peek: Peek<'mem, 'facet, 'shape>,
+pub fn serialize_iterative<'mem, 'facet, W: SerializerExt>(
+    peek: Peek<'mem, 'facet>,
     writer: &mut W,
-) -> Result<(), SerializeError<'mem, 'facet, 'shape, W::Error>> {
+) -> Result<(), SerializeError<'mem, 'facet, W::Error>> {
     static VAR: &FieldAttribute = &FieldAttribute::Arbitrary("var");
     #[cfg(feature = "json")]
     static JSON: &FieldAttribute = &FieldAttribute::Arbitrary("json");
@@ -412,16 +412,16 @@ pub fn serialize_iterative<'mem, 'facet, 'shape, W: SerializerExt<'shape>>(
 
 /// A task to be performed during serialization.
 #[expect(missing_docs)]
-pub enum SerializationTask<'mem, 'facet, 'shape> {
-    Value(Peek<'mem, 'facet, 'shape>),
+pub enum SerializationTask<'mem, 'facet> {
+    Value(Peek<'mem, 'facet>),
     ValueOwned(Box<dyn OwnedPeek<'facet>>),
-    ValueVariable(Peek<'mem, 'facet, 'shape>),
+    ValueVariable(Peek<'mem, 'facet>),
     #[cfg(feature = "json")]
-    ValueJson(Peek<'mem, 'facet, 'shape>),
-    Object(FieldsForSerializeIter<'mem, 'facet, 'shape>),
-    Array(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
-    List(PeekListLikeIter<'mem, 'facet, 'shape>, bool),
-    Map(PeekMapIter<'mem, 'facet, 'shape>, bool),
+    ValueJson(Peek<'mem, 'facet>),
+    Object(FieldsForSerializeIter<'mem, 'facet>),
+    Array(PeekListLikeIter<'mem, 'facet>, bool),
+    List(PeekListLikeIter<'mem, 'facet>, bool),
+    Map(PeekMapIter<'mem, 'facet>, bool),
 }
 
 // -------------------------------------------------------------------------------------------------

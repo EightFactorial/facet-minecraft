@@ -3,14 +3,14 @@ use facet_reflect::Partial;
 use crate::{DeserializeError, DeserializerExt, deserialize::DeserializerState};
 
 #[rustfmt::skip]
-pub(crate) fn deserialize_json<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    current: &'partial mut Partial<'facet, 'shape>,
+pub(crate) fn deserialize_json<'input, 'partial, 'facet, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
 ) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'shape>,
+    (&'partial mut Partial<'facet>, &'input [u8]),
+    DeserializeError<'input>,
 > {
     // Deserialize the string from the input.
     let (_content, _remaining) =

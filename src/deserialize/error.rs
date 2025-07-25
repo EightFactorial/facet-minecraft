@@ -15,25 +15,21 @@ use facet::{Shape, Type, UserType};
 use crate::deserialize::StepType;
 
 /// An error that occurred during deserialization.
-pub struct DeserializeError<'input, 'shape> {
-    origin: Option<(&'input [u8], &'shape Shape<'shape>)>,
-    error: (&'input [u8], &'shape Shape<'shape>),
+pub struct DeserializeError<'input> {
+    origin: Option<(&'input [u8], &'static Shape)>,
+    error: (&'input [u8], &'static Shape),
     #[allow(dead_code)]
     length: Option<usize>,
 
-    state: Vec<StepType<'shape>>,
+    state: Vec<StepType>,
     reason: ErrorReason,
 }
 
-impl<'input, 'shape> DeserializeError<'input, 'shape> {
+impl<'input> DeserializeError<'input> {
     /// Create a new [`DeserializeError`] from
     /// the input and shape that caused the error.
     #[must_use]
-    pub const fn new(
-        input: &'input [u8],
-        shape: &'shape Shape<'shape>,
-        reason: ErrorReason,
-    ) -> Self {
+    pub const fn new(input: &'input [u8], shape: &'static Shape, reason: ErrorReason) -> Self {
         Self { origin: None, error: (input, shape), length: None, state: Vec::new(), reason }
     }
 
@@ -43,20 +39,20 @@ impl<'input, 'shape> DeserializeError<'input, 'shape> {
 
     /// Add the original input and shape to the error.
     #[must_use]
-    pub fn with_origin(self, input: &'input [u8], shape: &'shape Shape<'shape>) -> Self {
+    pub fn with_origin(self, input: &'input [u8], shape: &'static Shape) -> Self {
         Self { origin: Some((input, shape)), ..self }
     }
 
     /// Add the current deserializer state to the error.
     #[must_use]
-    pub fn with_state(mut self, state: Vec<StepType<'shape>>) -> Self {
+    pub fn with_state(mut self, state: Vec<StepType>) -> Self {
         self.state = state;
         self
     }
 
     /// Get the identifier of the shape that caused the error.
     #[must_use]
-    pub const fn identifier(&self) -> &'shape str {
+    pub const fn identifier(&self) -> &'static str {
         match self.origin {
             Some((_, shape)) => shape.type_identifier,
             None => self.error.1.type_identifier,
@@ -68,7 +64,7 @@ impl<'input, 'shape> DeserializeError<'input, 'shape> {
     pub const fn reason(&self) -> &ErrorReason { &self.reason }
 }
 
-impl Error for DeserializeError<'_, '_> {}
+impl Error for DeserializeError<'_> {}
 
 // -------------------------------------------------------------------------------------------------
 
@@ -114,7 +110,7 @@ impl ErrorReason {
     /// Get a note describing what was expected.
     #[must_use]
     #[expect(clippy::missing_panics_doc)]
-    pub fn expected_note(&self, error: &DeserializeError<'_, '_>) -> Option<String> {
+    pub fn expected_note(&self, error: &DeserializeError<'_>) -> Option<String> {
         match self {
             ErrorReason::EndOfInput => {
                 if let Some((input, _)) = error.origin
@@ -172,25 +168,25 @@ impl ErrorReason {
 // -------------------------------------------------------------------------------------------------
 
 #[cfg(not(feature = "rich-diagnostics"))]
-impl Debug for DeserializeError<'_, '_> {
+impl Debug for DeserializeError<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(&self.reason.error_label())
     }
 }
 
 #[cfg(not(feature = "rich-diagnostics"))]
-impl Display for DeserializeError<'_, '_> {
+impl Display for DeserializeError<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(&self.reason.error_label())
     }
 }
 
-impl DeserializeError<'_, '_> {}
+impl DeserializeError<'_> {}
 
 // -------------------------------------------------------------------------------------------------
 
 #[cfg(feature = "rich-diagnostics")]
-impl Debug for DeserializeError<'_, '_> {
+impl Debug for DeserializeError<'_> {
     fn fmt(&self, _: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.eprint();
         Ok(())
@@ -198,7 +194,7 @@ impl Debug for DeserializeError<'_, '_> {
 }
 
 #[cfg(feature = "rich-diagnostics")]
-impl Display for DeserializeError<'_, '_> {
+impl Display for DeserializeError<'_> {
     fn fmt(&self, _: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.eprint();
         Ok(())
@@ -206,7 +202,7 @@ impl Display for DeserializeError<'_, '_> {
 }
 
 #[cfg(feature = "rich-diagnostics")]
-impl DeserializeError<'_, '_> {
+impl DeserializeError<'_> {
     /// Print the error report to stdout.
     ///
     /// In most cases, [`DeserializeError::eprint`] is the

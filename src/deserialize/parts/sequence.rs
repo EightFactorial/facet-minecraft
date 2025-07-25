@@ -6,14 +6,13 @@ use crate::{
     deserialize::{DeserializerState, StepType},
 };
 
-pub(crate) fn deserialize_sequence<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
+pub(crate) fn deserialize_sequence<'input, 'partial, 'facet, D: DeserializerExt>(
     ty: SequenceType,
-    current: &'partial mut Partial<'facet, 'shape>,
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     match ty {
         SequenceType::Array(ty) => deserialize_array(current, input, ty.n, state, de),
         SequenceType::Slice(..) => deserialize_list(current, input, state, de),
@@ -22,14 +21,13 @@ pub(crate) fn deserialize_sequence<'input, 'partial, 'facet, 'shape, D: Deserial
 
 // -------------------------------------------------------------------------------------------------
 
-fn deserialize_array<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    current: &'partial mut Partial<'facet, 'shape>,
+fn deserialize_array<'input, 'partial, 'facet, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
     length: usize,
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     _de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     state.steps.push(StepType::Sequence(length, 0));
 
     // Begin the list.
@@ -46,13 +44,12 @@ fn deserialize_array<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     }
 }
 
-fn deserialize_list<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    current: &'partial mut Partial<'facet, 'shape>,
+fn deserialize_list<'input, 'partial, 'facet, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     // Deserialize the size of the list.
     let (length, remaining) =
         de.deserialize_var_usize(input).map_err(|err| state.handle_deserialize_error(err))?;

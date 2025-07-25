@@ -4,13 +4,12 @@ use facet_reflect::{Partial, ScalarType};
 
 use crate::{DeserializeError, DeserializerExt, deserialize::DeserializerState};
 
-pub(crate) fn deserialize_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    current: &'partial mut Partial<'facet, 'shape>,
+pub(crate) fn deserialize_primitive<'input, 'partial, 'facet, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     if state.variable() {
         var_primitive(current, input, state, de)
     } else {
@@ -20,13 +19,12 @@ pub(crate) fn deserialize_primitive<'input, 'partial, 'facet, 'shape, D: Deseria
 
 // -------------------------------------------------------------------------------------------------
 
-fn primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    current: &'partial mut Partial<'facet, 'shape>,
+fn primitive<'input, 'partial, 'facet, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     macro_rules! deserialize_scalar {
         ($deserialize_fn:ident) => {{
             let (val, rem) = de.$deserialize_fn(input).map_err(|err| state.handle_deserialize_error(err))?;
@@ -71,13 +69,12 @@ fn primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
 
 // -------------------------------------------------------------------------------------------------
 
-fn var_primitive<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    current: &'partial mut Partial<'facet, 'shape>,
+fn var_primitive<'input, 'partial, 'facet, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     macro_rules! deserialize_var_scalar {
         ($deserialize_fn:ident) => {{
             let (val, rem) =

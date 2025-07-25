@@ -15,7 +15,7 @@
 //! [Facet]: https://github.com/facet-rs/facet
 #![no_std]
 
-use facet_derive::Facet;
+use facet_macros::Facet;
 use facet_minecraft::deserialize_remainder;
 
 extern crate alloc;

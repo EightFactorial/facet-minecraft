@@ -8,7 +8,7 @@
 
 use alloc::{boxed::Box, vec, vec::Vec};
 
-use facet_derive::Facet;
+use facet_macros::Facet;
 use facet_minecraft::serialize;
 
 extern crate alloc;

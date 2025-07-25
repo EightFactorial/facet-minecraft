@@ -8,17 +8,17 @@ use crate::{adapter::WriteAdapter, serialize::McSerializer};
 /// A trait that provides a [`Peek`] for their current item.
 pub trait OwnedPeek<'facet> {
     /// Get a [`Peek`] for the current item.
-    fn peek<'mem, 'shape>(&'mem self) -> Peek<'mem, 'facet, 'shape>;
+    fn peek<'mem>(&'mem self) -> Peek<'mem, 'facet>;
 }
 
 impl<'facet, T: Facet<'facet>> OwnedPeek<'facet> for T {
-    fn peek<'mem, 'shape>(&'mem self) -> Peek<'mem, 'facet, 'shape> { Peek::new(self) }
+    fn peek<'mem>(&'mem self) -> Peek<'mem, 'facet> { Peek::new(self) }
 }
 
 // -------------------------------------------------------------------------------------------------
 
 /// A serializer for Minecraft protocol data.
-pub trait Serializer<'shape> {
+pub trait Serializer {
     /// The error type returned by serialization methods
     type Error;
 
@@ -78,7 +78,7 @@ pub trait Serializer<'shape> {
 
 /// An extension trait for [`Serializer`] that provides
 /// variable-length serialization methods.
-pub trait SerializerExt<'shape>: Serializer<'shape> {
+pub trait SerializerExt: Serializer {
     /// Serialize a variable-length unsigned 16-bit integer.
     fn serialize_var_u16(&mut self, val: u16) -> Result<(), Self::Error>;
     /// Serialize a variable-length unsigned 32-bit integer.
@@ -128,8 +128,7 @@ pub trait SerializerExt<'shape>: Serializer<'shape> {
 
 // -------------------------------------------------------------------------------------------------
 
-#[expect(clippy::elidable_lifetime_names)]
-impl<'shape, W: WriteAdapter> Serializer<'shape> for McSerializer<W> {
+impl<W: WriteAdapter> Serializer for McSerializer<W> {
     type Error = W::Error;
 
     fn serialize_unit(&mut self) -> Result<(), Self::Error> { Ok(()) }
@@ -188,7 +187,7 @@ impl<'shape, W: WriteAdapter> Serializer<'shape> for McSerializer<W> {
     fn serialize_bytes(&mut self, val: &[u8]) -> Result<(), Self::Error> { self.write(val) }
 }
 
-impl<W: WriteAdapter> SerializerExt<'_> for McSerializer<W> {
+impl<W: WriteAdapter> SerializerExt for McSerializer<W> {
     #[expect(unused_assignments)]
     fn serialize_var_u16(&mut self, mut val: u16) -> Result<(), Self::Error> {
         let mut byte = 0u8;

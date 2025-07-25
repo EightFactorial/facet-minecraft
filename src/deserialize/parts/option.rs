@@ -5,13 +5,12 @@ use crate::{
     deserialize::{DeserializerState, StepType},
 };
 
-pub(crate) fn deserialize_option<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    current: &'partial mut Partial<'facet, 'shape>,
+pub(crate) fn deserialize_option<'input, 'partial, 'facet, D: DeserializerExt>(
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     let (is_some, remaining) =
         de.deserialize_bool(input).map_err(|err| state.handle_deserialize_error(err))?;
 

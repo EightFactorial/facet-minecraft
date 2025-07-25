@@ -6,29 +6,29 @@ use core::{
 use facet_reflect::Peek;
 
 /// An error that occurred during serialization.
-pub enum SerializeError<'mem, 'facet, 'shape, T> {
+pub enum SerializeError<'mem, 'facet, T> {
     /// An error that occurred while serializing a value.
-    InvalidType(SerializeErrorData<'mem, 'facet, 'shape>),
+    InvalidType(SerializeErrorData<'mem, 'facet>),
     /// An error that occurred while writing a value.
     WriteError(T),
 }
 
 /// Data associated with a serialization error.
 #[allow(unreachable_pub)]
-pub struct SerializeErrorData<'mem, 'facet, 'shape> {
+pub struct SerializeErrorData<'mem, 'facet> {
     /// The value that caused the error
-    pub value: Option<Peek<'mem, 'facet, 'shape>>,
+    pub value: Option<Peek<'mem, 'facet>>,
     /// The reason for the error.
     pub reason: &'static str,
     /// The source identifier.
     pub source: &'static str,
 }
 
-impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
+impl<'mem, 'facet, T> SerializeError<'mem, 'facet, T> {
     /// Create a new [`SerializeError`] indicating a value
     /// and the reason for the error.
     #[must_use]
-    pub(super) fn new(value: Peek<'mem, 'facet, 'shape>, reason: &'static str) -> Self {
+    pub(super) fn new(value: Peek<'mem, 'facet>, reason: &'static str) -> Self {
         SerializeError::InvalidType(SerializeErrorData {
             reason,
             value: Some(value),
@@ -48,7 +48,7 @@ impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
 
     /// Drop the inner data, unbinding the error from the lifetime of the value.
     #[must_use]
-    pub(super) fn into_owned<'owned>(self) -> SerializeError<'owned, 'facet, 'shape, T> {
+    pub(super) fn into_owned<'owned>(self) -> SerializeError<'owned, 'facet, T> {
         match self {
             SerializeError::WriteError(err) => SerializeError::WriteError(err),
             SerializeError::InvalidType(data) => SerializeError::InvalidType(SerializeErrorData {
@@ -60,7 +60,7 @@ impl<'mem, 'facet, 'shape, T> SerializeError<'mem, 'facet, 'shape, T> {
     }
 }
 
-impl<T: Display + Error> Error for SerializeError<'_, '_, '_, T> {
+impl<T: Display + Error> Error for SerializeError<'_, '_, T> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             SerializeError::InvalidType(..) => None,
@@ -69,7 +69,7 @@ impl<T: Display + Error> Error for SerializeError<'_, '_, '_, T> {
     }
 }
 
-impl<T> From<T> for SerializeError<'_, '_, '_, T> {
+impl<T> From<T> for SerializeError<'_, '_, T> {
     fn from(err: T) -> Self { SerializeError::WriteError(err) }
 }
 
@@ -108,14 +108,14 @@ impl<T: Display> Display for SerializeError<'_, '_, '_, T> {
 // -------------------------------------------------------------------------------------------------
 
 #[cfg(feature = "rich-diagnostics")]
-impl<T: Display> Debug for SerializeError<'_, '_, '_, T> {
+impl<T: Display> Debug for SerializeError<'_, '_, T> {
     #[inline(always)]
     #[expect(clippy::inline_always)]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { Display::fmt(self, f) }
 }
 
 #[cfg(feature = "rich-diagnostics")]
-impl<T: Display> Display for SerializeError<'_, '_, '_, T> {
+impl<T: Display> Display for SerializeError<'_, '_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             SerializeError::WriteError(err) => Display::fmt(err, f),

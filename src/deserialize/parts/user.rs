@@ -6,14 +6,13 @@ use crate::{
     deserialize::{DeserializerState, StepType, error::ErrorReason},
 };
 
-pub(crate) fn deserialize_user<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    ty: UserType<'shape>,
-    current: &'partial mut Partial<'facet, 'shape>,
+pub(crate) fn deserialize_user<'input, 'partial, 'facet, D: DeserializerExt>(
+    ty: UserType,
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     match ty {
         UserType::Struct(ty) => deserialize_struct(ty, current, input, state, de),
         UserType::Enum(ty) => deserialize_enum(ty, current, input, state, de),
@@ -24,14 +23,13 @@ pub(crate) fn deserialize_user<'input, 'partial, 'facet, 'shape, D: Deserializer
 
 // -------------------------------------------------------------------------------------------------
 
-fn deserialize_struct<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    ty: StructType<'shape>,
-    current: &'partial mut Partial<'facet, 'shape>,
+fn deserialize_struct<'input, 'partial, 'facet, D: DeserializerExt>(
+    ty: StructType,
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     _de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     state.steps.push(StepType::Struct(ty, 0));
 
     if ty.fields.is_empty() {
@@ -48,14 +46,13 @@ fn deserialize_struct<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
     }
 }
 
-fn deserialize_enum<'input, 'partial, 'facet, 'shape, D: DeserializerExt>(
-    ty: EnumType<'shape>,
-    current: &'partial mut Partial<'facet, 'shape>,
+fn deserialize_enum<'input, 'partial, 'facet, D: DeserializerExt>(
+    ty: EnumType,
+    current: &'partial mut Partial<'facet>,
     input: &'input [u8],
-    state: &mut DeserializerState<'input, 'shape>,
+    state: &mut DeserializerState<'input>,
     de: &mut D,
-) -> Result<(&'partial mut Partial<'facet, 'shape>, &'input [u8]), DeserializeError<'input, 'shape>>
-{
+) -> Result<(&'partial mut Partial<'facet>, &'input [u8]), DeserializeError<'input>> {
     // Read the variant discriminant from the input.
     let (variant_disc, remaining) =
         de.deserialize_var_i64(input).map_err(|err| state.handle_deserialize_error(err))?;

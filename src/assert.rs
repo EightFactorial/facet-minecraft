@@ -22,7 +22,7 @@ impl<'facet, T: Facet<'facet>> AssertProtocol<'facet> for T {}
 
 /// Returns `true` if the given [`Shape`] can be read and written.
 #[must_use]
-const fn valid_shape(shape: &Shape<'_>) -> bool {
+const fn valid_shape(shape: &Shape) -> bool {
     #[cfg(feature = "custom")]
     {
         let mut index = 0usize;
@@ -70,7 +70,7 @@ const fn valid_shape(shape: &Shape<'_>) -> bool {
 
 #[must_use]
 #[rustfmt::skip]
-const fn valid_struct_type(ty: &StructType<'_>) -> bool {
+const fn valid_struct_type(ty: &StructType) -> bool {
     let mut index = 0usize;
     while index < ty.fields.len() {
         if !valid_field(&ty.fields[index]) { return false }
@@ -81,7 +81,7 @@ const fn valid_struct_type(ty: &StructType<'_>) -> bool {
 
 #[must_use]
 #[rustfmt::skip]
-const fn valid_enum_type(ty: &EnumType<'_>) -> bool {
+const fn valid_enum_type(ty: &EnumType) -> bool {
     let mut index = 0usize;
     while index < ty.variants.len() {
         let field = &ty.variants[index];
@@ -93,7 +93,7 @@ const fn valid_enum_type(ty: &EnumType<'_>) -> bool {
 
 /// Returns `true` if the given [`Field`] can be read and written.
 #[must_use]
-const fn valid_field(field: &Field<'_>) -> bool {
+const fn valid_field(field: &Field) -> bool {
     let mut index = 0usize;
     while index < field.attributes.len() {
         let FieldAttribute::Arbitrary(attr) = field.attributes[index];

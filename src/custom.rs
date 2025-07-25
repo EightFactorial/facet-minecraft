@@ -31,17 +31,15 @@ pub struct FacetOverride {
 }
 
 #[cfg(feature = "serialize")]
-type SerializeFn = for<'mem, 'facet, 'shape> fn(
-    Peek<'_, 'facet, 'shape>,
-    &mut Vec<SerializationTask<'mem, 'facet, 'shape>>,
-);
+type SerializeFn =
+    for<'mem, 'facet> fn(Peek<'_, 'facet>, &mut Vec<SerializationTask<'mem, 'facet>>);
 #[cfg(feature = "deserialize")]
-type DeserializeFn = for<'input, 'partial, 'facet, 'shape> fn(
-    &'partial mut Partial<'facet, 'shape>,
+type DeserializeFn = for<'input, 'partial, 'facet> fn(
+    &'partial mut Partial<'facet>,
     &'input [u8],
 ) -> Result<
-    (&'partial mut Partial<'facet, 'shape>, &'input [u8]),
-    DeserializeError<'input, 'shape>,
+    (&'partial mut Partial<'facet>, &'input [u8]),
+    DeserializeError<'input>,
 >;
 
 impl FacetOverride {

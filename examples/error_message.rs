@@ -1,7 +1,7 @@
 //! TODO
 #![allow(dead_code)]
 
-use facet_derive::Facet;
+use facet_macros::Facet;
 use facet_minecraft::McDeserializer;
 
 extern crate facet_core as facet;

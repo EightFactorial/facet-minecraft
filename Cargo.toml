@@ -42,15 +42,15 @@ unnecessary_cast = "warn"
 divan = "0.1"
 
 [dependencies]
-facet-core = { default-features = false, features = ["alloc"], version = "0.27" }
-facet-derive = { default-features = false, version = "0.27" }
+facet-core = { default-features = false, features = ["alloc"], version = "0.28" }
+facet-macros = { default-features = false, version = "0.28" }
 owo-colors = { features = ["alloc"], version = "4.2" }
 
 # Optional dependencies
 ariadne = { default-features = false, optional = true, version = "0.5" }
-facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.24" }
-facet-json = { default-features = false, optional = true, version = "0.24" }
-facet-reflect = { default-features = false, features = ["alloc"], optional = true, version = "0.27" }
+facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.28" }
+facet-json = { default-features = false, optional = true, version = "0.28" }
+facet-reflect = { default-features = false, features = ["alloc"], optional = true, version = "0.28" }
 inventory = { optional = true, version = "0.3" }
 once_cell = { default-features = false, features = ["alloc"], optional = true, version = "1.21" }
 parking_lot = { default-features = false, optional = true, version = "0.12" }
