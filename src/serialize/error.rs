@@ -76,14 +76,14 @@ impl<T> From<T> for SerializeError<'_, '_, T> {
 // -------------------------------------------------------------------------------------------------
 
 #[cfg(not(feature = "rich-diagnostics"))]
-impl<T: Display> Debug for SerializeError<'_, '_, '_, T> {
+impl<T: Display> Debug for SerializeError<'_, '_, T> {
     #[inline(always)]
     #[expect(clippy::inline_always)]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { Display::fmt(self, f) }
 }
 
 #[cfg(not(feature = "rich-diagnostics"))]
-impl<T: Display> Display for SerializeError<'_, '_, '_, T> {
+impl<T: Display> Display for SerializeError<'_, '_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             SerializeError::WriteError(err) => Display::fmt(err, f),
