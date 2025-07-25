@@ -87,6 +87,7 @@ impl<W: WriteAdapter> McSerializer<W> {
 ///
 /// # Errors
 /// Returns an error if the serialization fails.
+#[inline(never)]
 #[expect(clippy::missing_panics_doc, clippy::too_many_lines)]
 pub fn serialize_iterative<'mem, 'facet, W: SerializerExt>(
     peek: Peek<'mem, 'facet>,
