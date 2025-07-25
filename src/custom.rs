@@ -4,6 +4,8 @@
 //! and [`once_cell`] to provide a static slice.
 
 use alloc::vec::Vec;
+#[cfg(all(not(feature = "once_cell"), feature = "std"))]
+use std::sync::LazyLock;
 
 use facet::{ConstTypeId, Facet};
 #[cfg(feature = "deserialize")]
@@ -11,6 +13,7 @@ pub use facet_reflect::Partial;
 #[cfg(feature = "serialize")]
 pub use facet_reflect::Peek;
 pub use inventory::submit;
+#[cfg(feature = "once_cell")]
 use once_cell::sync::OnceCell;
 
 #[cfg(feature = "deserialize")]
@@ -45,9 +48,19 @@ type DeserializeFn = for<'input, 'partial, 'facet> fn(
 impl FacetOverride {
     /// Returns a static slice of all registered [`FacetOverride`]s.
     #[must_use]
+    #[cfg(feature = "once_cell")]
     pub fn global() -> &'static [&'static FacetOverride] {
         static GLOBAL: OnceCell<Vec<&'static FacetOverride>> = OnceCell::new();
-        GLOBAL.get_or_init(|| inventory::iter::<Self>().collect())
+        GLOBAL.get_or_init(|| inventory::iter::<FacetOverride>().collect())
+    }
+
+    /// Returns a static slice of all registered [`FacetOverride`]s.
+    #[must_use]
+    #[cfg(all(not(feature = "once_cell"), feature = "std"))]
+    pub fn global() -> &'static [&'static FacetOverride] {
+        static GLOBAL: LazyLock<Vec<&'static FacetOverride>> =
+            LazyLock::new(|| inventory::iter::<FacetOverride>().collect());
+        &GLOBAL
     }
 
     /// Create a new [`FacetOverride`].

@@ -61,9 +61,11 @@ default = ["custom", "full", "rich-diagnostics", "std"]
 full = ["deserialize", "json", "serialize"]
 
 # Allow custom serialization implementations
-custom = ["dep:facet-reflect", "dep:inventory", "dep:once_cell"]
+custom = ["dep:facet-reflect", "dep:inventory"]
 # Enable critical-section on `no_std` platforms
 critical-section = ["once_cell?/critical-section"]
+# Enable once_cell on `no_std` platforms
+once_cell = ["dep:once_cell"]
 # Use `parking_lot` internally for synchronization
 parking_lot = ["dep:parking_lot", "once_cell?/parking_lot"]
 
