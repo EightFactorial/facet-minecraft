@@ -1,0 +1,33 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+name = "facet-nbt"
+readme = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+divan = { workspace = true }
+
+[dependencies]
+facet-core = { features = ["alloc"], workspace = true }
+facet-macros = { workspace = true }
+owo-colors = { features = ["alloc"], workspace = true }
+
+[features]
+default = ["std"]
+
+# Enable support for the standard library
+std = []
+# Enable features using the nightly toolchain
+nightly = []

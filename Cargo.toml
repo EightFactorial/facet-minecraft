@@ -1,16 +1,18 @@
-[package]
+[workspace]
+members = ["crates/facet-minecraft", "crates/facet-nbt"]
+resolver = "2"
+
+[workspace.package]
 authors = ["EightFactorial"]
 edition = "2024"
 homepage = "https://github.com/EightFactorial/facet-minecraft"
-include = ["/src/**", "Cargo.toml"]
 license = "MIT OR Apache-2.0"
-name = "facet-minecraft"
 readme = "README.md"
 repository = "https://github.com/EightFactorial/facet-minecraft"
 rust-version = "1.88.0"
 version = "0.1.0"
 
-[lints.rust]
+[workspace.lints.rust]
 missing_docs = "warn"
 trivial_casts = "warn"
 trivial_numeric_casts = "warn"
@@ -18,7 +20,7 @@ unreachable_pub = "warn"
 unused_import_braces = "warn"
 unused_lifetimes = "warn"
 
-[lints.rustdoc]
+[workspace.lints.rustdoc]
 bare_urls = "deny"
 broken_intra_doc_links = "deny"
 invalid_codeblock_attributes = "deny"
@@ -26,7 +28,7 @@ invalid_html_tags = "deny"
 invalid_rust_codeblocks = "deny"
 private_intra_doc_links = "deny"
 
-[lints.clippy]
+[workspace.lints.clippy]
 cast_possible_truncation = "warn"
 cast_possible_wrap = "warn"
 clone_on_ref_ptr = "warn"
@@ -38,84 +40,20 @@ std_instead_of_alloc = "deny"
 std_instead_of_core = "deny"
 unnecessary_cast = "warn"
 
-[dev-dependencies]
-divan = "0.1"
-
-[dependencies]
+[workspace.dependencies]
+# Facet dependencies
 facet-core = { default-features = false, features = ["alloc"], version = "0.28" }
+facet-deserialize = { default-features = false, features = ["alloc"], version = "0.28" }
+facet-json = { default-features = false, version = "0.28" }
 facet-macros = { default-features = false, version = "0.28" }
+facet-reflect = { default-features = false, features = ["alloc"], version = "0.28" }
+
+# Other dependencies
+ariadne = { default-features = false, version = "0.5" }
+inventory = { version = "0.3" }
+once_cell = { default-features = false, features = ["alloc"], version = "1.21" }
 owo-colors = { features = ["alloc"], version = "4.2" }
+parking_lot = { default-features = false, version = "0.12" }
 
-# Optional dependencies
-ariadne = { default-features = false, optional = true, version = "0.5" }
-facet-deserialize = { default-features = false, features = ["alloc"], optional = true, version = "0.28" }
-facet-json = { default-features = false, optional = true, version = "0.28" }
-facet-reflect = { default-features = false, features = ["alloc"], optional = true, version = "0.28" }
-inventory = { optional = true, version = "0.3" }
-once_cell = { default-features = false, features = ["alloc"], optional = true, version = "1.21" }
-parking_lot = { default-features = false, optional = true, version = "0.12" }
-
-[features]
-default = ["custom", "full", "std"]
-# Enable all serialization and deserialization features
-full = ["deserialize", "json", "serialize"]
-
-# Allow custom serialization implementations
-custom = ["dep:facet-reflect", "dep:inventory"]
-# Enable critical-section on `no_std` platforms
-critical-section = ["once_cell?/critical-section"]
-# Enable once_cell on `no_std` platforms
-once_cell = ["dep:once_cell"]
-# Use `parking_lot` internally for synchronization
-parking_lot = ["dep:parking_lot", "once_cell?/parking_lot"]
-
-# Enable serializing fields as JSON
-json = ["dep:facet-json", "dep:facet-reflect"]
-# Enable rich diagnostics
-rich-diagnostics = ["dep:ariadne", "facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
-
-# Enable deserialization support
-deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
-# Enable serialization support
-serialize = ["dep:facet-reflect"]
-
-# Enable support for the `uuid` crate
-uuid = ["facet-core/uuid", "facet-reflect?/uuid"]
-# Enable support for the standard library
-std = ["facet-core/std", "facet-reflect?/std", "once_cell?/std"]
-# Enable features using the nightly toolchain
-nightly = ["parking_lot?/nightly"]
-
-[[bench]]
-harness = false
-name = "deserialize"
-required-features = ["deserialize", "std"]
-
-[[bench]]
-harness = false
-name = "serialize"
-required-features = ["serialize", "std"]
-
-[[example]]
-name = "custom"
-required-features = ["custom", "full"]
-
-[[example]]
-name = "deserialize"
-required-features = ["deserialize"]
-
-[[example]]
-name = "error_message"
-required-features = ["full", "rich-diagnostics"]
-
-[[example]]
-name = "serialize"
-required-features = ["serialize"]
-
-[[example]]
-name = "server_status"
-required-features = ["full", "std"]
-
-[[example]]
-name = "zerocopy"
-required-features = ["deserialize"]
+# Benchmark dependencies
+divan = "0.1"

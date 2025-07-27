@@ -1,4 +1,4 @@
-#![doc = include_str!("../README.doc.md")]
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![cfg_attr(feature = "nightly", feature(core_io_borrowed_buf))]
 #![no_std]

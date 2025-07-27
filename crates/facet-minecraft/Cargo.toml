@@ -1,0 +1,99 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+name = "facet-minecraft"
+readme = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+divan = { workspace = true }
+
+[dependencies]
+facet-core = { features = ["alloc"], workspace = true }
+facet-macros = { workspace = true }
+owo-colors = { features = ["alloc"], workspace = true }
+
+# Optional dependencies
+ariadne = { optional = true, workspace = true }
+facet-deserialize = { features = ["alloc"], optional = true, workspace = true }
+facet-json = { optional = true, workspace = true }
+facet-reflect = { features = ["alloc"], optional = true, workspace = true }
+inventory = { optional = true, workspace = true }
+once_cell = { features = ["alloc"], optional = true, workspace = true }
+parking_lot = { optional = true, workspace = true }
+
+[features]
+default = ["custom", "full", "std"]
+# Enable all serialization and deserialization features
+full = ["deserialize", "json", "serialize"]
+
+# Allow custom serialization implementations
+custom = ["dep:facet-reflect", "dep:inventory"]
+# Enable critical-section on `no_std` platforms
+critical-section = ["once_cell?/critical-section"]
+# Enable once_cell on `no_std` platforms
+once_cell = ["dep:once_cell"]
+# Use `parking_lot` internally for synchronization
+parking_lot = ["dep:parking_lot", "once_cell?/parking_lot"]
+
+# Enable serializing fields as JSON
+json = ["dep:facet-json", "dep:facet-reflect"]
+# Enable rich diagnostics
+rich-diagnostics = ["dep:ariadne", "facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
+
+# Enable deserialization support
+deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
+# Enable serialization support
+serialize = ["dep:facet-reflect"]
+
+# Enable support for the `uuid` crate
+uuid = ["facet-core/uuid", "facet-reflect?/uuid"]
+# Enable support for the standard library
+std = ["facet-core/std", "facet-reflect?/std", "once_cell?/std"]
+# Enable features using the nightly toolchain
+nightly = ["parking_lot?/nightly"]
+
+[[bench]]
+harness = false
+name = "deserialize"
+required-features = ["deserialize", "std"]
+
+[[bench]]
+harness = false
+name = "serialize"
+required-features = ["serialize", "std"]
+
+[[example]]
+name = "custom"
+required-features = ["custom", "full"]
+
+[[example]]
+name = "deserialize"
+required-features = ["deserialize"]
+
+[[example]]
+name = "error_message"
+required-features = ["full", "rich-diagnostics"]
+
+[[example]]
+name = "serialize"
+required-features = ["serialize"]
+
+[[example]]
+name = "server_status"
+required-features = ["full", "std"]
+
+[[example]]
+name = "zerocopy"
+required-features = ["deserialize"]
