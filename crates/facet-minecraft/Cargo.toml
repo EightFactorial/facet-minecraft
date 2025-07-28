@@ -26,7 +26,6 @@ owo-colors = { features = ["alloc"], workspace = true }
 
 # Optional dependencies
 ariadne = { optional = true, workspace = true }
-facet-deserialize = { features = ["alloc"], optional = true, workspace = true }
 facet-json = { optional = true, workspace = true }
 facet-reflect = { features = ["alloc"], optional = true, workspace = true }
 inventory = { optional = true, workspace = true }
@@ -50,10 +49,10 @@ parking_lot = ["dep:parking_lot", "once_cell?/parking_lot"]
 # Enable serializing fields as JSON
 json = ["dep:facet-json", "dep:facet-reflect"]
 # Enable rich diagnostics
-rich-diagnostics = ["dep:ariadne", "facet-deserialize?/rich-diagnostics", "facet-json?/rich-diagnostics", "std"]
+rich-diagnostics = ["dep:ariadne", "facet-json?/rich-diagnostics", "std"]
 
 # Enable deserialization support
-deserialize = ["dep:facet-deserialize", "dep:facet-reflect"]
+deserialize = ["dep:facet-reflect"]
 # Enable serialization support
 serialize = ["dep:facet-reflect"]
 

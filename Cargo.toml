@@ -42,18 +42,20 @@ unnecessary_cast = "warn"
 
 [workspace.dependencies]
 # Facet dependencies
-facet-core = { default-features = false, features = ["alloc"], version = "0.28" }
-facet-deserialize = { default-features = false, features = ["alloc"], version = "0.28" }
+facet-core = { default-features = false, version = "0.28" }
+facet-deserialize = { default-features = false, version = "0.28" }
 facet-json = { default-features = false, version = "0.28" }
 facet-macros = { default-features = false, version = "0.28" }
-facet-reflect = { default-features = false, features = ["alloc"], version = "0.28" }
+facet-reflect = { default-features = false, version = "0.28" }
 
 # Other dependencies
 ariadne = { default-features = false, version = "0.5" }
-inventory = { version = "0.3" }
-once_cell = { default-features = false, features = ["alloc"], version = "1.21" }
-owo-colors = { features = ["alloc"], version = "4.2" }
+indexmap = { default-features = false, version = "2.10" }
+inventory = { default-features = false, version = "0.3" }
+once_cell = { default-features = false, version = "1.21" }
+owo-colors = { default-features = false, version = "4.2" }
 parking_lot = { default-features = false, version = "0.12" }
+simd_cesu8 = { default-features = false, version = "1.0" }
 
 # Benchmark dependencies
 divan = "0.1"

@@ -22,12 +22,23 @@ divan = { workspace = true }
 [dependencies]
 facet-core = { features = ["alloc"], workspace = true }
 facet-macros = { workspace = true }
+indexmap = { workspace = true }
 owo-colors = { features = ["alloc"], workspace = true }
+simd_cesu8 = { workspace = true }
+
+# Optional dependencies
+ariadne = { optional = true, workspace = true }
+facet-reflect = { features = ["alloc"], optional = true, workspace = true }
 
 [features]
 default = ["std"]
 
+# Enable rich diagnostics
+rich-diagnostics = ["dep:ariadne", "std"]
+
+# Enable support for the `uuid` crate
+uuid = ["facet-core/uuid", "facet-reflect?/uuid"]
 # Enable support for the standard library
-std = []
+std = ["indexmap/std", "simd_cesu8/std"]
 # Enable features using the nightly toolchain
-nightly = []
+nightly = ["simd_cesu8/nightly"]
