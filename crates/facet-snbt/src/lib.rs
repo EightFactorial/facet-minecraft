@@ -10,6 +10,12 @@ extern crate std;
 pub mod format;
 pub mod snbt;
 
+pub mod deserialize;
+pub mod serialize;
+
+mod error;
+pub use error::{DeserializeError, SerializeError};
+
 pub mod prelude {
     //! Re-exports of common types and traits.
     pub use crate::{

@@ -23,6 +23,7 @@ divan = { workspace = true }
 facet-core = { features = ["alloc"], workspace = true }
 facet-macros = { workspace = true }
 facet-reflect = { features = ["alloc"], workspace = true }
+fxhash = { workspace = true }
 indexmap = { workspace = true }
 simd_cesu8 = { workspace = true }
 

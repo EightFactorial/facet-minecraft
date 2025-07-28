@@ -10,6 +10,9 @@ extern crate std;
 pub mod borrowed;
 pub mod owned;
 
+pub mod deserialize;
+pub mod serialize;
+
 pub mod mutf8;
 
 pub mod prelude {
