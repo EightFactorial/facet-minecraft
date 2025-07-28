@@ -1,4 +1,6 @@
+#[cfg(feature = "json")]
 mod json;
+#[cfg(feature = "json")]
 pub(super) use json::deserialize_json;
 
 mod map;

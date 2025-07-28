@@ -78,16 +78,14 @@ impl Mutf8String {
 impl core::convert::AsRef<Mutf8Str> for Mutf8String {
     fn as_ref(&self) -> &Mutf8Str { Mutf8Str::new_raw(&self.0) }
 }
-
 impl core::convert::AsMut<Mutf8Str> for Mutf8String {
     fn as_mut(&mut self) -> &mut Mutf8Str { Mutf8Str::new_raw_mut(&mut self.0) }
 }
 
-impl alloc::borrow::Borrow<Mutf8Str> for Mutf8String {
+impl core::borrow::Borrow<Mutf8Str> for Mutf8String {
     fn borrow(&self) -> &Mutf8Str { Mutf8Str::new_raw(&self.0) }
 }
-
-impl alloc::borrow::BorrowMut<Mutf8Str> for Mutf8String {
+impl core::borrow::BorrowMut<Mutf8Str> for Mutf8String {
     fn borrow_mut(&mut self) -> &mut Mutf8Str { Mutf8Str::new_raw_mut(&mut self.0) }
 }
 
@@ -96,7 +94,6 @@ impl core::ops::Deref for Mutf8String {
 
     fn deref(&self) -> &Self::Target { Mutf8Str::new_raw(&self.0) }
 }
-
 impl core::ops::DerefMut for Mutf8String {
     fn deref_mut(&mut self) -> &mut Self::Target { Mutf8Str::new_raw_mut(&mut self.0) }
 }

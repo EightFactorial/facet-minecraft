@@ -1,5 +1,5 @@
 <h1 align="center">facet-minecraft</h1>
-<p align="center">A facet serialization/deserialization crate that supports the Minecraft protocol</p>
+<p align="center">Facet serialization/deserialization crates that support parts of the Minecraft protocol</p>
 
 ## Overview
 
@@ -32,7 +32,7 @@ assert_eq!(buffer, vec![5u8, b'S', b't', b'e', b'v', b'e', 20u8]);
 
 ## Todo List
 
-- [ ] Deserialization
+- [x] Deserialization
 - [x] Serialization
 - [ ] Protocol Assertions
   - Works in some cases but not all

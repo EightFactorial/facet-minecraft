@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/facet-minecraft", "crates/facet-nbt"]
+members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
@@ -46,7 +46,10 @@ facet-core = { default-features = false, version = "0.28" }
 facet-deserialize = { default-features = false, version = "0.28" }
 facet-json = { default-features = false, version = "0.28" }
 facet-macros = { default-features = false, version = "0.28" }
+facet-minecraft = { default-features = false, path = "crates/facet-minecraft", version = "0.1" }
+facet-nbt = { default-features = false, path = "crates/facet-nbt", version = "0.1" }
 facet-reflect = { default-features = false, version = "0.28" }
+facet-snbt = { default-features = false, path = "crates/facet-snbt", version = "0.1" }
 
 # Other dependencies
 ariadne = { default-features = false, version = "0.5" }

@@ -1,5 +1,5 @@
 //! TODO
-#![expect(missing_docs)]
+#![expect(missing_docs, dead_code)]
 
 mod compound;
 pub use compound::NbtCompound;

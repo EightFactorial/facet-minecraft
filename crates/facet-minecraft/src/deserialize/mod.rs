@@ -14,9 +14,11 @@ mod error;
 pub use error::{DeserializeError, ErrorReason};
 
 mod parts;
+#[cfg(feature = "json")]
+use parts::deserialize_json;
 use parts::{
-    deserialize_json, deserialize_map, deserialize_option, deserialize_primitive,
-    deserialize_sequence, deserialize_set, deserialize_smartpointer, deserialize_user,
+    deserialize_map, deserialize_option, deserialize_primitive, deserialize_sequence,
+    deserialize_set, deserialize_smartpointer, deserialize_user,
 };
 
 mod traits;
@@ -331,6 +333,7 @@ impl<'input> DeserializerState<'input> {
 
     /// Returns `true` if the next field is encoded as JSON.
     #[must_use]
+    #[cfg(feature = "json")]
     const fn json(&self) -> bool { self.flags.1 }
 
     /// Handle the result of a deserialization step.

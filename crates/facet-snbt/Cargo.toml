@@ -3,7 +3,7 @@ authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
-name = "facet-nbt"
+name = "facet-snbt"
 readme = { workspace = true }
 repository = { workspace = true }
 rust-version = { workspace = true }
@@ -20,11 +20,10 @@ workspace = true
 divan = { workspace = true }
 
 [dependencies]
-facet-core = { features = ["alloc"], workspace = true }
+facet-core = { features = ["alloc", "uuid"], workspace = true }
 facet-macros = { workspace = true }
-facet-reflect = { features = ["alloc"], workspace = true }
-indexmap = { workspace = true }
-simd_cesu8 = { workspace = true }
+facet-nbt = { features = ["uuid"], workspace = true }
+facet-reflect = { features = ["alloc", "uuid"], workspace = true }
 
 # Optional dependencies
 ariadne = { optional = true, workspace = true }
@@ -34,11 +33,9 @@ owo-colors = { features = ["alloc"], optional = true, workspace = true }
 default = ["std"]
 
 # Enable rich diagnostics
-rich-diagnostics = ["dep:ariadne", "dep:owo-colors", "std"]
+rich-diagnostics = ["dep:ariadne", "dep:owo-colors", "facet-nbt/rich-diagnostics", "std"]
 
-# Enable support for the `uuid` crate
-uuid = ["facet-core/uuid", "facet-reflect/uuid"]
 # Enable support for the standard library
-std = ["indexmap/std", "simd_cesu8/std"]
+std = ["facet-nbt/std"]
 # Enable features using the nightly toolchain
-nightly = ["simd_cesu8/nightly"]
+nightly = ["facet-nbt/nightly"]
