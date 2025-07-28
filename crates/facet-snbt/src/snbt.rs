@@ -7,7 +7,7 @@ use crate::format::SnbtFormat;
 
 /// A Stringified NBT value.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet_macros::Facet)]
 pub struct Snbt<'a, F: SnbtFormat>(Cow<'a, str>, PhantomData<F>);
 
 impl<'a, F: SnbtFormat> Snbt<'a, F> {
@@ -43,10 +43,10 @@ impl<'a, F: SnbtFormat> core::convert::AsMut<Cow<'a, str>> for Snbt<'a, F> {
     fn as_mut(&mut self) -> &mut Cow<'a, str> { &mut self.0 }
 }
 
-impl<'a, F: SnbtFormat> core::convert::AsRef<str> for Snbt<'a, F> {
+impl<F: SnbtFormat> core::convert::AsRef<str> for Snbt<'_, F> {
     fn as_ref(&self) -> &str { &self.0 }
 }
-impl<'a, F: SnbtFormat> core::convert::AsMut<str> for Snbt<'a, F> {
+impl<F: SnbtFormat> core::convert::AsMut<str> for Snbt<'_, F> {
     fn as_mut(&mut self) -> &mut str { self.0.to_mut() }
 }
 
@@ -57,7 +57,7 @@ impl<'a, F: SnbtFormat> core::borrow::BorrowMut<Cow<'a, str>> for Snbt<'a, F> {
     fn borrow_mut(&mut self) -> &mut Cow<'a, str> { &mut self.0 }
 }
 
-impl<'a, F: SnbtFormat> core::borrow::Borrow<str> for Snbt<'a, F> {
+impl<F: SnbtFormat> core::borrow::Borrow<str> for Snbt<'_, F> {
     fn borrow(&self) -> &str { &self.0 }
 }
 
@@ -66,6 +66,6 @@ impl<'a, F: SnbtFormat> core::ops::Deref for Snbt<'a, F> {
 
     fn deref(&self) -> &Self::Target { &self.0 }
 }
-impl<'a, F: SnbtFormat> core::ops::DerefMut for Snbt<'a, F> {
+impl<F: SnbtFormat> core::ops::DerefMut for Snbt<'_, F> {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }

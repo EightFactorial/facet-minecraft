@@ -7,7 +7,7 @@ use crate::snbt::Snbt;
 ///
 /// Used in Minecraft versions 1.21.5 and later,
 /// supports more formatting options and data types.
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash, facet_macros::Facet)]
 pub struct Modern;
 
 /// The modern SNBT format.
@@ -16,13 +16,13 @@ pub struct Modern;
 /// supports more formatting options and data types.
 pub type ModernSnbt<'a> = Snbt<'a, Modern>;
 
-impl<'a> LegacySnbt<'a> {
+impl LegacySnbt<'_> {
     /// Upgrade a [`LegacySnbt`] into a [`ModernSnbt`].
     ///
     /// This method is essentially a reborrow since the
     /// new format is a superset of the old one.
     #[must_use]
-    pub const fn upgrade<'b>(&'b self) -> ModernSnbt<'b> {
+    pub const fn upgrade(&self) -> ModernSnbt<'_> {
         match self.as_inner() {
             Cow::Borrowed(val) => ModernSnbt::new_unchecked(Cow::Borrowed(val)),
             Cow::Owned(val) => ModernSnbt::new_unchecked(Cow::Borrowed(val.as_str())),

@@ -19,6 +19,6 @@ pub mod prelude {
     //! Re-exports of common types and traits.
     pub use crate::{
         mutf8::{Mutf8Str, Mutf8String},
-        owned::{NbtCompound, NbtTag},
+        owned::{NbtCompound, NbtListTag, NbtTag},
     };
 }

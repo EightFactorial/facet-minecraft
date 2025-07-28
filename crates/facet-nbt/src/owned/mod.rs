@@ -1,8 +1,8 @@
 //! TODO
-#![expect(missing_docs, dead_code)]
+#![expect(missing_docs)]
 
 mod compound;
 pub use compound::NbtCompound;
 
 mod tag;
-pub use tag::NbtTag;
+pub use tag::{NbtListTag, NbtTag};

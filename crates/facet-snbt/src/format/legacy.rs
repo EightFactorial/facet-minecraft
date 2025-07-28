@@ -5,7 +5,7 @@ use crate::snbt::Snbt;
 ///
 /// Used in Minecraft versions before 1.21.5,
 /// but still compatible with later versions.
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash, facet_macros::Facet)]
 pub struct Legacy;
 
 /// The legacy SNBT format.

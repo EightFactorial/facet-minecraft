@@ -6,7 +6,7 @@ use alloc::{borrow::Cow, string::String, vec::Vec};
 ///
 /// Similar to a [`String`], but uses MUTF-8 encoding.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet_macros::Facet)]
 pub struct Mutf8String(Vec<u8>);
 
 impl Mutf8String {
@@ -49,7 +49,7 @@ impl Mutf8String {
     ///
     /// See [`simd_cesu8::decode`] for more details.
     #[inline]
-    #[must_use]
+    #[expect(clippy::missing_errors_doc)]
     pub fn try_as_str(&self) -> Result<Cow<'_, str>, simd_cesu8::DecodingError> {
         self.as_mutf8_str().try_as_str()
     }
@@ -67,7 +67,7 @@ impl Mutf8String {
     ///
     /// See [`simd_cesu8::decode`] for more details.
     #[inline]
-    #[must_use]
+    #[expect(clippy::missing_errors_doc)]
     pub fn try_as_string(&self) -> Result<String, simd_cesu8::DecodingError> {
         self.as_mutf8_str().try_as_string()
     }
@@ -96,6 +96,19 @@ impl core::ops::Deref for Mutf8String {
 }
 impl core::ops::DerefMut for Mutf8String {
     fn deref_mut(&mut self) -> &mut Self::Target { Mutf8Str::new_raw_mut(&mut self.0) }
+}
+
+impl indexmap::Equivalent<Mutf8Str> for Mutf8String {
+    fn equivalent(&self, other: &Mutf8Str) -> bool { self.as_mutf8_str() == other }
+}
+impl indexmap::Equivalent<String> for Mutf8String {
+    fn equivalent(&self, other: &String) -> bool { &self.to_str_lossy() == other }
+}
+impl indexmap::Equivalent<str> for Mutf8String {
+    fn equivalent(&self, other: &str) -> bool { self.to_str_lossy() == other }
+}
+impl indexmap::Equivalent<[u8]> for Mutf8String {
+    fn equivalent(&self, other: &[u8]) -> bool { self.as_raw_bytes() == other }
 }
 
 impl core::convert::TryFrom<Mutf8String> for String {
@@ -181,7 +194,7 @@ impl Mutf8Str {
     /// returning an error if the conversion fails.
     ///
     /// See [`simd_cesu8::decode`] for more details.
-    #[must_use]
+    #[expect(clippy::missing_errors_doc)]
     pub fn try_as_str(&self) -> Result<Cow<'_, str>, simd_cesu8::DecodingError> {
         simd_cesu8::decode(&self.0)
     }
@@ -196,7 +209,7 @@ impl Mutf8Str {
     /// returning an error if the conversion fails.
     ///
     /// See [`simd_cesu8::decode`] for more details.
-    #[must_use]
+    #[expect(clippy::missing_errors_doc)]
     pub fn try_as_string(&self) -> Result<String, simd_cesu8::DecodingError> {
         self.try_as_str().map(Cow::into_owned)
     }
