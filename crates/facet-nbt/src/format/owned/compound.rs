@@ -4,11 +4,48 @@ use indexmap::IndexMap;
 use super::NbtTag;
 use crate::mutf8::Mutf8String;
 
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct Nbt(Option<Mutf8String>, NbtCompound);
+
+impl Nbt {
+    /// Create a new [`Nbt`] from the given name and compound.
+    #[inline]
+    #[must_use]
+    pub const fn new_named(name: Mutf8String, compound: NbtCompound) -> Self {
+        Nbt(Some(name), compound)
+    }
+
+    /// Create a new [`Nbt`] from the given compound.
+    #[inline]
+    #[must_use]
+    pub const fn new_unnamed(compound: NbtCompound) -> Self { Nbt(None, compound) }
+
+    /// Get a reference to the name of the [`Nbt`], if it has one.
+    #[inline]
+    #[must_use]
+    pub const fn name(&self) -> &Option<Mutf8String> { &self.0 }
+
+    /// Get a mutable reference to the name of the [`Nbt`], if it has one.
+    #[inline]
+    #[must_use]
+    pub const fn name_mut(&mut self) -> &mut Option<Mutf8String> { &mut self.0 }
+
+    /// Get a reference to the inner [`NbtCompound`].
+    #[inline]
+    #[must_use]
+    pub const fn compound(&self) -> &NbtCompound { &self.1 }
+
+    /// Get a mutable reference to the inner [`NbtCompound`].
+    #[inline]
+    #[must_use]
+    pub const fn compound_mut(&mut self) -> &mut NbtCompound { &mut self.1 }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 #[repr(transparent)]
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct NbtCompound(IndexMap<Mutf8String, NbtTag, FxBuildHasher>);
-
-// -------------------------------------------------------------------------------------------------
 
 impl NbtCompound {
     /// Create a new empty [`NbtCompound`].

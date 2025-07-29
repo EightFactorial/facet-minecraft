@@ -1,6 +1,64 @@
 use super::RawTag;
 use crate::{format::raw::RawTagType, mutf8::Mutf8Str};
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RawNbt<'a>(Option<&'a Mutf8Str>, RawCompound<'a>);
+
+impl<'a> RawNbt<'a> {
+    /// Create a new named [`RawNbt`] from a byte slice.
+    #[must_use]
+    pub const fn new_named(data: &'a [u8]) -> Option<Self> {
+        match data.split_first() {
+            Some((&RawTagType::COMPOUND, data)) => {
+                let (name, data) = Mutf8Str::new_raw_prefixed(data);
+                Some(Self(Some(name), RawCompound::new_unchecked(data)))
+            }
+            _ => None,
+        }
+    }
+
+    /// Create a new unnamed [`RawNbt`] from a byte slice.
+    #[must_use]
+    pub const fn new_unnamed(data: &'a [u8]) -> Option<Self> {
+        match data.split_first() {
+            Some((&RawTagType::COMPOUND, data)) => {
+                Some(Self(None, RawCompound::new_unchecked(data)))
+            }
+            _ => None,
+        }
+    }
+
+    /// Get the name of the [`RawNbt`], if it has one.
+    #[inline]
+    #[must_use]
+    pub const fn name(&self) -> Option<&'a Mutf8Str> { self.0 }
+
+    /// Get the inner [`RawCompound`] of the [`RawNbt`].
+    #[inline]
+    #[must_use]
+    pub const fn compound(&self) -> &RawCompound<'a> { &self.1 }
+
+    /// Create a new [`BorrowedNbt`] from this [`RawNbt`].
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    pub fn to_borrowed(&self) -> crate::format::borrowed::BorrowedNbt<'a> {
+        crate::format::borrowed::BorrowedNbt::from_parts(self.0, self.1.to_borrowed())
+    }
+}
+
+impl<'a> core::ops::Deref for RawNbt<'a> {
+    type Target = RawCompound<'a>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target { &self.1 }
+}
+impl<'a> core::ops::DerefMut for RawNbt<'a> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.1 }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 #[repr(transparent)]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -43,6 +101,13 @@ impl<'a> RawCompound<'a> {
             }
             None => None,
         }
+    }
+
+    /// Create a new [`BorrowedCompound`] from this [`RawCompound`].
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    pub fn to_borrowed(&self) -> crate::format::borrowed::BorrowedCompound<'a> {
+        self.clone().map(|(k, v)| (k, v.to_borrowed())).collect()
     }
 }
 

@@ -110,6 +110,40 @@ impl<'a> RawTag<'a> {
             RawTagType::End => None,
         }
     }
+
+    /// Create a new [`BorrowedTag`] from this [`RawTag`].
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    pub fn to_borrowed(&self) -> crate::format::borrowed::BorrowedTag<'a> {
+        match self {
+            RawTag::Byte(val) => {
+                crate::format::borrowed::BorrowedTag::Byte(val.clone().next().unwrap())
+            }
+            RawTag::Short(val) => {
+                crate::format::borrowed::BorrowedTag::Short(val.clone().next().unwrap())
+            }
+            RawTag::Int(val) => {
+                crate::format::borrowed::BorrowedTag::Int(val.clone().next().unwrap())
+            }
+            RawTag::Long(val) => {
+                crate::format::borrowed::BorrowedTag::Long(val.clone().next().unwrap())
+            }
+            RawTag::Float(val) => {
+                crate::format::borrowed::BorrowedTag::Float(val.clone().next().unwrap())
+            }
+            RawTag::Double(val) => {
+                crate::format::borrowed::BorrowedTag::Double(val.clone().next().unwrap())
+            }
+            RawTag::ByteArray(val) => crate::format::borrowed::BorrowedTag::ByteArray(val.clone()),
+            RawTag::String(val) => crate::format::borrowed::BorrowedTag::String(*val),
+            RawTag::List(tag) => crate::format::borrowed::BorrowedTag::List(tag.to_borrowed()),
+            RawTag::Compound(compound) => {
+                crate::format::borrowed::BorrowedTag::Compound(compound.to_borrowed())
+            }
+            RawTag::IntArray(val) => crate::format::borrowed::BorrowedTag::IntArray(val.clone()),
+            RawTag::LongArray(val) => crate::format::borrowed::BorrowedTag::LongArray(val.clone()),
+        }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -150,7 +184,7 @@ impl<'a> RawListTag<'a> {
     ///
     /// Returns a [`RawListTag`] and the remaining data not consumed by the tag.
     #[must_use]
-    #[expect(clippy::too_many_lines, unused_assignments)]
+    #[expect(clippy::too_many_lines)]
     pub const fn parse_data(data: &'a [u8]) -> Option<(Self, &'a [u8])> {
         let Some((&tag, data)) = data.split_first() else { return None };
         let Some(tag) = RawTagType::from_byte(tag) else { return None };
@@ -242,7 +276,11 @@ impl<'a> RawListTag<'a> {
                 while loop_index < count {
                     loop_index += 1;
 
-                    todo!();
+                    if let Some((_, remaining)) = RawListTag::parse_data(data) {
+                        data = remaining;
+                    } else {
+                        return None;
+                    };
                 }
 
                 let (array, data) = origin.split_at(start - data.len());
@@ -256,7 +294,9 @@ impl<'a> RawListTag<'a> {
                 while loop_index < count {
                     loop_index += 1;
 
-                    todo!();
+                    let mut compound = RawCompound::new_unchecked(data);
+                    while compound.next_entry().is_some() {}
+                    data = compound.as_raw_bytes();
                 }
 
                 let (array, data) = origin.split_at(start - data.len());
@@ -311,6 +351,47 @@ impl<'a> RawListTag<'a> {
 
                 let (array, data) = origin.split_at(start - data.len());
                 Some((RawListTag::LongArray(BorrowedRef::new(array)), data))
+            }
+        }
+    }
+
+    /// Create a new [`BorrowedListTag`] from this [`RawListTag`].
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    pub fn to_borrowed(&self) -> crate::format::borrowed::BorrowedListTag<'a> {
+        match self {
+            RawListTag::Empty => crate::format::borrowed::BorrowedListTag::Empty,
+            RawListTag::Byte(val) => crate::format::borrowed::BorrowedListTag::Byte(val.clone()),
+            RawListTag::Short(val) => crate::format::borrowed::BorrowedListTag::Short(val.clone()),
+            RawListTag::Int(val) => crate::format::borrowed::BorrowedListTag::Int(val.clone()),
+            RawListTag::Long(val) => crate::format::borrowed::BorrowedListTag::Long(val.clone()),
+            RawListTag::Float(val) => crate::format::borrowed::BorrowedListTag::Float(val.clone()),
+            RawListTag::Double(val) => {
+                crate::format::borrowed::BorrowedListTag::Double(val.clone())
+            }
+            RawListTag::ByteArray(val) => {
+                crate::format::borrowed::BorrowedListTag::ByteArray(val.clone().collect())
+            }
+            RawListTag::String(val) => {
+                crate::format::borrowed::BorrowedListTag::String(val.clone().collect())
+            }
+            RawListTag::List(tag) => crate::format::borrowed::BorrowedListTag::List(
+                tag.clone()
+                    .map(|v| RawListTag::parse_data(v.as_raw_bytes()).unwrap())
+                    .map(|(tag, _)| tag.to_borrowed())
+                    .collect(),
+            ),
+            RawListTag::Compound(compound) => crate::format::borrowed::BorrowedListTag::Compound(
+                compound
+                    .clone()
+                    .map(|v| RawCompound::new_unchecked(v.as_raw_bytes()).to_borrowed())
+                    .collect(),
+            ),
+            RawListTag::IntArray(val) => {
+                crate::format::borrowed::BorrowedListTag::IntArray(val.clone().collect())
+            }
+            RawListTag::LongArray(val) => {
+                crate::format::borrowed::BorrowedListTag::LongArray(val.clone().collect())
             }
         }
     }

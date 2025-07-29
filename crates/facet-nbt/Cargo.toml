@@ -1,6 +1,7 @@
 [package]
 authors = { workspace = true }
 edition = { workspace = true }
+exclude = ["tests"]
 homepage = { workspace = true }
 license = { workspace = true }
 name = "facet-nbt"

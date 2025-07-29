@@ -9,7 +9,7 @@ use alloc::{borrow::Cow, string::String, vec::Vec};
 #[repr(transparent)]
 #[cfg(feature = "alloc")]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Mutf8String(Vec<u8>);
 
 #[cfg(feature = "alloc")]
@@ -78,6 +78,19 @@ impl Mutf8String {
     }
 }
 
+#[cfg(feature = "alloc")]
+impl core::fmt::Debug for Mutf8String {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("Mutf8String").field(&simd_cesu8::decode_lossy(&self.0)).finish()
+    }
+}
+#[cfg(feature = "alloc")]
+impl core::fmt::Display for Mutf8String {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&simd_cesu8::decode_lossy(&self.0))
+    }
+}
+
 // -------------------------------------------------------------------------------------------------
 
 #[cfg(feature = "alloc")]
@@ -141,7 +154,8 @@ impl core::convert::TryFrom<Mutf8String> for String {
 ///
 /// Similar to a [`str`], but uses MUTF-8 encoding.
 #[repr(transparent)]
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(not(feature = "alloc"), derive(Debug))]
+#[derive(PartialEq, Eq, Hash)]
 pub struct Mutf8Str([u8]);
 
 impl Mutf8Str {
@@ -262,6 +276,19 @@ impl Mutf8Str {
 }
 
 // -------------------------------------------------------------------------------------------------
+
+#[cfg(feature = "alloc")]
+impl core::fmt::Debug for Mutf8Str {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("Mutf8Str").field(&simd_cesu8::decode_lossy(&self.0)).finish()
+    }
+}
+#[cfg(feature = "alloc")]
+impl core::fmt::Display for Mutf8Str {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&simd_cesu8::decode_lossy(&self.0))
+    }
+}
 
 #[cfg(feature = "alloc")]
 impl alloc::borrow::ToOwned for Mutf8Str {

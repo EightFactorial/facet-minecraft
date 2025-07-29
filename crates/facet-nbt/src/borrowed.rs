@@ -2,6 +2,11 @@
 
 use core::marker::PhantomData;
 
+use crate::{
+    format::raw::{RawCompound, RawListTag},
+    mutf8::Mutf8Str,
+};
+
 /// A reference to a slice of bytes that represents a value.
 #[repr(transparent)]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
@@ -17,6 +22,11 @@ impl<'a, T: ?Sized> BorrowedRef<'a, T> {
     #[inline]
     #[must_use]
     pub(crate) const fn new(data: &'a [u8]) -> Self { Self(data, PhantomData) }
+
+    /// Get the raw byte slice of the [`BorrowedRef`].
+    #[inline]
+    #[must_use]
+    pub(crate) const fn as_raw_bytes(&self) -> &'a [u8] { self.0 }
 }
 
 impl<'a, T: BorrowedDecode<'a> + ?Sized> BorrowedRef<'a, T>
@@ -70,6 +80,24 @@ impl<'a, T: BorrowedDecode<'a> + ?Sized> Iterator for BorrowedRef<'a, T> {
             item
         })
     }
+}
+
+impl<'a> Iterator for BorrowedRef<'a, [&'a Mutf8Str]> {
+    type Item = &'a Mutf8Str;
+
+    fn next(&mut self) -> Option<Self::Item> { todo!() }
+}
+
+impl<'a> Iterator for BorrowedRef<'a, [RawCompound<'a>]> {
+    type Item = BorrowedRef<'a, RawCompound<'a>>;
+
+    fn next(&mut self) -> Option<Self::Item> { todo!() }
+}
+
+impl<'a> Iterator for BorrowedRef<'a, [RawListTag<'a>]> {
+    type Item = BorrowedRef<'a, RawListTag<'a>>;
+
+    fn next(&mut self) -> Option<Self::Item> { todo!() }
 }
 
 // -------------------------------------------------------------------------------------------------

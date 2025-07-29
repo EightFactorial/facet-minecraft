@@ -1,7 +1,7 @@
 //! TODO
 
 mod compound;
-pub use compound::NbtCompound;
+pub use compound::{Nbt, NbtCompound};
 
 mod tag;
 pub use tag::{NbtListTag, NbtTag};

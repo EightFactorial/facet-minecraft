@@ -7,11 +7,10 @@ use crate::{
         owned::{NbtListTag, NbtTag},
         raw::RawTagType,
     },
-    mutf8::Mutf8String,
+    mutf8::Mutf8Str,
 };
 
 #[repr(u8)]
-#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq)]
 pub enum BorrowedTag<'a> {
     /// A signed 8-bit integer.
@@ -29,7 +28,7 @@ pub enum BorrowedTag<'a> {
     /// An array of signed 8-bit integers.
     ByteArray(BorrowedRef<'a, [i8]>) = RawTagType::BYTE_ARRAY,
     /// A [`Mutf8Str`].
-    String(BorrowedRef<'a, Mutf8String>) = RawTagType::STRING,
+    String(&'a Mutf8Str) = RawTagType::STRING,
     /// An [`BorrowedListTag`].
     List(BorrowedListTag<'a>) = RawTagType::LIST,
     /// An [`BorrowedCompound`].
@@ -43,7 +42,6 @@ pub enum BorrowedTag<'a> {
 impl BorrowedTag<'_> {
     /// Convert the [`BorrowedTag`] into an owned [`NbtTag`].
     #[must_use]
-    #[expect(unreachable_code)]
     pub fn to_owned(self) -> NbtTag {
         match self {
             BorrowedTag::Byte(val) => NbtTag::Byte(val),
@@ -53,7 +51,7 @@ impl BorrowedTag<'_> {
             BorrowedTag::Float(val) => NbtTag::Float(val),
             BorrowedTag::Double(val) => NbtTag::Double(val),
             BorrowedTag::ByteArray(val) => NbtTag::ByteArray(val.collect()),
-            BorrowedTag::String(_val) => NbtTag::String(todo!()),
+            BorrowedTag::String(val) => NbtTag::String(val.to_mutf8_string()),
             BorrowedTag::List(val) => NbtTag::List(val.to_owned()),
             BorrowedTag::Compound(val) => NbtTag::Compound(val.to_owned()),
             BorrowedTag::IntArray(val) => NbtTag::IntArray(val.collect()),
@@ -65,7 +63,6 @@ impl BorrowedTag<'_> {
 // -------------------------------------------------------------------------------------------------
 
 #[repr(u8)]
-#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq)]
 pub enum BorrowedListTag<'a> {
     /// An empty, untyped list.
@@ -85,7 +82,7 @@ pub enum BorrowedListTag<'a> {
     /// A list of arrays of signed 8-bit integers.
     ByteArray(Vec<BorrowedRef<'a, [i8]>>) = RawTagType::BYTE_ARRAY,
     /// A list of [`Mutf8Str`]s.
-    String(Vec<&'a Mutf8String>) = RawTagType::STRING,
+    String(Vec<&'a Mutf8Str>) = RawTagType::STRING,
     /// A list of [`BorrowedListTag`]s.
     List(Vec<BorrowedListTag<'a>>) = RawTagType::LIST,
     /// A list of [`BorrowedCompound`]s.
@@ -99,7 +96,6 @@ pub enum BorrowedListTag<'a> {
 impl BorrowedListTag<'_> {
     /// Convert the [`BorrowedListTag`] into an owned [`NbtListTag`].
     #[must_use]
-    #[expect(unreachable_code)]
     pub fn to_owned(self) -> NbtListTag {
         match self {
             BorrowedListTag::Empty => NbtListTag::Empty,
@@ -112,7 +108,9 @@ impl BorrowedListTag<'_> {
             BorrowedListTag::ByteArray(val) => {
                 NbtListTag::ByteArray(val.into_iter().map(Iterator::collect).collect())
             }
-            BorrowedListTag::String(_val) => NbtListTag::String(todo!()),
+            BorrowedListTag::String(val) => {
+                NbtListTag::String(val.into_iter().map(Mutf8Str::to_mutf8_string).collect())
+            }
             BorrowedListTag::List(val) => {
                 NbtListTag::List(val.into_iter().map(Self::to_owned).collect())
             }

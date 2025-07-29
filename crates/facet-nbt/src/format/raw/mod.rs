@@ -8,7 +8,10 @@
 //! hard to use and isn't ideal for runtime performance.
 
 mod compound;
-pub use compound::RawCompound;
+pub use compound::{RawCompound, RawNbt};
 
 mod tag;
 pub use tag::{RawListTag, RawTag, RawTagType};
+
+#[cfg(test)]
+mod test;
