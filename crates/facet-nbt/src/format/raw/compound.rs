@@ -21,16 +21,27 @@ impl<'a> RawCompound<'a> {
     pub const fn as_raw_bytes(&self) -> &'a [u8] { self.0 }
 
     /// Get the next string-tag pair of the [`RawCompound`].
+    ///
+    /// # Warning
+    /// Once this function returns `None`, it should never be called again.
+    ///
+    /// Calling it again may start indexing into trailing data,
+    /// returning garbage results or panicking.
     #[must_use]
     pub const fn next_entry(&mut self) -> Option<(&'a Mutf8Str, RawTag<'a>)> {
         match self.0.split_first() {
-            Some((&RawTagType::END, ..)) | None => None,
+            Some((&RawTagType::END, remaining)) => {
+                self.0 = remaining;
+                None
+            }
             Some((&tag, data)) => {
                 let Some(tag) = RawTagType::from_byte(tag) else { return None };
                 let (name, data) = Mutf8Str::new_raw_prefixed(data);
-                let Some(tag) = RawTag::parse_data(tag, data) else { return None };
+                let Some((tag, remaining)) = RawTag::parse_data(tag, data) else { return None };
+                self.0 = remaining;
                 Some((name, tag))
             }
+            None => None,
         }
     }
 }

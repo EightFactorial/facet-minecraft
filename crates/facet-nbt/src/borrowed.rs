@@ -2,8 +2,6 @@
 
 use core::marker::PhantomData;
 
-use crate::format::raw::{RawListTag, RawTagType};
-
 /// A reference to a slice of bytes that represents a value.
 #[repr(transparent)]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
@@ -18,7 +16,6 @@ impl<'a, T: ?Sized> BorrowedRef<'a, T> {
     /// and does not check the validity of the data provided.
     #[inline]
     #[must_use]
-    #[expect(dead_code)]
     pub(crate) const fn new(data: &'a [u8]) -> Self { Self(data, PhantomData) }
 }
 
