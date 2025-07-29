@@ -196,7 +196,7 @@ impl Mutf8Str {
                 let (string, remaining) = bytes.split_at(length);
                 (Self::new_raw(string), remaining)
             }
-            None => todo!(),
+            None => panic!("Mutf8Str::new_raw_prefixed: not enough bytes for length prefix"),
         }
     }
 

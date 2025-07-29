@@ -75,6 +75,10 @@ impl<'a, T: BorrowedDecode<'a> + ?Sized> Iterator for BorrowedRef<'a, T> {
     type Item = <T as BorrowedDecode<'a>>::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.0.is_empty() {
+            return None;
+        }
+
         T::consume_next(self.clone()).map(|(item, rem)| {
             *self = rem;
             item
@@ -85,19 +89,49 @@ impl<'a, T: BorrowedDecode<'a> + ?Sized> Iterator for BorrowedRef<'a, T> {
 impl<'a> Iterator for BorrowedRef<'a, [&'a Mutf8Str]> {
     type Item = &'a Mutf8Str;
 
-    fn next(&mut self) -> Option<Self::Item> { todo!() }
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0.is_empty() {
+            return None;
+        }
+
+        let (str, rem) = Mutf8Str::new_raw_prefixed(self.0);
+        self.0 = rem;
+
+        Some(str)
+    }
 }
 
 impl<'a> Iterator for BorrowedRef<'a, [RawCompound<'a>]> {
     type Item = BorrowedRef<'a, RawCompound<'a>>;
 
-    fn next(&mut self) -> Option<Self::Item> { todo!() }
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0.is_empty() {
+            return None;
+        }
+
+        let mut consumed = RawCompound::new_unchecked(self.0);
+        while consumed.next_entry().is_some() {}
+
+        let borrow = &self.0[..self.0.len() - consumed.as_raw_bytes().len()];
+        self.0 = consumed.as_raw_bytes();
+
+        Some(BorrowedRef(borrow, PhantomData))
+    }
 }
 
 impl<'a> Iterator for BorrowedRef<'a, [RawListTag<'a>]> {
     type Item = BorrowedRef<'a, RawListTag<'a>>;
 
-    fn next(&mut self) -> Option<Self::Item> { todo!() }
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0.is_empty() {
+            return None;
+        }
+
+        let (.., rem) = RawListTag::parse_data(self.0)?;
+        let borrow = &self.0[..self.0.len() - rem.len()];
+
+        Some(BorrowedRef(borrow, PhantomData))
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
