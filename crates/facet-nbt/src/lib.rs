@@ -18,6 +18,9 @@ pub mod borrowed;
 pub mod format;
 pub mod mutf8;
 
+#[cfg(test)]
+mod test;
+
 pub mod prelude {
     //! Re-exports of common types and traits.
     pub use crate::mutf8::Mutf8Str;
