@@ -45,6 +45,7 @@ impl<const N: usize> From<[(Mutf8String, NbtTag); N]> for NbtCompound {
 
 // -------------------------------------------------------------------------------------------------
 
+#[cfg(feature = "facet")]
 #[expect(clippy::elidable_lifetime_names)]
 unsafe impl<'facet> facet_core::Facet<'facet> for NbtCompound {
     const SHAPE: &'static facet::Shape = &const {

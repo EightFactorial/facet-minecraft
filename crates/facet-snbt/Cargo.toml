@@ -22,7 +22,7 @@ divan = { workspace = true }
 [dependencies]
 facet-core = { features = ["alloc", "uuid"], workspace = true }
 facet-macros = { workspace = true }
-facet-nbt = { features = ["uuid"], workspace = true }
+facet-nbt = { features = ["alloc", "uuid"], workspace = true }
 facet-reflect = { features = ["alloc", "uuid"], workspace = true }
 
 # Optional dependencies

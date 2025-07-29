@@ -1,9 +1,11 @@
 use alloc::vec::Vec;
 
-use crate::{mutf8::Mutf8String, owned::NbtCompound};
+use super::NbtCompound;
+use crate::mutf8::Mutf8String;
 
 #[repr(u8)]
-#[derive(Debug, Clone, PartialEq, facet_macros::Facet)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NbtTag {
     /// A signed 8-bit integer.
     Byte(i8) = NbtTag::BYTE,
@@ -18,7 +20,7 @@ pub enum NbtTag {
     /// A 64-bit floating point number.
     Double(f64) = NbtTag::DOUBLE,
     /// An array of signed 8-bit integers.
-    ByteArray(Vec<u8>) = NbtTag::BYTE_ARRAY,
+    ByteArray(Vec<i8>) = NbtTag::BYTE_ARRAY,
     /// A [`Mutf8String`].
     String(Mutf8String) = NbtTag::STRING,
     /// An [`NbtListTag`].
@@ -79,8 +81,8 @@ impl From<f32> for NbtTag {
 impl From<f64> for NbtTag {
     fn from(value: f64) -> Self { NbtTag::Double(value) }
 }
-impl From<Vec<u8>> for NbtTag {
-    fn from(value: Vec<u8>) -> Self { NbtTag::ByteArray(value) }
+impl From<Vec<i8>> for NbtTag {
+    fn from(value: Vec<i8>) -> Self { NbtTag::ByteArray(value) }
 }
 impl From<Mutf8String> for NbtTag {
     fn from(value: Mutf8String) -> Self { NbtTag::String(value) }
@@ -100,14 +102,14 @@ impl From<Vec<i64>> for NbtTag {
 
 // -------------------------------------------------------------------------------------------------
 
-/// A list of NBT tag values.
 #[repr(u8)]
-#[derive(Debug, Clone, PartialEq, facet_macros::Facet)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NbtListTag {
     /// An empty, untyped list.
     Empty = NbtTag::END,
     /// A list of signed 8-bit integers.
-    Byte(Vec<u8>) = NbtTag::BYTE,
+    Byte(Vec<i8>) = NbtTag::BYTE,
     /// A list of signed 16-bit integers.
     Short(Vec<i16>) = NbtTag::SHORT,
     /// A list of signed 32-bit integers.
@@ -119,7 +121,7 @@ pub enum NbtListTag {
     /// A list of 64-bit floating point numbers.
     Double(Vec<f64>) = NbtTag::DOUBLE,
     /// A list of arrays of signed 8-bit integers.
-    ByteArray(Vec<Vec<u8>>) = NbtTag::BYTE_ARRAY,
+    ByteArray(Vec<Vec<i8>>) = NbtTag::BYTE_ARRAY,
     /// A list of [`Mutf8String`]s.
     String(Vec<Mutf8String>) = NbtTag::STRING,
     /// A list of [`NbtListTag`]s.
@@ -132,8 +134,8 @@ pub enum NbtListTag {
     LongArray(Vec<Vec<i64>>) = NbtTag::LONG_ARRAY,
 }
 
-impl From<Vec<u8>> for NbtListTag {
-    fn from(value: Vec<u8>) -> Self { NbtListTag::Byte(value) }
+impl From<Vec<i8>> for NbtListTag {
+    fn from(value: Vec<i8>) -> Self { NbtListTag::Byte(value) }
 }
 impl From<Vec<i16>> for NbtListTag {
     fn from(value: Vec<i16>) -> Self { NbtListTag::Short(value) }
@@ -150,8 +152,8 @@ impl From<Vec<f32>> for NbtListTag {
 impl From<Vec<f64>> for NbtListTag {
     fn from(value: Vec<f64>) -> Self { NbtListTag::Double(value) }
 }
-impl From<Vec<Vec<u8>>> for NbtListTag {
-    fn from(value: Vec<Vec<u8>>) -> Self { NbtListTag::ByteArray(value) }
+impl From<Vec<Vec<i8>>> for NbtListTag {
+    fn from(value: Vec<Vec<i8>>) -> Self { NbtListTag::ByteArray(value) }
 }
 impl From<Vec<Mutf8String>> for NbtListTag {
     fn from(value: Vec<Mutf8String>) -> Self { NbtListTag::String(value) }

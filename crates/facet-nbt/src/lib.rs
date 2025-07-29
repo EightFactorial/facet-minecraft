@@ -2,23 +2,28 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
+#[cfg(feature = "facet")]
 extern crate facet_core as facet;
 #[cfg(feature = "std")]
 extern crate std;
 
-pub mod borrowed;
-pub mod owned;
-
+#[cfg(feature = "facet")]
 pub mod deserialize;
+#[cfg(feature = "facet")]
 pub mod serialize;
 
+pub mod borrowed;
+pub mod format;
 pub mod mutf8;
 
 pub mod prelude {
     //! Re-exports of common types and traits.
+    pub use crate::mutf8::Mutf8Str;
+    #[cfg(feature = "alloc")]
     pub use crate::{
-        mutf8::{Mutf8Str, Mutf8String},
-        owned::{NbtCompound, NbtListTag, NbtTag},
+        format::owned::{NbtCompound, NbtListTag, NbtTag},
+        mutf8::Mutf8String,
     };
 }

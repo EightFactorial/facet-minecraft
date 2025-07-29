@@ -20,26 +20,35 @@ workspace = true
 divan = { workspace = true }
 
 [dependencies]
-facet-core = { features = ["alloc"], workspace = true }
-facet-macros = { workspace = true }
-facet-reflect = { features = ["alloc"], workspace = true }
-fxhash = { workspace = true }
-indexmap = { workspace = true }
-simd_cesu8 = { workspace = true }
-
-# Optional dependencies
 ariadne = { optional = true, workspace = true }
-owo-colors = { features = ["alloc"], optional = true, workspace = true }
+facet-core = { optional = true, workspace = true }
+facet-macros = { optional = true, workspace = true }
+facet-reflect = { optional = true, workspace = true }
+fxhash = { optional = true, workspace = true }
+indexmap = { optional = true, workspace = true }
+owo-colors = { optional = true, workspace = true }
+simd_cesu8 = { optional = true, workspace = true }
 
 [features]
-default = ["std"]
+default = ["facet", "std"]
 
 # Enable rich diagnostics
 rich-diagnostics = ["dep:ariadne", "dep:owo-colors", "std"]
+# Enable support for `facet` crates
+facet = ["dep:facet-core", "dep:facet-macros", "dep:facet-reflect"]
 
 # Enable support for the `uuid` crate
-uuid = ["facet-core/uuid", "facet-reflect/uuid"]
+uuid = ["facet-core?/uuid", "facet-reflect?/uuid"]
+# Enable support for the alloc library
+alloc = [
+  "dep:fxhash",
+  "dep:indexmap",
+  "dep:simd_cesu8",
+  "facet-core?/alloc",
+  "facet-reflect?/alloc",
+  "owo-colors?/alloc",
+]
 # Enable support for the standard library
-std = ["indexmap/std", "simd_cesu8/std"]
+std = ["alloc", "indexmap?/std", "simd_cesu8?/std"]
 # Enable features using the nightly toolchain
-nightly = ["simd_cesu8/nightly"]
+nightly = ["simd_cesu8?/nightly"]

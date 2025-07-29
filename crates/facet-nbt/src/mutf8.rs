@@ -1,14 +1,18 @@
 //! [MUTF-8](https://docs.oracle.com/javase/8/docs/api/java/io/DataInput.html) encoded strings.
 
+#[cfg(feature = "alloc")]
 use alloc::{borrow::Cow, string::String, vec::Vec};
 
 /// A MUTF-8 encoded, growable string.
 ///
 /// Similar to a [`String`], but uses MUTF-8 encoding.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, facet_macros::Facet)]
+#[cfg(feature = "alloc")]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Mutf8String(Vec<u8>);
 
+#[cfg(feature = "alloc")]
 impl Mutf8String {
     /// Create a new [`Mutf8String`] from a byte vector.
     ///
@@ -23,6 +27,7 @@ impl Mutf8String {
     pub fn new_str(string: &str) -> Self { Mutf8Str::new_str(string).into_owned() }
 }
 
+#[cfg(feature = "alloc")]
 impl Mutf8String {
     /// Create a [`Mutf8Str`] for this [`Mutf8String`].
     #[inline]
@@ -75,42 +80,53 @@ impl Mutf8String {
 
 // -------------------------------------------------------------------------------------------------
 
+#[cfg(feature = "alloc")]
 impl core::convert::AsRef<Mutf8Str> for Mutf8String {
     fn as_ref(&self) -> &Mutf8Str { Mutf8Str::new_raw(&self.0) }
 }
+#[cfg(feature = "alloc")]
 impl core::convert::AsMut<Mutf8Str> for Mutf8String {
     fn as_mut(&mut self) -> &mut Mutf8Str { Mutf8Str::new_raw_mut(&mut self.0) }
 }
 
+#[cfg(feature = "alloc")]
 impl core::borrow::Borrow<Mutf8Str> for Mutf8String {
     fn borrow(&self) -> &Mutf8Str { Mutf8Str::new_raw(&self.0) }
 }
+#[cfg(feature = "alloc")]
 impl core::borrow::BorrowMut<Mutf8Str> for Mutf8String {
     fn borrow_mut(&mut self) -> &mut Mutf8Str { Mutf8Str::new_raw_mut(&mut self.0) }
 }
 
+#[cfg(feature = "alloc")]
 impl core::ops::Deref for Mutf8String {
     type Target = Mutf8Str;
 
     fn deref(&self) -> &Self::Target { Mutf8Str::new_raw(&self.0) }
 }
+#[cfg(feature = "alloc")]
 impl core::ops::DerefMut for Mutf8String {
     fn deref_mut(&mut self) -> &mut Self::Target { Mutf8Str::new_raw_mut(&mut self.0) }
 }
 
+#[cfg(feature = "alloc")]
 impl indexmap::Equivalent<Mutf8Str> for Mutf8String {
     fn equivalent(&self, other: &Mutf8Str) -> bool { self.as_mutf8_str() == other }
 }
+#[cfg(feature = "alloc")]
 impl indexmap::Equivalent<String> for Mutf8String {
     fn equivalent(&self, other: &String) -> bool { &self.to_str_lossy() == other }
 }
+#[cfg(feature = "alloc")]
 impl indexmap::Equivalent<str> for Mutf8String {
     fn equivalent(&self, other: &str) -> bool { self.to_str_lossy() == other }
 }
+#[cfg(feature = "alloc")]
 impl indexmap::Equivalent<[u8]> for Mutf8String {
     fn equivalent(&self, other: &[u8]) -> bool { self.as_raw_bytes() == other }
 }
 
+#[cfg(feature = "alloc")]
 impl core::convert::TryFrom<Mutf8String> for String {
     type Error = simd_cesu8::DecodingError;
 
@@ -120,6 +136,7 @@ impl core::convert::TryFrom<Mutf8String> for String {
 
 // -------------------------------------------------------------------------------------------------
 
+// TODO: Implement `Facet`.
 /// A slice of a [`Mutf8String`].
 ///
 /// Similar to a [`str`], but uses MUTF-8 encoding.
@@ -154,6 +171,7 @@ impl Mutf8Str {
     ///
     /// See [`simd_cesu8::encode`] for more details.
     #[must_use]
+    #[cfg(feature = "alloc")]
     pub fn new_str(string: &str) -> Cow<'_, Mutf8Str> {
         match simd_cesu8::encode(string) {
             Cow::Borrowed(val) => Cow::Borrowed(Self::new_raw(val)),
@@ -183,17 +201,24 @@ impl Mutf8Str {
     #[must_use]
     pub const fn len_bytes(&self) -> usize { self.0.len() }
 
+    /// Create a new [`Mutf8String`] from this [`Mutf8Str`].
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    pub fn to_mutf8_string(&self) -> Mutf8String { Mutf8String::new_raw(self.0.to_vec()) }
+
     /// Convert the MUTF-8 string to a UTF-8 [`str`],
     /// replacing invalid sequences with the Unicode replacement character (�).
     ///
     /// See [`simd_cesu8::decode_lossy`] for more details.
     #[must_use]
+    #[cfg(feature = "alloc")]
     pub fn to_str_lossy(&self) -> Cow<'_, str> { simd_cesu8::decode_lossy(&self.0) }
 
     /// Convert the MUTF-8 string to a UTF-8 [`str`],
     /// returning an error if the conversion fails.
     ///
     /// See [`simd_cesu8::decode`] for more details.
+    #[cfg(feature = "alloc")]
     #[expect(clippy::missing_errors_doc)]
     pub fn try_as_str(&self) -> Result<Cow<'_, str>, simd_cesu8::DecodingError> {
         simd_cesu8::decode(&self.0)
@@ -203,12 +228,14 @@ impl Mutf8Str {
     ///
     /// See [`simd_cesu8::decode_lossy`] for more details.
     #[must_use]
+    #[cfg(feature = "alloc")]
     pub fn to_string_lossy(&self) -> String { self.to_str_lossy().into_owned() }
 
     /// Convert the MUTF-8 string to a UTF-8 [`String`],
     /// returning an error if the conversion fails.
     ///
     /// See [`simd_cesu8::decode`] for more details.
+    #[cfg(feature = "alloc")]
     #[expect(clippy::missing_errors_doc)]
     pub fn try_as_string(&self) -> Result<String, simd_cesu8::DecodingError> {
         self.try_as_str().map(Cow::into_owned)
@@ -217,12 +244,14 @@ impl Mutf8Str {
 
 // -------------------------------------------------------------------------------------------------
 
+#[cfg(feature = "alloc")]
 impl alloc::borrow::ToOwned for Mutf8Str {
     type Owned = Mutf8String;
 
     fn to_owned(&self) -> Self::Owned { Mutf8String::new_raw(self.0.to_vec()) }
 }
 
+#[cfg(feature = "alloc")]
 impl core::convert::TryFrom<&Mutf8Str> for String {
     type Error = simd_cesu8::DecodingError;
 
@@ -230,6 +259,7 @@ impl core::convert::TryFrom<&Mutf8Str> for String {
     fn try_from(value: &Mutf8Str) -> Result<Self, Self::Error> { value.try_as_string() }
 }
 
+#[cfg(feature = "alloc")]
 impl core::convert::TryFrom<&mut Mutf8Str> for String {
     type Error = simd_cesu8::DecodingError;
 
