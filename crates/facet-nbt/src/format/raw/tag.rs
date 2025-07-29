@@ -1,7 +1,6 @@
-use crate::{borrowed::BorrowedRef, format::raw::RawCompound, mutf8::Mutf8String};
+use crate::{borrowed::BorrowedRef, format::raw::RawCompound, mutf8::Mutf8Str};
 
 #[repr(u8)]
-#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawTag<'a> {
     /// A signed 8-bit integer.
@@ -19,7 +18,7 @@ pub enum RawTag<'a> {
     /// An array of signed 8-bit integers.
     ByteArray(BorrowedRef<'a, [i8]>) = RawTagType::BYTE_ARRAY,
     /// A [`Mutf8Str`].
-    String(BorrowedRef<'a, Mutf8String>) = RawTagType::STRING,
+    String(&'a Mutf8Str) = RawTagType::STRING,
     /// An [`BorrowedListTag`].
     List(RawListTag<'a>) = RawTagType::LIST,
     /// An [`BorrowedCompound`].
@@ -73,7 +72,7 @@ impl<'a> RawTag<'a> {
             RawTagType::String => match data.split_first_chunk::<2>() {
                 Some((&prefix, data)) => {
                     match data.split_at_checked(u16::from_be_bytes(prefix) as usize) {
-                        Some((tag, data)) => Some((RawTag::String(BorrowedRef::new(tag)), data)),
+                        Some((tag, data)) => Some((RawTag::String(Mutf8Str::new_raw(tag)), data)),
                         None => None,
                     }
                 }
@@ -116,7 +115,6 @@ impl<'a> RawTag<'a> {
 // -------------------------------------------------------------------------------------------------
 
 #[repr(u8)]
-#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq)]
 pub enum RawListTag<'a> {
     /// An empty, untyped list.
@@ -136,7 +134,7 @@ pub enum RawListTag<'a> {
     /// A list of arrays of signed 8-bit integers.
     ByteArray(BorrowedRef<'a, [&'a [i8]]>) = RawTagType::BYTE_ARRAY,
     /// A list of [`Mutf8Str`]s.
-    String(BorrowedRef<'a, [&'a Mutf8String]>) = RawTagType::STRING,
+    String(BorrowedRef<'a, [&'a Mutf8Str]>) = RawTagType::STRING,
     /// A list of [`BorrowedListTag`]s.
     List(BorrowedRef<'a, [RawListTag<'a>]>) = RawTagType::LIST,
     /// A list of [`BorrowedCompound`]s.
