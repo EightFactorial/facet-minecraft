@@ -167,6 +167,25 @@ impl Mutf8Str {
         unsafe { &mut *(core::ptr::from_mut::<[u8]>(bytes) as *mut Mutf8Str) }
     }
 
+    /// Create a new [`Mutf8Str`] from a raw byte slice with a length prefix.
+    ///
+    /// Any bytes after the length specified by the prefix are returned.
+    ///
+    /// # Warning
+    /// This requires that the byte slice begin with a 2 byte big endian prefix,
+    /// and at least that many bytes of valid MUTF-8 data follow.
+    #[must_use]
+    pub const fn new_raw_prefixed(bytes: &[u8]) -> (&Self, &[u8]) {
+        match bytes.split_first_chunk::<2>() {
+            Some((&length, bytes)) => {
+                let length = u16::from_be_bytes(length) as usize;
+                let (string, remaining) = bytes.split_at(length);
+                (Self::new_raw(string), remaining)
+            }
+            None => todo!(),
+        }
+    }
+
     /// Create a new [`Mutf8Str`] or [`Mutf8String`] from a string slice.
     ///
     /// See [`simd_cesu8::encode`] for more details.

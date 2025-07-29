@@ -2,6 +2,8 @@
 
 use core::marker::PhantomData;
 
+use crate::format::raw::{RawListTag, RawTagType};
+
 /// A reference to a slice of bytes that represents a value.
 #[repr(transparent)]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
@@ -12,14 +14,17 @@ impl<'a, T: ?Sized> BorrowedRef<'a, T> {
     /// Create a new [`BorrowedRef`] from a raw byte slice.
     ///
     /// # Warning
-    /// This function does not check the validity of the data provided.
+    /// This function expects data without a length prefix,
+    /// and does not check the validity of the data provided.
     #[inline]
     #[must_use]
     #[expect(dead_code)]
     pub(crate) const fn new(data: &'a [u8]) -> Self { Self(data, PhantomData) }
 }
 
-impl<'a, T: BorrowedDecode<'a>> BorrowedRef<'a, [T]> {
+impl<'a, T: BorrowedDecode<'a> + ?Sized> BorrowedRef<'a, T>
+where Self: Iterator<Item = <T as BorrowedDecode<'a>>::Item>
+{
     /// Get the `n`th element of the [`BorrowedRef`].
     ///
     /// # Note
@@ -28,7 +33,7 @@ impl<'a, T: BorrowedDecode<'a>> BorrowedRef<'a, [T]> {
     /// This matters for strings, lists, and compounds,
     /// whose size is not known until they are fully decoded.
     #[must_use]
-    pub fn get(&self, index: usize) -> Option<<[T] as BorrowedDecode<'a>>::Item> {
+    pub fn get(&self, index: usize) -> Option<<T as BorrowedDecode<'a>>::Item> {
         if let Some(size) = T::ITEM_SIZE {
             // Skip ahead to the `n`th element in the slice.
             let skipped_slice = &self.0[index * size..(index + 1) * size];
@@ -56,8 +61,7 @@ pub trait BorrowedDecode<'a> {
 
     /// Consume the next value from the [`BorrowedRef`],
     /// returning the value and the remaining borrowed bytes.
-    fn consume_next(borrowed: BorrowedRef<'a, Self>)
-    -> Option<(Self::Item, BorrowedRef<'a, Self>)>;
+    fn consume_next(borrow: BorrowedRef<'a, Self>) -> Option<(Self::Item, BorrowedRef<'a, Self>)>;
 }
 
 impl<'a, T: BorrowedDecode<'a> + ?Sized> Iterator for BorrowedRef<'a, T> {
@@ -78,10 +82,8 @@ impl BorrowedDecode<'_> for i8 {
 
     const ITEM_SIZE: Option<usize> = Some(1);
 
-    fn consume_next(
-        borrowed: BorrowedRef<'_, Self>,
-    ) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
-        borrowed
+    fn consume_next(borrow: BorrowedRef<'_, Self>) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
+        borrow
             .0
             .split_first_chunk::<1>()
             .map(|(&first, rest)| (i8::from_be_bytes(first), BorrowedRef(rest, PhantomData)))
@@ -92,10 +94,8 @@ impl BorrowedDecode<'_> for i16 {
 
     const ITEM_SIZE: Option<usize> = Some(2);
 
-    fn consume_next(
-        borrowed: BorrowedRef<'_, Self>,
-    ) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
-        borrowed
+    fn consume_next(borrow: BorrowedRef<'_, Self>) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
+        borrow
             .0
             .split_first_chunk::<2>()
             .map(|(&first, rest)| (i16::from_be_bytes(first), BorrowedRef(rest, PhantomData)))
@@ -106,10 +106,8 @@ impl BorrowedDecode<'_> for i32 {
 
     const ITEM_SIZE: Option<usize> = Some(4);
 
-    fn consume_next(
-        borrowed: BorrowedRef<'_, Self>,
-    ) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
-        borrowed
+    fn consume_next(borrow: BorrowedRef<'_, Self>) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
+        borrow
             .0
             .split_first_chunk::<4>()
             .map(|(&first, rest)| (i32::from_be_bytes(first), BorrowedRef(rest, PhantomData)))
@@ -120,10 +118,8 @@ impl BorrowedDecode<'_> for i64 {
 
     const ITEM_SIZE: Option<usize> = Some(8);
 
-    fn consume_next(
-        borrowed: BorrowedRef<'_, Self>,
-    ) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
-        borrowed
+    fn consume_next(borrow: BorrowedRef<'_, Self>) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
+        borrow
             .0
             .split_first_chunk::<8>()
             .map(|(&first, rest)| (i64::from_be_bytes(first), BorrowedRef(rest, PhantomData)))
@@ -135,10 +131,8 @@ impl BorrowedDecode<'_> for f32 {
 
     const ITEM_SIZE: Option<usize> = Some(4);
 
-    fn consume_next(
-        borrowed: BorrowedRef<'_, Self>,
-    ) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
-        borrowed
+    fn consume_next(borrow: BorrowedRef<'_, Self>) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
+        borrow
             .0
             .split_first_chunk::<4>()
             .map(|(&first, rest)| (f32::from_be_bytes(first), BorrowedRef(rest, PhantomData)))
@@ -149,23 +143,37 @@ impl BorrowedDecode<'_> for f64 {
 
     const ITEM_SIZE: Option<usize> = Some(8);
 
-    fn consume_next(
-        borrowed: BorrowedRef<'_, Self>,
-    ) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
-        borrowed
+    fn consume_next(borrow: BorrowedRef<'_, Self>) -> Option<(Self::Item, BorrowedRef<'_, Self>)> {
+        borrow
             .0
             .split_first_chunk::<8>()
             .map(|(&first, rest)| (f64::from_be_bytes(first), BorrowedRef(rest, PhantomData)))
     }
 }
 
+// -------------------------------------------------------------------------------------------------
+
 impl<'a, T: BorrowedDecode<'a>> BorrowedDecode<'a> for [T] {
     type Item = T::Item;
 
-    fn consume_next(
-        borrowed: BorrowedRef<'a, Self>,
-    ) -> Option<(Self::Item, BorrowedRef<'a, Self>)> {
-        T::consume_next(BorrowedRef(borrowed.0, PhantomData))
+    fn consume_next(borrow: BorrowedRef<'a, Self>) -> Option<(Self::Item, BorrowedRef<'a, Self>)> {
+        T::consume_next(BorrowedRef(borrow.0, PhantomData))
             .map(|(item, next)| (item, BorrowedRef(next.0, PhantomData)))
+    }
+}
+
+impl<'a, T: BorrowedDecode<'a>> BorrowedDecode<'a> for [&'a [T]] {
+    type Item = BorrowedRef<'a, [T]>;
+
+    fn consume_next(
+        mut borrow: BorrowedRef<'a, Self>,
+    ) -> Option<(Self::Item, BorrowedRef<'a, Self>)> {
+        let start = borrow.0.len();
+        while let Some((_, next)) = <[T]>::consume_next(BorrowedRef(borrow.0, PhantomData)) {
+            borrow = BorrowedRef(next.0, PhantomData);
+        }
+
+        let reference = &borrow.0[..start - borrow.0.len()];
+        Some((BorrowedRef(reference, PhantomData), borrow))
     }
 }

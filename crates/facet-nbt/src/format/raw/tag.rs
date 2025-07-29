@@ -1,61 +1,89 @@
+use crate::{borrowed::BorrowedRef, format::raw::RawCompound, mutf8::Mutf8String};
+
+#[repr(u8)]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RawTag<'a>(RawTagType, &'a [u8]);
+#[derive(Debug, Clone, PartialEq)]
+pub enum RawTag<'a> {
+    /// A signed 8-bit integer.
+    Byte(BorrowedRef<'a, i8>) = RawTagType::BYTE,
+    /// A signed 16-bit integer.
+    Short(BorrowedRef<'a, i16>) = RawTagType::SHORT,
+    /// A signed 32-bit integer.
+    Int(BorrowedRef<'a, i32>) = RawTagType::INT,
+    /// A signed 64-bit integer.
+    Long(BorrowedRef<'a, i64>) = RawTagType::LONG,
+    /// A 32-bit floating point number.
+    Float(BorrowedRef<'a, f32>) = RawTagType::FLOAT,
+    /// A 64-bit floating point number.
+    Double(BorrowedRef<'a, f64>) = RawTagType::DOUBLE,
+    /// An array of signed 8-bit integers.
+    ByteArray(BorrowedRef<'a, [i8]>) = RawTagType::BYTE_ARRAY,
+    /// A [`Mutf8Str`].
+    String(BorrowedRef<'a, Mutf8String>) = RawTagType::STRING,
+    /// An [`BorrowedListTag`].
+    List(RawListTag<'a>) = RawTagType::LIST,
+    /// An [`BorrowedCompound`].
+    Compound(RawCompound<'a>) = RawTagType::COMPOUND,
+    /// An array of signed 32-bit integers.
+    IntArray(BorrowedRef<'a, [i32]>) = RawTagType::INT_ARRAY,
+    /// An array of signed 64-bit integers.
+    LongArray(BorrowedRef<'a, [i64]>) = RawTagType::LONG_ARRAY,
+}
 
 impl<'a> RawTag<'a> {
     /// Create a new [`RawTag`] from a tag type and byte slice.
-    ///
-    /// # Warning
-    /// This requires that the tag type matches the byte slice.
-    #[inline]
     #[must_use]
-    pub const fn new_unchecked(ty: RawTagType, bytes: &'a [u8]) -> Self { Self(ty, bytes) }
-
-    /// Create a new [`RawTag`] from a byte slice.
-    ///
-    /// # Warning
-    /// This requires that the byte slice is a valid NBT tag.
-    #[must_use]
-    pub const fn new_untyped(bytes: &'a [u8]) -> Option<Self> {
-        match bytes.split_first() {
-            Some((&first, bytes)) => match RawTagType::from_byte(first) {
-                Some(RawTagType::End) | None => None,
-                Some(ty) => Some(Self::new_unchecked(ty, bytes)),
-            },
-            None => None,
+    pub const fn parse_data(tag: RawTagType, _data: &'a [u8]) -> Option<Self> {
+        match tag {
+            RawTagType::Byte => todo!(),
+            RawTagType::Short => todo!(),
+            RawTagType::Int => todo!(),
+            RawTagType::Long => todo!(),
+            RawTagType::Float => todo!(),
+            RawTagType::Double => todo!(),
+            RawTagType::ByteArray => todo!(),
+            RawTagType::String => todo!(),
+            RawTagType::List => todo!(),
+            RawTagType::Compound => todo!(),
+            RawTagType::IntArray => todo!(),
+            RawTagType::LongArray => todo!(),
+            RawTagType::End => unreachable!("`RawTagType::End` case should already be handled"),
         }
     }
 }
 
 // -------------------------------------------------------------------------------------------------
 
+#[repr(u8)]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RawListTag<'a>(RawTagType, &'a [u8]);
-
-impl<'a> RawListTag<'a> {
-    /// Create a new [`RawListTag`] from a list type and byte slice.
-    ///
-    /// # Warning
-    /// This requires that the list type matches the byte slice.
-    #[inline]
-    #[must_use]
-    pub const fn new_unchecked(ty: RawTagType, bytes: &'a [u8]) -> Self { Self(ty, bytes) }
-
-    /// Create a new [`RawListTag`] from a byte slice.
-    ///
-    /// # Warning
-    /// This requires that the byte slice is a valid NBT list tag.
-    #[must_use]
-    pub const fn new_untyped(bytes: &'a [u8]) -> Option<Self> {
-        match bytes.split_first() {
-            Some((&first, bytes)) => match RawTagType::from_byte(first) {
-                Some(ty) => Some(Self::new_unchecked(ty, bytes)),
-                None => None,
-            },
-            None => None,
-        }
-    }
+#[derive(Debug, Clone, PartialEq)]
+pub enum RawListTag<'a> {
+    /// An empty, untyped list.
+    Empty = RawTagType::END,
+    /// A list of signed 8-bit integers.
+    Byte(BorrowedRef<'a, [i8]>) = RawTagType::BYTE,
+    /// A list of signed 16-bit integers.
+    Short(BorrowedRef<'a, [i16]>) = RawTagType::SHORT,
+    /// A list of signed 32-bit integers.
+    Int(BorrowedRef<'a, [i32]>) = RawTagType::INT,
+    /// A list of signed 64-bit integers.
+    Long(BorrowedRef<'a, [i64]>) = RawTagType::LONG,
+    /// A list of 32-bit floating point numbers.
+    Float(BorrowedRef<'a, [f32]>) = RawTagType::FLOAT,
+    /// A list of 64-bit floating point numbers.
+    Double(BorrowedRef<'a, [f64]>) = RawTagType::DOUBLE,
+    /// A list of arrays of signed 8-bit integers.
+    ByteArray(BorrowedRef<'a, [&'a [i8]]>) = RawTagType::BYTE_ARRAY,
+    /// A list of [`Mutf8Str`]s.
+    String(BorrowedRef<'a, [&'a Mutf8String]>) = RawTagType::STRING,
+    /// A list of [`BorrowedListTag`]s.
+    List(BorrowedRef<'a, [RawListTag<'a>]>) = RawTagType::LIST,
+    /// A list of [`BorrowedCompound`]s.
+    Compound(BorrowedRef<'a, [RawCompound<'a>]>) = RawTagType::COMPOUND,
+    /// A list of arrays of signed 32-bit integers.
+    IntArray(BorrowedRef<'a, [&'a [i32]]>) = RawTagType::INT_ARRAY,
+    /// A list of arrays of signed 64-bit integers.
+    LongArray(BorrowedRef<'a, [&'a [i64]]>) = RawTagType::LONG_ARRAY,
 }
 
 // -------------------------------------------------------------------------------------------------

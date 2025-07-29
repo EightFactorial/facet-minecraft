@@ -1,5 +1,5 @@
 use super::RawTag;
-use crate::mutf8::Mutf8Str;
+use crate::{format::raw::RawTagType, mutf8::Mutf8Str};
 
 #[repr(transparent)]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
@@ -19,6 +19,20 @@ impl<'a> RawCompound<'a> {
     #[inline]
     #[must_use]
     pub const fn as_raw_bytes(&self) -> &'a [u8] { self.0 }
+
+    /// Get the next string-tag pair of the [`RawCompound`].
+    #[must_use]
+    pub const fn next_entry(&mut self) -> Option<(&'a Mutf8Str, RawTag<'a>)> {
+        match self.0.split_first() {
+            Some((&RawTagType::END, ..)) | None => None,
+            Some((&tag, data)) => {
+                let Some(tag) = RawTagType::from_byte(tag) else { return None };
+                let (name, data) = Mutf8Str::new_raw_prefixed(data);
+                let Some(tag) = RawTag::parse_data(tag, data) else { return None };
+                Some((name, tag))
+            }
+        }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -26,7 +40,8 @@ impl<'a> RawCompound<'a> {
 impl<'a> Iterator for RawCompound<'a> {
     type Item = (&'a Mutf8Str, RawTag<'a>);
 
-    fn next(&mut self) -> Option<Self::Item> { todo!() }
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> { self.next_entry() }
 }
 
 // -------------------------------------------------------------------------------------------------
