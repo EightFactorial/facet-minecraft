@@ -1,66 +1,36 @@
 use alloc::vec::Vec;
 
 use super::NbtCompound;
-use crate::mutf8::Mutf8String;
+use crate::{format::raw::RawTagType, mutf8::Mutf8String};
 
 #[repr(u8)]
 #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq)]
 pub enum NbtTag {
     /// A signed 8-bit integer.
-    Byte(i8) = NbtTag::BYTE,
+    Byte(i8) = RawTagType::BYTE,
     /// A signed 16-bit integer.
-    Short(i16) = NbtTag::SHORT,
+    Short(i16) = RawTagType::SHORT,
     /// A signed 32-bit integer.
-    Int(i32) = NbtTag::INT,
+    Int(i32) = RawTagType::INT,
     /// A signed 64-bit integer.
-    Long(i64) = NbtTag::LONG,
+    Long(i64) = RawTagType::LONG,
     /// A 32-bit floating point number.
-    Float(f32) = NbtTag::FLOAT,
+    Float(f32) = RawTagType::FLOAT,
     /// A 64-bit floating point number.
-    Double(f64) = NbtTag::DOUBLE,
+    Double(f64) = RawTagType::DOUBLE,
     /// An array of signed 8-bit integers.
-    ByteArray(Vec<i8>) = NbtTag::BYTE_ARRAY,
+    ByteArray(Vec<i8>) = RawTagType::BYTE_ARRAY,
     /// A [`Mutf8String`].
-    String(Mutf8String) = NbtTag::STRING,
+    String(Mutf8String) = RawTagType::STRING,
     /// An [`NbtListTag`].
-    List(NbtListTag) = NbtTag::LIST,
+    List(NbtListTag) = RawTagType::LIST,
     /// An [`NbtCompound`].
-    Compound(NbtCompound) = NbtTag::COMPOUND,
+    Compound(NbtCompound) = RawTagType::COMPOUND,
     /// An array of signed 32-bit integers.
-    IntArray(Vec<i32>) = NbtTag::INT_ARRAY,
+    IntArray(Vec<i32>) = RawTagType::INT_ARRAY,
     /// An array of signed 64-bit integers.
-    LongArray(Vec<i64>) = NbtTag::LONG_ARRAY,
-}
-
-#[rustfmt::skip]
-impl NbtTag {
-    /// The end of a [`NbtTag::Compound`] or [`NbtTag::List`].
-    pub const END: u8 = 0;
-    /// The tag of a [`NbtTag::Byte`].
-    pub const BYTE: u8 = 1;
-    /// The tag of a [`NbtTag::Short`].
-    pub const SHORT: u8 = 2;
-    /// The tag of a [`NbtTag::Int`].
-    pub const INT: u8 = 3;
-    /// The tag of a [`NbtTag::Long`].
-    pub const LONG: u8 = 4;
-    /// The tag of a [`NbtTag::Float`].
-    pub const FLOAT: u8 = 5;
-    /// The tag of a [`NbtTag::Double`].
-    pub const DOUBLE: u8 = 6;
-    /// The tag of a [`NbtTag::ByteArray`].
-    pub const BYTE_ARRAY: u8 = 7;
-    /// The tag of a [`NbtTag::String`].
-    pub const STRING: u8 = 8;
-    /// The tag of a [`NbtTag::List`].
-    pub const LIST: u8 = 9;
-    /// The tag of a [`NbtTag::Compound`].
-    pub const COMPOUND: u8 = 10;
-    /// The tag of a [`NbtTag::IntArray`].
-    pub const INT_ARRAY: u8 = 11;
-    /// The tag of a [`NbtTag::LongArray`].
-    pub const LONG_ARRAY: u8 = 12;
+    LongArray(Vec<i64>) = RawTagType::LONG_ARRAY,
 }
 
 impl From<i8> for NbtTag {
@@ -107,31 +77,31 @@ impl From<Vec<i64>> for NbtTag {
 #[derive(Debug, Clone, PartialEq)]
 pub enum NbtListTag {
     /// An empty, untyped list.
-    Empty = NbtTag::END,
+    Empty = RawTagType::END,
     /// A list of signed 8-bit integers.
-    Byte(Vec<i8>) = NbtTag::BYTE,
+    Byte(Vec<i8>) = RawTagType::BYTE,
     /// A list of signed 16-bit integers.
-    Short(Vec<i16>) = NbtTag::SHORT,
+    Short(Vec<i16>) = RawTagType::SHORT,
     /// A list of signed 32-bit integers.
-    Int(Vec<i32>) = NbtTag::INT,
+    Int(Vec<i32>) = RawTagType::INT,
     /// A list of signed 64-bit integers.
-    Long(Vec<i64>) = NbtTag::LONG,
+    Long(Vec<i64>) = RawTagType::LONG,
     /// A list of 32-bit floating point numbers.
-    Float(Vec<f32>) = NbtTag::FLOAT,
+    Float(Vec<f32>) = RawTagType::FLOAT,
     /// A list of 64-bit floating point numbers.
-    Double(Vec<f64>) = NbtTag::DOUBLE,
+    Double(Vec<f64>) = RawTagType::DOUBLE,
     /// A list of arrays of signed 8-bit integers.
-    ByteArray(Vec<Vec<i8>>) = NbtTag::BYTE_ARRAY,
+    ByteArray(Vec<Vec<i8>>) = RawTagType::BYTE_ARRAY,
     /// A list of [`Mutf8String`]s.
-    String(Vec<Mutf8String>) = NbtTag::STRING,
+    String(Vec<Mutf8String>) = RawTagType::STRING,
     /// A list of [`NbtListTag`]s.
-    List(Vec<NbtListTag>) = NbtTag::LIST,
+    List(Vec<NbtListTag>) = RawTagType::LIST,
     /// A list of [`NbtCompound`]s.
-    Compound(Vec<NbtCompound>) = NbtTag::COMPOUND,
+    Compound(Vec<NbtCompound>) = RawTagType::COMPOUND,
     /// A list of arrays of signed 32-bit integers.
-    IntArray(Vec<Vec<i32>>) = NbtTag::INT_ARRAY,
+    IntArray(Vec<Vec<i32>>) = RawTagType::INT_ARRAY,
     /// A list of arrays of signed 64-bit integers.
-    LongArray(Vec<Vec<i64>>) = NbtTag::LONG_ARRAY,
+    LongArray(Vec<Vec<i64>>) = RawTagType::LONG_ARRAY,
 }
 
 impl From<Vec<i8>> for NbtListTag {

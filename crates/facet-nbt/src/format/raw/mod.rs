@@ -11,4 +11,4 @@ mod compound;
 pub use compound::RawCompound;
 
 mod tag;
-// pub use tag::{RawListTag, RawTag, RawTagType};
+pub use tag::{RawListTag, RawTag, RawTagType};

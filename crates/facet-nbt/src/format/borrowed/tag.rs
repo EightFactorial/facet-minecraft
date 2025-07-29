@@ -3,7 +3,10 @@ use alloc::vec::Vec;
 use super::BorrowedCompound;
 use crate::{
     borrowed::BorrowedRef,
-    format::owned::{NbtListTag, NbtTag},
+    format::{
+        owned::{NbtListTag, NbtTag},
+        raw::RawTagType,
+    },
     mutf8::Mutf8String,
 };
 
@@ -12,29 +15,29 @@ use crate::{
 #[derive(Debug, Clone, PartialEq)]
 pub enum BorrowedTag<'a> {
     /// A signed 8-bit integer.
-    Byte(i8) = NbtTag::BYTE,
+    Byte(i8) = RawTagType::BYTE,
     /// A signed 16-bit integer.
-    Short(i16) = NbtTag::SHORT,
+    Short(i16) = RawTagType::SHORT,
     /// A signed 32-bit integer.
-    Int(i32) = NbtTag::INT,
+    Int(i32) = RawTagType::INT,
     /// A signed 64-bit integer.
-    Long(i64) = NbtTag::LONG,
+    Long(i64) = RawTagType::LONG,
     /// A 32-bit floating point number.
-    Float(f32) = NbtTag::FLOAT,
+    Float(f32) = RawTagType::FLOAT,
     /// A 64-bit floating point number.
-    Double(f64) = NbtTag::DOUBLE,
+    Double(f64) = RawTagType::DOUBLE,
     /// An array of signed 8-bit integers.
-    ByteArray(BorrowedRef<'a, [i8]>) = NbtTag::BYTE_ARRAY,
+    ByteArray(BorrowedRef<'a, [i8]>) = RawTagType::BYTE_ARRAY,
     /// A [`Mutf8Str`].
-    String(BorrowedRef<'a, Mutf8String>) = NbtTag::STRING,
+    String(BorrowedRef<'a, Mutf8String>) = RawTagType::STRING,
     /// An [`BorrowedListTag`].
-    List(BorrowedListTag<'a>) = NbtTag::LIST,
+    List(BorrowedListTag<'a>) = RawTagType::LIST,
     /// An [`BorrowedCompound`].
-    Compound(BorrowedCompound<'a>) = NbtTag::COMPOUND,
+    Compound(BorrowedCompound<'a>) = RawTagType::COMPOUND,
     /// An array of signed 32-bit integers.
-    IntArray(BorrowedRef<'a, [i32]>) = NbtTag::INT_ARRAY,
+    IntArray(BorrowedRef<'a, [i32]>) = RawTagType::INT_ARRAY,
     /// An array of signed 64-bit integers.
-    LongArray(BorrowedRef<'a, [i64]>) = NbtTag::LONG_ARRAY,
+    LongArray(BorrowedRef<'a, [i64]>) = RawTagType::LONG_ARRAY,
 }
 
 impl BorrowedTag<'_> {
@@ -66,31 +69,31 @@ impl BorrowedTag<'_> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum BorrowedListTag<'a> {
     /// An empty, untyped list.
-    Empty = NbtTag::END,
+    Empty = RawTagType::END,
     /// A list of signed 8-bit integers.
-    Byte(BorrowedRef<'a, [i8]>) = NbtTag::BYTE,
+    Byte(BorrowedRef<'a, [i8]>) = RawTagType::BYTE,
     /// A list of signed 16-bit integers.
-    Short(BorrowedRef<'a, [i16]>) = NbtTag::SHORT,
+    Short(BorrowedRef<'a, [i16]>) = RawTagType::SHORT,
     /// A list of signed 32-bit integers.
-    Int(BorrowedRef<'a, [i32]>) = NbtTag::INT,
+    Int(BorrowedRef<'a, [i32]>) = RawTagType::INT,
     /// A list of signed 64-bit integers.
-    Long(BorrowedRef<'a, [i64]>) = NbtTag::LONG,
+    Long(BorrowedRef<'a, [i64]>) = RawTagType::LONG,
     /// A list of 32-bit floating point numbers.
-    Float(BorrowedRef<'a, [f32]>) = NbtTag::FLOAT,
+    Float(BorrowedRef<'a, [f32]>) = RawTagType::FLOAT,
     /// A list of 64-bit floating point numbers.
-    Double(BorrowedRef<'a, [f64]>) = NbtTag::DOUBLE,
+    Double(BorrowedRef<'a, [f64]>) = RawTagType::DOUBLE,
     /// A list of arrays of signed 8-bit integers.
-    ByteArray(Vec<BorrowedRef<'a, [i8]>>) = NbtTag::BYTE_ARRAY,
+    ByteArray(Vec<BorrowedRef<'a, [i8]>>) = RawTagType::BYTE_ARRAY,
     /// A list of [`Mutf8Str`]s.
-    String(Vec<&'a Mutf8String>) = NbtTag::STRING,
+    String(Vec<&'a Mutf8String>) = RawTagType::STRING,
     /// A list of [`BorrowedListTag`]s.
-    List(Vec<BorrowedListTag<'a>>) = NbtTag::LIST,
+    List(Vec<BorrowedListTag<'a>>) = RawTagType::LIST,
     /// A list of [`BorrowedCompound`]s.
-    Compound(Vec<BorrowedCompound<'a>>) = NbtTag::COMPOUND,
+    Compound(Vec<BorrowedCompound<'a>>) = RawTagType::COMPOUND,
     /// A list of arrays of signed 32-bit integers.
-    IntArray(Vec<BorrowedRef<'a, [i32]>>) = NbtTag::INT_ARRAY,
+    IntArray(Vec<BorrowedRef<'a, [i32]>>) = RawTagType::INT_ARRAY,
     /// A list of arrays of signed 64-bit integers.
-    LongArray(Vec<BorrowedRef<'a, [i64]>>) = NbtTag::LONG_ARRAY,
+    LongArray(Vec<BorrowedRef<'a, [i64]>>) = RawTagType::LONG_ARRAY,
 }
 
 impl BorrowedListTag<'_> {

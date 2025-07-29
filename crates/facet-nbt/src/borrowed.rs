@@ -26,7 +26,7 @@ impl<'a, T: BorrowedDecode<'a>> BorrowedRef<'a, [T]> {
     /// For types without a fixed size, this will decode all preceding elements.
     ///
     /// This matters for strings, lists, and compounds,
-    /// whos size is not known until they are fully decoded.
+    /// whose size is not known until they are fully decoded.
     #[must_use]
     pub fn get(&self, index: usize) -> Option<<[T] as BorrowedDecode<'a>>::Item> {
         if let Some(size) = T::ITEM_SIZE {
