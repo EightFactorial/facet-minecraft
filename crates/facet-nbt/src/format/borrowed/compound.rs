@@ -16,13 +16,17 @@ impl<'a> BorrowedNbt<'a> {
     }
 
     /// Create a new named [`BorrowedNbt`] from a byte slice.
-    #[must_use]
+    ///
+    /// # Errors
+    /// Returns an error if the byte slice is not a valid named [`BorrowedNbt`].
     pub fn new_named(data: &'a [u8]) -> Result<Self, RawError<'a>> {
         RawNbt::try_new_named(data).map(|raw| raw.to_borrowed())
     }
 
     /// Create a new unnamed [`BorrowedNbt`] from a byte slice.
-    #[must_use]
+    ///
+    /// # Errors
+    /// Returns an error if the byte slice is not a valid unnamed [`BorrowedNbt`].
     pub fn new_unnamed(data: &'a [u8]) -> Result<Self, RawError<'a>> {
         RawNbt::try_new_unnamed(data).map(|raw| raw.to_borrowed())
     }

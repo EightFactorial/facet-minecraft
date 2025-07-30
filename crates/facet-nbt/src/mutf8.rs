@@ -185,7 +185,7 @@ impl Mutf8Str {
     ///
     /// Any bytes after the length specified by the prefix are returned.
     ///
-    /// # Warning
+    /// # Panics
     /// This requires that the byte slice begin with a 2 byte big endian prefix,
     /// and at least that many bytes of valid MUTF-8 data follow.
     #[must_use]

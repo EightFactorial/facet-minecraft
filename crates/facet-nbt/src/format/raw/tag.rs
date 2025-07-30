@@ -114,6 +114,7 @@ impl<'a> RawTag<'a> {
     /// Create a new [`BorrowedTag`] from this [`RawTag`].
     #[must_use]
     #[cfg(feature = "alloc")]
+    #[expect(clippy::missing_panics_doc)]
     pub fn to_borrowed(&self) -> crate::format::borrowed::BorrowedTag<'a> {
         match self {
             RawTag::Byte(val) => {
@@ -135,7 +136,7 @@ impl<'a> RawTag<'a> {
                 crate::format::borrowed::BorrowedTag::Double(val.clone().next().unwrap())
             }
             RawTag::ByteArray(val) => crate::format::borrowed::BorrowedTag::ByteArray(val.clone()),
-            RawTag::String(val) => crate::format::borrowed::BorrowedTag::String(*val),
+            RawTag::String(val) => crate::format::borrowed::BorrowedTag::String(val),
             RawTag::List(tag) => crate::format::borrowed::BorrowedTag::List(tag.to_borrowed()),
             RawTag::Compound(compound) => {
                 crate::format::borrowed::BorrowedTag::Compound(compound.to_borrowed())
@@ -280,7 +281,7 @@ impl<'a> RawListTag<'a> {
                         data = remaining;
                     } else {
                         return None;
-                    };
+                    }
                 }
 
                 let (array, data) = origin.split_at(start - data.len());
@@ -358,6 +359,7 @@ impl<'a> RawListTag<'a> {
     /// Create a new [`BorrowedListTag`] from this [`RawListTag`].
     #[must_use]
     #[cfg(feature = "alloc")]
+    #[expect(clippy::missing_panics_doc)]
     pub fn to_borrowed(&self) -> crate::format::borrowed::BorrowedListTag<'a> {
         match self {
             RawListTag::Empty => crate::format::borrowed::BorrowedListTag::Empty,

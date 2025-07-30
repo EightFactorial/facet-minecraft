@@ -26,7 +26,6 @@ impl<'a> RawNbt<'a> {
     ///
     /// # Errors
     /// Returns an error if the byte slice is not a valid named [`RawNbt`].
-    #[must_use]
     pub const fn try_new_named(input: &'a [u8]) -> Result<Self, RawError<'a>> {
         match input.split_first() {
             Some((&RawTagType::COMPOUND, data)) => {
@@ -58,7 +57,6 @@ impl<'a> RawNbt<'a> {
     ///
     /// # Errors
     /// Returns an error if the byte slice is not a valid unnamed [`RawNbt`].
-    #[must_use]
     pub const fn try_new_unnamed(input: &'a [u8]) -> Result<Self, RawError<'a>> {
         match input.split_first() {
             Some((&RawTagType::COMPOUND, data)) => Ok(Self(None, RawCompound::new_unchecked(data))),
@@ -93,7 +91,7 @@ impl<'a> core::ops::Deref for RawNbt<'a> {
     #[inline]
     fn deref(&self) -> &Self::Target { &self.1 }
 }
-impl<'a> core::ops::DerefMut for RawNbt<'a> {
+impl core::ops::DerefMut for RawNbt<'_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.1 }
 }

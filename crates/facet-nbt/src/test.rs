@@ -1,4 +1,4 @@
-#![allow(unused_variables)]
+#![allow(unused_variables, dead_code)]
 
 use crate::format::raw::{RawError, RawErrorKind, RawNbt};
 
@@ -16,7 +16,7 @@ macro_rules! borrow_and_own {
 }
 
 #[test]
-fn empty() {
+fn invalid_empty() {
     static RAW: Result<RawNbt<'static>, RawError<'static>> = RawNbt::try_new_named(&[]);
     assert_eq!(RAW.clone().unwrap_err().kind(), RawErrorKind::EndOfInput);
 }
@@ -25,6 +25,35 @@ fn empty() {
 fn invalid_tag() {
     static RAW: Result<RawNbt<'static>, RawError<'static>> = RawNbt::try_new_named(&[42]);
     assert_eq!(RAW.clone().unwrap_err().kind(), RawErrorKind::InvalidTagType(42));
+}
+
+#[test]
+fn empty_named() {
+    static RAW: RawNbt<'static> = RawNbt::new_named(&[10, 0, 2, b'H', b'i', 0]);
+    borrow_and_own!("named", RAW);
+}
+
+#[test]
+fn empty_unnamed() {
+    static RAW: RawNbt<'static> = RawNbt::new_unnamed(&[10, 0]);
+    borrow_and_own!("unnamed", RAW);
+}
+
+#[test]
+fn nested_named() {
+    static RAW: RawNbt<'static> = RawNbt::new_named(&[
+        10, 0, 2, b'H', b'i', 10, 0, 3, b'O', b'n', b'e', 1, 0, 4, b'B', b'y', b't', b'e', 255, 0,
+        0,
+    ]);
+    borrow_and_own!("nested_named", RAW);
+}
+
+#[test]
+fn nested_unnamed() {
+    static RAW: RawNbt<'static> = RawNbt::new_unnamed(&[
+        10, 10, 0, 3, b'T', b'w', b'o', 1, 0, 4, b'B', b'y', b't', b'e', 255, 0, 0,
+    ]);
+    borrow_and_own!("nested_unnamed", RAW);
 }
 
 #[test]

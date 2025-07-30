@@ -26,7 +26,7 @@ impl<'a, T: ?Sized> BorrowedRef<'a, T> {
     /// Get the raw byte slice of the [`BorrowedRef`].
     #[inline]
     #[must_use]
-    pub(crate) const fn as_raw_bytes(&self) -> &'a [u8] { self.0 }
+    pub const fn as_raw_bytes(&self) -> &'a [u8] { self.0 }
 }
 
 impl<'a, T: BorrowedDecode<'a> + ?Sized> BorrowedRef<'a, T>
