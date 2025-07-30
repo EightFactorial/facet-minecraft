@@ -1,30 +1,71 @@
 use super::RawTag;
-use crate::{format::raw::RawTagType, mutf8::Mutf8Str};
+use crate::{
+    format::raw::{RawError, RawTagType, error::RawErrorKind},
+    mutf8::Mutf8Str,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RawNbt<'a>(Option<&'a Mutf8Str>, RawCompound<'a>);
 
 impl<'a> RawNbt<'a> {
     /// Create a new named [`RawNbt`] from a byte slice.
+    ///
+    /// # Panics
+    /// Panics if the byte slice is not a valid named [`RawNbt`].
     #[must_use]
-    pub const fn new_named(data: &'a [u8]) -> Option<Self> {
-        match data.split_first() {
+    pub const fn new_named(input: &'a [u8]) -> Self {
+        match Self::try_new_named(input) {
+            Ok(nbt) => nbt,
+            Err(err) => {
+                const_panic::concat_panic!("", err.kind().static_message())
+            }
+        }
+    }
+
+    /// Try to create a new named [`RawNbt`] from a byte slice.
+    ///
+    /// # Errors
+    /// Returns an error if the byte slice is not a valid named [`RawNbt`].
+    #[must_use]
+    pub const fn try_new_named(input: &'a [u8]) -> Result<Self, RawError<'a>> {
+        match input.split_first() {
             Some((&RawTagType::COMPOUND, data)) => {
                 let (name, data) = Mutf8Str::new_raw_prefixed(data);
-                Some(Self(Some(name), RawCompound::new_unchecked(data)))
+                Ok(Self(Some(name), RawCompound::new_unchecked(data)))
             }
-            _ => None,
+            Some((&tag, data)) => {
+                Err(RawError::new(RawErrorKind::InvalidTagType(tag), data).with_input(input))
+            }
+            None => Err(RawError::new(RawErrorKind::EndOfInput, input).with_input(input)),
         }
     }
 
     /// Create a new unnamed [`RawNbt`] from a byte slice.
+    ///
+    /// # Panics
+    /// Panics if the byte slice is not a valid unnamed [`RawNbt`].
     #[must_use]
-    pub const fn new_unnamed(data: &'a [u8]) -> Option<Self> {
-        match data.split_first() {
-            Some((&RawTagType::COMPOUND, data)) => {
-                Some(Self(None, RawCompound::new_unchecked(data)))
+    pub const fn new_unnamed(input: &'a [u8]) -> Self {
+        match Self::try_new_unnamed(input) {
+            Ok(nbt) => nbt,
+            Err(err) => {
+                const_panic::concat_panic!("", err.kind().static_message())
             }
-            _ => None,
+        }
+    }
+
+    /// Try to create a new unnamed [`RawNbt`] from a byte slice.
+    ///
+    /// # Errors
+    /// Returns an error if the byte slice is not a valid unnamed [`RawNbt`].
+    #[must_use]
+    pub const fn try_new_unnamed(input: &'a [u8]) -> Result<Self, RawError<'a>> {
+        match input.split_first() {
+            Some((&RawTagType::COMPOUND, data)) => Ok(Self(None, RawCompound::new_unchecked(data))),
+            Some((&tag, data)) => {
+                Err(RawError::new(RawErrorKind::InvalidTagType(tag), data).with_input(input))
+            }
+            None => Err(RawError::new(RawErrorKind::EndOfInput, input).with_input(input)),
         }
     }
 

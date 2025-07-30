@@ -53,6 +53,7 @@ facet-snbt = { default-features = false, path = "crates/facet-snbt", version = "
 
 # Other dependencies
 ariadne = { default-features = false, version = "0.5" }
+const_panic = { default-features = false, version = "0.2" }
 fxhash = { default-features = false, version = "0.2" }
 indexmap = { default-features = false, version = "2.10" }
 inventory = { default-features = false, version = "0.3" }

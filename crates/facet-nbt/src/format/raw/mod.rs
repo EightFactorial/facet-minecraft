@@ -11,7 +11,7 @@ mod compound;
 pub use compound::{RawCompound, RawNbt};
 
 mod error;
-pub use error::RawError;
+pub use error::{RawError, RawErrorKind};
 
 mod tag;
 pub use tag::{RawListTag, RawTag, RawTagType};

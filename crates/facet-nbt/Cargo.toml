@@ -22,6 +22,7 @@ divan = { workspace = true }
 
 [dependencies]
 ariadne = { optional = true, workspace = true }
+const_panic = { features = ["rust_1_88"], workspace = true }
 facet-core = { optional = true, workspace = true }
 facet-macros = { optional = true, workspace = true }
 facet-reflect = { optional = true, workspace = true }

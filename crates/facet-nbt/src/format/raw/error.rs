@@ -36,6 +36,11 @@ impl<'a> RawError<'a> {
         self.source.0 = input;
         self
     }
+
+    /// Get the [`RawErrorKind`] of this error.
+    #[inline]
+    #[must_use]
+    pub const fn kind(&self) -> RawErrorKind<'a> { self.kind }
 }
 
 impl Display for RawError<'_> {
@@ -47,13 +52,23 @@ impl Error for RawError<'_> {}
 
 // -------------------------------------------------------------------------------------------------
 
-impl RawError<'_> {}
-
-impl RawErrorKind<'_> {}
+impl RawErrorKind<'_> {
+    /// Get a static message for the error kind.
+    #[must_use]
+    pub const fn static_message(&self) -> &'static str {
+        match self {
+            RawErrorKind::InvalidTagType(..) => "Invalid tag type",
+            RawErrorKind::InvalidString(..) => "Invalid MUTF-8 string",
+            RawErrorKind::EndOfInput => "Unexpected end of input",
+        }
+    }
+}
 
 #[cfg(not(feature = "rich-diagnostics"))]
 impl Debug for RawError<'_> {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(self.kind.static_message(), f)
+    }
 }
 
 // -------------------------------------------------------------------------------------------------

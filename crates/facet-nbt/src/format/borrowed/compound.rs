@@ -2,7 +2,7 @@ use fxhash::FxBuildHasher;
 use indexmap::IndexMap;
 
 use super::BorrowedTag;
-use crate::{format::{owned::Nbt, raw::RawNbt}, mutf8::Mutf8Str, prelude::NbtCompound};
+use crate::{format::{owned::Nbt, raw::{RawError, RawNbt}}, mutf8::Mutf8Str, prelude::NbtCompound};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct BorrowedNbt<'a>(Option<&'a Mutf8Str>, BorrowedCompound<'a>);
@@ -17,14 +17,14 @@ impl<'a> BorrowedNbt<'a> {
 
     /// Create a new named [`BorrowedNbt`] from a byte slice.
     #[must_use]
-    pub fn new_named(data: &'a [u8]) -> Option<Self> {
-        RawNbt::new_named(data).map(|raw| raw.to_borrowed())
+    pub fn new_named(data: &'a [u8]) -> Result<Self, RawError<'a>> {
+        RawNbt::try_new_named(data).map(|raw| raw.to_borrowed())
     }
 
     /// Create a new unnamed [`BorrowedNbt`] from a byte slice.
     #[must_use]
-    pub fn new_unnamed(data: &'a [u8]) -> Option<Self> {
-        RawNbt::new_unnamed(data).map(|raw| raw.to_borrowed())
+    pub fn new_unnamed(data: &'a [u8]) -> Result<Self, RawError<'a>> {
+        RawNbt::try_new_unnamed(data).map(|raw| raw.to_borrowed())
     }
 
     /// Get the name of the [`BorrowedNbt`], if it has one.
