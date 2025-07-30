@@ -2,16 +2,23 @@ use fxhash::FxBuildHasher;
 use indexmap::IndexMap;
 
 use super::BorrowedTag;
-use crate::{format::{owned::Nbt, raw::{RawError, RawNbt}}, mutf8::Mutf8Str, prelude::NbtCompound};
+use crate::{format::{owned::{Nbt, NbtCompound}, raw::{RawError, RawNbt}}, mutf8::Mutf8Str};
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct BorrowedNbt<'a>(Option<&'a Mutf8Str>, BorrowedCompound<'a>);
 
 impl<'a> BorrowedNbt<'a> {
+    /// Create a new empty [`BorrowedNbt`].
+    #[inline]
+    #[must_use]
+    pub const fn new() -> Self {
+        BorrowedNbt::from_parts(None, BorrowedCompound::new())
+    }
+
     /// Create a new [`BorrowedNbt`] from the given name and compound.
     #[inline]
     #[must_use]
-    pub(crate) const fn from_parts(name: Option<&'a Mutf8Str>, compound: BorrowedCompound<'a>) -> Self {
+    pub const fn from_parts(name: Option<&'a Mutf8Str>, compound: BorrowedCompound<'a>) -> Self {
         BorrowedNbt(name, compound)
     }
 
@@ -36,10 +43,25 @@ impl<'a> BorrowedNbt<'a> {
     #[must_use]
     pub const fn name(&self) -> Option<&'a Mutf8Str> { self.0 }
 
+
+    /// Get the name of the [`BorrowedNbt`] mutably.
+    #[inline]
+    #[must_use]
+    pub const fn name_mut(&mut self) -> &mut Option<&'a Mutf8Str> {
+        &mut self.0
+    }
+
     /// Get the inner [`BorrowedCompound`] of the [`BorrowedNbt`].
     #[inline]
     #[must_use]
     pub const fn compound(&self) -> &BorrowedCompound<'a> { &self.1 }
+
+    /// Get the inner [`BorrowedCompound`] of the [`BorrowedNbt`] mutably.
+    #[inline]
+    #[must_use]
+    pub const fn compound_mut(&mut self) -> &mut BorrowedCompound<'a> {
+        &mut self.1
+    }
 
     /// Create a new [`Nbt`] from this [`BorrowedNbt`].
     #[must_use]

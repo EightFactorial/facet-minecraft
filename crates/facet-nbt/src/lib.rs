@@ -23,10 +23,16 @@ mod test;
 
 pub mod prelude {
     //! Re-exports of common types and traits.
-    pub use crate::mutf8::Mutf8Str;
+    pub use crate::{
+        format::raw::{RawError, RawNbt},
+        mutf8::Mutf8Str,
+    };
     #[cfg(feature = "alloc")]
     pub use crate::{
-        format::owned::{NbtCompound, NbtListTag, NbtTag},
+        format::{
+            borrowed::{BorrowedCompound, BorrowedNbt},
+            owned::{Nbt, NbtCompound, NbtListTag, NbtTag},
+        },
         mutf8::Mutf8String,
     };
 }

@@ -8,6 +8,10 @@ use crate::snbt::Snbt;
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash, facet_macros::Facet)]
 pub struct Legacy;
 
+impl<'a> SnbtFormat<'a> for Legacy {
+    type Inner = &'a str;
+}
+
 /// The legacy SNBT format.
 ///
 /// Used in Minecraft versions before 1.21.5,
@@ -15,5 +19,3 @@ pub struct Legacy;
 pub type LegacySnbt<'a> = Snbt<'a, Legacy>;
 
 // -------------------------------------------------------------------------------------------------
-
-impl SnbtFormat for Legacy {}

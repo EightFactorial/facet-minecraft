@@ -20,14 +20,14 @@ workspace = true
 divan = { workspace = true }
 
 [dependencies]
-facet-core = { features = ["alloc", "uuid"], workspace = true }
+facet-core = { features = ["uuid"], workspace = true }
 facet-macros = { workspace = true }
-facet-nbt = { features = ["alloc", "uuid"], workspace = true }
-facet-reflect = { features = ["alloc", "uuid"], workspace = true }
+facet-nbt = { features = ["facet", "uuid"], workspace = true }
+facet-reflect = { features = ["uuid"], workspace = true }
 
 # Optional dependencies
 ariadne = { optional = true, workspace = true }
-owo-colors = { features = ["alloc"], optional = true, workspace = true }
+owo-colors = { optional = true, workspace = true }
 
 [features]
 default = ["std"]
@@ -35,7 +35,9 @@ default = ["std"]
 # Enable rich diagnostics
 rich-diagnostics = ["dep:ariadne", "dep:owo-colors", "facet-nbt/rich-diagnostics", "std"]
 
+# Enable support for the alloc library
+alloc = ["facet-core/alloc", "facet-nbt/alloc", "facet-reflect/alloc", "owo-colors?/alloc"]
 # Enable support for the standard library
-std = ["facet-nbt/std"]
+std = ["alloc", "facet-nbt/std"]
 # Enable features using the nightly toolchain
 nightly = ["facet-nbt/nightly"]

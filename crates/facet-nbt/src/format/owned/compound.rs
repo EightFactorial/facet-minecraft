@@ -8,6 +8,11 @@ use crate::mutf8::Mutf8String;
 pub struct Nbt(Option<Mutf8String>, NbtCompound);
 
 impl Nbt {
+    /// Create a new empty [`Nbt`].
+    #[inline]
+    #[must_use]
+    pub const fn new() -> Self { Nbt(None, NbtCompound::new()) }
+
     /// Create a new [`Nbt`] from the given name and compound.
     #[inline]
     #[must_use]
