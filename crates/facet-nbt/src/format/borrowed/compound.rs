@@ -131,10 +131,97 @@ impl From<BorrowedCompound<'_>> for NbtCompound {
 #[cfg(feature = "facet")]
 unsafe impl<'facet> facet_core::Facet<'facet> for BorrowedCompound<'facet> {
     const SHAPE: &'static facet::Shape = &const {
-        facet::Shape::builder_for_sized::<Self>()
+        let mut builder = facet::Shape::builder_for_sized::<Self>()
             .type_identifier("BorrowedCompound")
-            .ty(facet::Type::User(facet::UserType::Opaque))
-            .build()
+            .ty(facet::Type::User(facet::UserType::Opaque));
+        #[cfg(feature = "alloc")]
+        {
+            builder = builder.def(facet_core::Def::Map(
+                facet_core::MapDef::builder()
+                    .k(|| <&'facet Mutf8Str>::SHAPE)
+                    .v(|| <BorrowedTag<'facet>>::SHAPE)
+                    .vtable(
+                        &const {
+                            facet_core::MapVTableBuilder::new()
+                                .init_in_place_with_capacity(|ptr, cap| unsafe {
+                                    ptr.put(Self::with_capacity(cap))
+                                })
+                                .insert(|ptr, key, val| unsafe {
+                                    let map = ptr.as_mut::<Self>();
+                                    let k = key.read::<&'facet Mutf8Str>();
+                                    let v = val.read::<BorrowedTag<'facet>>();
+                                    map.insert(k, v);
+                                })
+                                .len(|ptr| unsafe { ptr.get::<Self>().len() })
+                                .contains_key(|ptr, key| unsafe {
+                                    ptr.get::<Self>().contains_key(key.get::<&'facet Mutf8Str>())
+                                })
+                                .get_value_ptr(|ptr, key| unsafe {
+                                    ptr.get::<Self>()
+                                        .get(key.get::<&'facet Mutf8Str>())
+                                        .map(|v| facet_core::PtrConst::new(core::ptr::from_ref(v)))
+                                })
+                                .iter_vtable(
+                                    facet_core::IterVTable::builder()
+                                        .init_with_value(|ptr| unsafe {
+                                            let iter =
+                                                alloc::boxed::Box::new(ptr.get::<Self>().iter());
+                                            facet_core::PtrMut::new(
+                                                alloc::boxed::Box::into_raw(iter).cast::<u8>(),
+                                            )
+                                        })
+                                        .next(|iter_ptr| unsafe {
+                                            let state = iter_ptr.as_mut::<indexmap::map::Iter<
+                                                'facet,
+                                                &'facet Mutf8Str,
+                                                BorrowedTag<'facet>,
+                                            >>(
+                                            );
+                                            state.next().map(|(key, value)| {
+                                                (
+                                                    facet_core::PtrConst::new(key),
+                                                    facet_core::PtrConst::new(value),
+                                                )
+                                            })
+                                        })
+                                        .next_back(|iter_ptr| unsafe {
+                                            let state = iter_ptr.as_mut::<indexmap::map::Iter<
+                                                'facet,
+                                                &'facet Mutf8Str,
+                                                BorrowedTag<'facet>,
+                                            >>(
+                                            );
+                                            state.next_back().map(|(key, value)| {
+                                                (
+                                                    facet_core::PtrConst::new(key),
+                                                    facet_core::PtrConst::new(value),
+                                                )
+                                            })
+                                        })
+                                        .dealloc(|iter_ptr| unsafe {
+                                            drop(alloc::boxed::Box::from_raw(
+                                                iter_ptr.as_ptr::<indexmap::map::Iter<
+                                                    'facet,
+                                                    &'facet Mutf8Str,
+                                                    BorrowedTag<'facet>,
+                                                >>(
+                                                )
+                                                    as *mut indexmap::map::Iter<
+                                                        'facet,
+                                                        &'facet Mutf8Str,
+                                                        BorrowedTag<'facet>,
+                                                    >,
+                                            ));
+                                        })
+                                        .build(),
+                                )
+                                .build()
+                        },
+                    )
+                    .build(),
+            ));
+        }
+        builder.build()
     };
     const VTABLE: &'static facet::ValueVTable = &const {
         facet::ValueVTable::builder::<Self>()
@@ -145,7 +232,7 @@ unsafe impl<'facet> facet_core::Facet<'facet> for BorrowedCompound<'facet> {
                     .union(facet::MarkerTraits::UNWIND_SAFE)
                     .union(facet::MarkerTraits::REF_UNWIND_SAFE)
                     .intersection(<&'facet Mutf8Str>::SHAPE.vtable.marker_traits())
-                    .intersection(BorrowedTag::<'facet>::SHAPE.vtable.marker_traits())
+                    .intersection(<BorrowedTag<'facet>>::SHAPE.vtable.marker_traits())
             })
             .type_name(|f, _opts| ::core::fmt::Write::write_str(f, "BorrowedCompound"))
             .default_in_place(|| Some(|target| unsafe { target.put(Self::default()) }))

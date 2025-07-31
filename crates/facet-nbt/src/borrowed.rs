@@ -9,7 +9,6 @@ use crate::{
 
 /// A reference to a slice of bytes that represents a value.
 #[repr(transparent)]
-#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct BorrowedRef<'a, T: ?Sized>(&'a [u8], PhantomData<T>);
 
@@ -59,6 +58,86 @@ impl<T: ?Sized> Clone for BorrowedRef<'_, T> {
 
 // -------------------------------------------------------------------------------------------------
 
+/// SAFETY: This is almost definitely NOT safe nor sound :)
+#[cfg(feature = "facet")]
+unsafe impl<'a, T: facet_core::Facet<'a> + ?Sized> facet_core::Facet<'a> for BorrowedRef<'a, T>
+where
+    Self: Iterator,
+    <Self as Iterator>::Item: core::fmt::Debug + facet_core::Facet<'a>,
+{
+    #[allow(unused_mut)]
+    const SHAPE: &'static facet_core::Shape = &const {
+        let mut builder = facet_core::Shape::builder_for_sized::<Self>()
+            .type_identifier("BorrowedRef<_>")
+            .type_params(&const { [facet_core::TypeParam { name: "T", shape: || <T>::SHAPE }] })
+            .ty(facet_core::Type::User(facet_core::UserType::Opaque));
+
+        #[cfg(feature = "alloc")]
+        {
+            builder = builder.def(facet_core::Def::List(
+                facet_core::ListDef::builder()
+                    .t(|| <Self as Iterator>::Item::SHAPE)
+                    .vtable(
+                        &const {
+                            facet_core::ListVTable {
+                                init_in_place_with_capacity: None,
+                                push: None,
+                                len: |ptr| unsafe { ptr.get::<Self>() }.clone().count(),
+                                get: |ptr, idx| unsafe {
+                                    ptr.get::<Self>().clone().nth(idx).map(|v| {
+                                        let boxed = alloc::boxed::Box::new(v);
+                                        facet_core::PtrConst::new(
+                                            alloc::boxed::Box::into_raw(boxed).cast::<u8>(),
+                                        )
+                                    })
+                                },
+                                get_mut: None,
+                                as_ptr: None,
+                                as_mut_ptr: None,
+                                iter_vtable: facet_core::IterVTable::builder()
+                                    .init_with_value(|ptr| {
+                                        let borrow = unsafe { ptr.get::<Self>() }.clone();
+                                        let boxed = alloc::boxed::Box::<Self>::new(borrow);
+                                        facet_core::PtrMut::new(
+                                            alloc::boxed::Box::into_raw(boxed).cast::<u8>(),
+                                        )
+                                    })
+                                    .next(|ptr| {
+                                        let borrow = unsafe { ptr.as_mut::<Self>() };
+                                        borrow.next().map(|v| {
+                                            let boxed = alloc::boxed::Box::new(v);
+                                            facet_core::PtrConst::new(
+                                                alloc::boxed::Box::into_raw(boxed).cast::<u8>(),
+                                            )
+                                        })
+                                    })
+                                    .dealloc(|ptr| unsafe {
+                                        drop(alloc::boxed::Box::from_raw(
+                                            ptr.as_ptr::<Self>() as *mut Self
+                                        ));
+                                    })
+                                    .build(),
+                            }
+                        },
+                    )
+                    .build(),
+            ));
+        }
+        builder.build()
+    };
+    const VTABLE: &'static facet_core::ValueVTable = &const {
+        facet_core::ValueVTable::builder::<Self>()
+            .type_name(|f, opts| {
+                f.write_str("BorrowedRef<")?;
+                <T>::SHAPE.write_type_name(f, opts)?;
+                f.write_str(">")
+            })
+            .build()
+    };
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// A trait for types that can be decoded from a [`BorrowedRef`].
 pub trait BorrowedDecode<'a> {
     /// The type of item that can be decoded.
@@ -86,7 +165,7 @@ impl<'a, T: BorrowedDecode<'a> + ?Sized> Iterator for BorrowedRef<'a, T> {
     }
 }
 
-impl<'a> Iterator for BorrowedRef<'a, [&'a Mutf8Str]> {
+impl<'a> Iterator for BorrowedRef<'a, &'a Mutf8Str> {
     type Item = &'a Mutf8Str;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -100,8 +179,18 @@ impl<'a> Iterator for BorrowedRef<'a, [&'a Mutf8Str]> {
         Some(str)
     }
 }
+impl<'a> Iterator for BorrowedRef<'a, [&'a Mutf8Str]> {
+    type Item = &'a Mutf8Str;
 
-impl<'a> Iterator for BorrowedRef<'a, [RawCompound<'a>]> {
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut borrow = BorrowedRef::<&'a Mutf8Str>(self.0, PhantomData);
+        let result = borrow.next();
+        self.0 = borrow.0;
+        result
+    }
+}
+
+impl<'a> Iterator for BorrowedRef<'a, RawCompound<'a>> {
     type Item = BorrowedRef<'a, RawCompound<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -118,8 +207,18 @@ impl<'a> Iterator for BorrowedRef<'a, [RawCompound<'a>]> {
         Some(BorrowedRef(borrow, PhantomData))
     }
 }
+impl<'a> Iterator for BorrowedRef<'a, [RawCompound<'a>]> {
+    type Item = BorrowedRef<'a, RawCompound<'a>>;
 
-impl<'a> Iterator for BorrowedRef<'a, [RawListTag<'a>]> {
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut borrow = BorrowedRef::<RawCompound<'a>>(self.0, PhantomData);
+        let result = borrow.next();
+        self.0 = borrow.0;
+        result
+    }
+}
+
+impl<'a> Iterator for BorrowedRef<'a, RawListTag<'a>> {
     type Item = BorrowedRef<'a, RawListTag<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -131,6 +230,16 @@ impl<'a> Iterator for BorrowedRef<'a, [RawListTag<'a>]> {
         let borrow = &self.0[..self.0.len() - rem.len()];
 
         Some(BorrowedRef(borrow, PhantomData))
+    }
+}
+impl<'a> Iterator for BorrowedRef<'a, [RawListTag<'a>]> {
+    type Item = BorrowedRef<'a, RawListTag<'a>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut borrow = BorrowedRef::<RawListTag<'a>>(self.0, PhantomData);
+        let result = borrow.next();
+        self.0 = borrow.0;
+        result
     }
 }
 

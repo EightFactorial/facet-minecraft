@@ -29,7 +29,12 @@ facet-reflect = { features = ["uuid"], workspace = true }
 ariadne = { optional = true, workspace = true }
 facet-deserialize = { features = ["alloc"], optional = true, workspace = true }
 facet-serialize = { features = ["alloc"], optional = true, workspace = true }
+itoa = { optional = true, workspace = true }
+once_cell = { features = ["alloc"], optional = true, workspace = true }
 owo-colors = { optional = true, workspace = true }
+regex-lite = { features = ["string"], optional = true, workspace = true }
+ryu = { optional = true, workspace = true }
+simd_cesu8 = { optional = true, workspace = true }
 
 [features]
 default = ["std"]
@@ -43,16 +48,34 @@ rich-diagnostics = [
   "std",
 ]
 
+# Enable critical-section on `no_std` platforms
+critical-section = ["once_cell?/critical-section"]
+# Enable once_cell on `no_std` platforms
+once_cell = ["dep:once_cell"]
+
 # Enable support for the alloc library
 alloc = [
   "dep:facet-deserialize",
   "dep:facet-serialize",
+  "dep:itoa",
+  "dep:regex-lite",
+  "dep:ryu",
+  "dep:simd_cesu8",
   "facet-core/alloc",
   "facet-nbt/alloc",
   "facet-reflect/alloc",
   "owo-colors?/alloc",
 ]
 # Enable support for the standard library
-std = ["alloc", "facet-core/std", "facet-deserialize/std", "facet-nbt/std", "facet-reflect/std", "facet-serialize/std"]
+std = [
+  "alloc",
+  "facet-core/std",
+  "facet-deserialize/std",
+  "facet-nbt/std",
+  "facet-reflect/std",
+  "facet-serialize/std",
+  "once_cell?/std",
+  "regex-lite/std",
+]
 # Enable features using the nightly toolchain
 nightly = ["facet-nbt/nightly"]

@@ -127,12 +127,24 @@ impl indexmap::Equivalent<Mutf8Str> for Mutf8String {
     fn equivalent(&self, other: &Mutf8Str) -> bool { self.as_mutf8_str() == other }
 }
 #[cfg(feature = "alloc")]
+impl indexmap::Equivalent<&Mutf8Str> for Mutf8String {
+    fn equivalent(&self, other: &&Mutf8Str) -> bool { self.as_mutf8_str() == *other }
+}
+#[cfg(feature = "alloc")]
 impl indexmap::Equivalent<String> for Mutf8String {
     fn equivalent(&self, other: &String) -> bool { &self.to_str_lossy() == other }
 }
 #[cfg(feature = "alloc")]
 impl indexmap::Equivalent<str> for Mutf8String {
     fn equivalent(&self, other: &str) -> bool { self.to_str_lossy() == other }
+}
+#[cfg(feature = "alloc")]
+impl indexmap::Equivalent<&str> for Mutf8String {
+    fn equivalent(&self, other: &&str) -> bool { self.to_str_lossy() == *other }
+}
+#[cfg(feature = "alloc")]
+impl indexmap::Equivalent<&[u8]> for Mutf8String {
+    fn equivalent(&self, other: &&[u8]) -> bool { self.as_raw_bytes() == *other }
 }
 #[cfg(feature = "alloc")]
 impl indexmap::Equivalent<[u8]> for Mutf8String {
@@ -276,11 +288,79 @@ impl Mutf8Str {
 
 // -------------------------------------------------------------------------------------------------
 
-/// SAFETY: `Mutf8Str` is a transparent wrapper around a `[u8]`.
+/// SAFETY: This is almost directly copied from `&[u8]`,
+/// and `Mutf8Str` is a transparent wrapper around a `[u8]`.
 #[cfg(feature = "facet")]
 unsafe impl<'a> facet_core::Facet<'a> for &'a Mutf8Str {
-    const SHAPE: &'static facet::Shape = <&'a [u8]>::SHAPE;
-    const VTABLE: &'static facet::ValueVTable = <&'a [u8]>::VTABLE;
+    const SHAPE: &'static facet_core::Shape = &const {
+        facet_core::Shape::builder_for_sized::<Self>()
+            .type_identifier("&Mutf8Str")
+            .ty({
+                let vpt = facet_core::ValuePointerType {
+                    mutable: false,
+                    wide: true,
+                    target: || <[u8]>::SHAPE,
+                };
+                facet_core::Type::Pointer(facet_core::PointerType::Reference(vpt))
+            })
+            .def(facet_core::Def::Pointer(
+                facet_core::PointerDef::builder()
+                    .pointee(|| <[u8]>::SHAPE)
+                    .flags(facet_core::PointerFlags::EMPTY)
+                    .known(facet_core::KnownPointer::SharedReference)
+                    .vtable(
+                        &const {
+                            facet_core::PointerVTable::builder()
+                                .borrow_fn(|this| {
+                                    let ptr: &&Mutf8Str = unsafe { this.get::<Self>() };
+                                    let s: &[u8] = ptr.as_raw_bytes();
+                                    facet_core::PtrConstWide::new(&raw const *s).into()
+                                })
+                                .build()
+                        },
+                    )
+                    .build(),
+            ))
+            .build()
+    };
+    const VTABLE: &'static facet_core::ValueVTable = &const {
+        facet_core::ValueVTable::builder::<Self>()
+            .marker_traits(|| {
+                let mut marker_traits =
+                    facet_core::MarkerTraits::COPY.union(facet_core::MarkerTraits::UNPIN);
+                if <[u8]>::SHAPE.vtable.marker_traits().contains(facet_core::MarkerTraits::EQ) {
+                    marker_traits = marker_traits.union(facet_core::MarkerTraits::EQ);
+                }
+                if <[u8]>::SHAPE.vtable.marker_traits().contains(facet_core::MarkerTraits::SYNC) {
+                    marker_traits = marker_traits
+                        .union(facet_core::MarkerTraits::SEND)
+                        .union(facet_core::MarkerTraits::SYNC);
+                }
+                if <[u8]>::SHAPE
+                    .vtable
+                    .marker_traits()
+                    .contains(facet_core::MarkerTraits::REF_UNWIND_SAFE)
+                {
+                    marker_traits = marker_traits
+                        .union(facet_core::MarkerTraits::UNWIND_SAFE)
+                        .union(facet_core::MarkerTraits::REF_UNWIND_SAFE);
+                }
+                marker_traits
+            })
+            .debug(|| {
+                if <[u8]>::VTABLE.has_debug() {
+                    Some(|value, f| {
+                        let view = facet_core::VTableView::<[u8]>::of();
+                        view.debug().unwrap()(value.as_raw_bytes(), f)
+                    })
+                } else {
+                    None
+                }
+            })
+            .clone_into(|| Some(|src, dst| unsafe { dst.put(core::ptr::read(src)) }))
+            .type_name(|f, _opts| f.write_str("&Mutf8Str"))
+            .build()
+    };
 }
 
 // -------------------------------------------------------------------------------------------------
