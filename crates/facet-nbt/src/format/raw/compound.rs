@@ -5,6 +5,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub struct RawNbt<'a>(Option<&'a Mutf8Str>, RawCompound<'a>);
 
 impl<'a> RawNbt<'a> {
@@ -99,8 +100,8 @@ impl core::ops::DerefMut for RawNbt<'_> {
 // -------------------------------------------------------------------------------------------------
 
 #[repr(transparent)]
-#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub struct RawCompound<'a>(&'a [u8]);
 
 impl<'a> RawCompound<'a> {

@@ -11,16 +11,28 @@ extern crate std;
 pub mod format;
 pub mod snbt;
 
+#[cfg(feature = "alloc")]
 pub mod deserialize;
+#[cfg(feature = "alloc")]
 pub mod serialize;
 
+#[cfg(feature = "alloc")]
 mod error;
+#[cfg(feature = "alloc")]
 pub use error::{DeserializeError, SerializeError};
+
+#[cfg(test)]
+mod test;
 
 pub mod prelude {
     //! Re-exports of common types and traits.
     #[cfg(feature = "alloc")]
-    pub use crate::format::ModernSnbt;
+    pub use crate::{
+        error::{DeserializeError, SerializeError},
+        format::ModernSnbt,
+        serialize::serialize,
+        // deserialize::deserialize,
+    };
     pub use crate::{
         format::{LegacySnbt, SnbtFormat},
         snbt::Snbt,

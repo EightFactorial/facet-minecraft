@@ -59,20 +59,20 @@ fn nested_unnamed() {
 #[test]
 fn hello_world() {
     static RAW: RawNbt<'static> =
-        RawNbt::new_named(include_bytes!("../tests/hello_world.nbt").as_slice());
+        RawNbt::new_named(include_bytes!("../../../tests/nbt/hello_world.nbt").as_slice());
     borrow_and_own!("hello, world", RAW);
 }
 
 #[test]
 fn hypixel() {
     static RAW: RawNbt<'static> =
-        RawNbt::new_named(include_bytes!("../tests/hypixel.nbt").as_slice());
+        RawNbt::new_named(include_bytes!("../../../tests/nbt/hypixel.nbt").as_slice());
     borrow_and_own!("hypixel", RAW);
 }
 
 #[test]
 fn inttest1023() {
     static RAW: RawNbt<'static> =
-        RawNbt::new_named(include_bytes!("../tests/inttest1023.nbt").as_slice());
+        RawNbt::new_named(include_bytes!("../../../tests/nbt/inttest1023.nbt").as_slice());
     borrow_and_own!("inttest1023", RAW);
 }

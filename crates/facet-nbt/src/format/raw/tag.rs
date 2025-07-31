@@ -2,6 +2,7 @@ use crate::{borrowed::BorrowedRef, format::raw::RawCompound, mutf8::Mutf8Str};
 
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub enum RawTag<'a> {
     /// A signed 8-bit integer.
     Byte(BorrowedRef<'a, i8>) = RawTagType::BYTE,
@@ -151,6 +152,7 @@ impl<'a> RawTag<'a> {
 
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub enum RawListTag<'a> {
     /// An empty, untyped list.
     Empty = RawTagType::END,

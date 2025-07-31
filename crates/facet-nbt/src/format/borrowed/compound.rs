@@ -2,18 +2,23 @@ use fxhash::FxBuildHasher;
 use indexmap::IndexMap;
 
 use super::BorrowedTag;
-use crate::{format::{owned::{Nbt, NbtCompound}, raw::{RawError, RawNbt}}, mutf8::Mutf8Str};
+use crate::{
+    format::{
+        owned::{Nbt, NbtCompound},
+        raw::{RawError, RawNbt},
+    },
+    mutf8::Mutf8Str,
+};
 
 #[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub struct BorrowedNbt<'a>(Option<&'a Mutf8Str>, BorrowedCompound<'a>);
 
 impl<'a> BorrowedNbt<'a> {
     /// Create a new empty [`BorrowedNbt`].
     #[inline]
     #[must_use]
-    pub const fn new() -> Self {
-        BorrowedNbt::from_parts(None, BorrowedCompound::new())
-    }
+    pub const fn new() -> Self { BorrowedNbt::from_parts(None, BorrowedCompound::new()) }
 
     /// Create a new [`BorrowedNbt`] from the given name and compound.
     #[inline]
@@ -33,7 +38,8 @@ impl<'a> BorrowedNbt<'a> {
     /// Create a new unnamed [`BorrowedNbt`] from a byte slice.
     ///
     /// # Errors
-    /// Returns an error if the byte slice is not a valid unnamed [`BorrowedNbt`].
+    /// Returns an error if the byte slice is not a valid unnamed
+    /// [`BorrowedNbt`].
     pub fn new_unnamed(data: &'a [u8]) -> Result<Self, RawError<'a>> {
         RawNbt::try_new_unnamed(data).map(|raw| raw.to_borrowed())
     }
@@ -43,13 +49,10 @@ impl<'a> BorrowedNbt<'a> {
     #[must_use]
     pub const fn name(&self) -> Option<&'a Mutf8Str> { self.0 }
 
-
     /// Get the name of the [`BorrowedNbt`] mutably.
     #[inline]
     #[must_use]
-    pub const fn name_mut(&mut self) -> &mut Option<&'a Mutf8Str> {
-        &mut self.0
-    }
+    pub const fn name_mut(&mut self) -> &mut Option<&'a Mutf8Str> { &mut self.0 }
 
     /// Get the inner [`BorrowedCompound`] of the [`BorrowedNbt`].
     #[inline]
@@ -59,9 +62,7 @@ impl<'a> BorrowedNbt<'a> {
     /// Get the inner [`BorrowedCompound`] of the [`BorrowedNbt`] mutably.
     #[inline]
     #[must_use]
-    pub const fn compound_mut(&mut self) -> &mut BorrowedCompound<'a> {
-        &mut self.1
-    }
+    pub const fn compound_mut(&mut self) -> &mut BorrowedCompound<'a> { &mut self.1 }
 
     /// Create a new [`Nbt`] from this [`BorrowedNbt`].
     #[must_use]
@@ -127,31 +128,30 @@ impl From<BorrowedCompound<'_>> for NbtCompound {
 
 // -------------------------------------------------------------------------------------------------
 
-// #[cfg(feature = "facet")]
-// unsafe impl<'facet> facet_core::Facet<'facet> for BorrowedCompound<'facet> {
-//     const SHAPE: &'static facet::Shape = &const {
-//         facet::Shape::builder_for_sized::<Self>()
-//             .type_identifier("BorrowedCompound")
-//             .ty(facet::Type::User(facet::UserType::Opaque))
-//             .build()
-//     };
-//     const VTABLE: &'static facet::ValueVTable = &const {
-//         facet::ValueVTable::builder::<Self>()
-//             .marker_traits(|| {
-//                 facet::MarkerTraits::SEND
-//                     .union(facet::MarkerTraits::SYNC)
-//                     .union(facet::MarkerTraits::UNPIN)
-//                     .union(facet::MarkerTraits::UNWIND_SAFE)
-//                     .union(facet::MarkerTraits::REF_UNWIND_SAFE)
-//                     // TODO: This should be `&'facet Mutf8Str` instead of `&'facet Mutf8String`
-//                     .intersection(<&'facet crate::mutf8::Mutf8String>::SHAPE.vtable.marker_traits())
-//                     .intersection(BorrowedTag::<'facet>::SHAPE.vtable.marker_traits())
-//             })
-//             .type_name(|f, _opts| ::core::fmt::Write::write_str(f, "BorrowedCompound"))
-//             .default_in_place(|| Some(|target| unsafe { target.put(Self::default()) }))
-//             .build()
-//     };
-// }
+#[cfg(feature = "facet")]
+unsafe impl<'facet> facet_core::Facet<'facet> for BorrowedCompound<'facet> {
+    const SHAPE: &'static facet::Shape = &const {
+        facet::Shape::builder_for_sized::<Self>()
+            .type_identifier("BorrowedCompound")
+            .ty(facet::Type::User(facet::UserType::Opaque))
+            .build()
+    };
+    const VTABLE: &'static facet::ValueVTable = &const {
+        facet::ValueVTable::builder::<Self>()
+            .marker_traits(|| {
+                facet::MarkerTraits::SEND
+                    .union(facet::MarkerTraits::SYNC)
+                    .union(facet::MarkerTraits::UNPIN)
+                    .union(facet::MarkerTraits::UNWIND_SAFE)
+                    .union(facet::MarkerTraits::REF_UNWIND_SAFE)
+                    .intersection(<&'facet Mutf8Str>::SHAPE.vtable.marker_traits())
+                    .intersection(BorrowedTag::<'facet>::SHAPE.vtable.marker_traits())
+            })
+            .type_name(|f, _opts| ::core::fmt::Write::write_str(f, "BorrowedCompound"))
+            .default_in_place(|| Some(|target| unsafe { target.put(Self::default()) }))
+            .build()
+    };
+}
 
 // -------------------------------------------------------------------------------------------------
 

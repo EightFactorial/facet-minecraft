@@ -4,8 +4,8 @@ use super::NbtCompound;
 use crate::{format::raw::RawTagType, mutf8::Mutf8String};
 
 #[repr(u8)]
-#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub enum NbtTag {
     /// A signed 8-bit integer.
     Byte(i8) = RawTagType::BYTE,
@@ -73,8 +73,8 @@ impl From<Vec<i64>> for NbtTag {
 // -------------------------------------------------------------------------------------------------
 
 #[repr(u8)]
-#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub enum NbtListTag {
     /// An empty, untyped list.
     Empty = RawTagType::END,

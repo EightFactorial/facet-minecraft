@@ -149,7 +149,6 @@ impl core::convert::TryFrom<Mutf8String> for String {
 
 // -------------------------------------------------------------------------------------------------
 
-// TODO: Implement `Facet`.
 /// A slice of a [`Mutf8String`].
 ///
 /// Similar to a [`str`], but uses MUTF-8 encoding.
@@ -273,6 +272,15 @@ impl Mutf8Str {
     pub fn try_as_string(&self) -> Result<String, simd_cesu8::DecodingError> {
         self.try_as_str().map(Cow::into_owned)
     }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+/// SAFETY: `Mutf8Str` is a transparent wrapper around a `[u8]`.
+#[cfg(feature = "facet")]
+unsafe impl<'a> facet_core::Facet<'a> for &'a Mutf8Str {
+    const SHAPE: &'static facet::Shape = <&'a [u8]>::SHAPE;
+    const VTABLE: &'static facet::ValueVTable = <&'a [u8]>::VTABLE;
 }
 
 // -------------------------------------------------------------------------------------------------

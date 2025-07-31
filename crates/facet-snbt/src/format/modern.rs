@@ -22,13 +22,16 @@ pub type ModernSnbt<'a> = Snbt<'a, Modern>;
 
 // -------------------------------------------------------------------------------------------------
 
-impl<'a> LegacySnbt<'a> {
+impl LegacySnbt<'_> {
     /// Upgrade a [`LegacySnbt`] into a [`ModernSnbt`].
     ///
     /// This method is essentially a reborrow since the
     /// new format is a superset of the old one.
     #[must_use]
-    pub const fn upgrade(&self) -> ModernSnbt<'a> {
-        ModernSnbt::new_unchecked(Cow::Borrowed(self.as_inner()))
+    pub const fn upgrade(&self) -> ModernSnbt<'_> {
+        Snbt::new_unchecked(match self.as_inner() {
+            Cow::Borrowed(s) => Cow::Borrowed(*s),
+            Cow::Owned(s) => Cow::Borrowed(s.as_str()),
+        })
     }
 }

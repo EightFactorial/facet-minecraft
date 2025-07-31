@@ -12,6 +12,7 @@ use crate::{
 
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub enum BorrowedTag<'a> {
     /// A signed 8-bit integer.
     Byte(i8) = RawTagType::BYTE,
@@ -64,6 +65,7 @@ impl BorrowedTag<'_> {
 
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub enum BorrowedListTag<'a> {
     /// An empty, untyped list.
     Empty = RawTagType::END,

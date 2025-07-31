@@ -6,7 +6,7 @@ use crate::format::SnbtFormat;
 
 /// A Stringified NBT value.
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, facet_macros::Facet)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, facet_macros::Facet)]
 pub struct Snbt<'a, F: SnbtFormat<'a>>(F::Inner, PhantomData<F>);
 
 impl<'a, F: SnbtFormat<'a>> Snbt<'a, F> {
@@ -16,6 +16,7 @@ impl<'a, F: SnbtFormat<'a>> Snbt<'a, F> {
     /// This function does not validate the SNBT string!
     #[inline]
     #[must_use]
+    #[allow(dead_code)]
     pub(crate) const fn new_unchecked(content: F::Inner) -> Self { Self(content, PhantomData) }
 
     /// Get a reference to the inner SNBT string.
@@ -40,4 +41,12 @@ impl<'a, F: SnbtFormat<'a>> core::ops::Deref for Snbt<'a, F> {
 }
 impl<'a, F: SnbtFormat<'a>> core::ops::DerefMut for Snbt<'a, F> {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+}
+
+impl<'a, F: SnbtFormat<'a>> core::fmt::Display for Snbt<'a, F>
+where F::Inner: core::fmt::Display
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(&self.0, f)
+    }
 }

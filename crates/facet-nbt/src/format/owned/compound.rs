@@ -5,6 +5,7 @@ use super::NbtTag;
 use crate::mutf8::Mutf8String;
 
 #[derive(Debug, Default, Clone, PartialEq)]
+#[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
 pub struct Nbt(Option<Mutf8String>, NbtCompound);
 
 impl Nbt {
