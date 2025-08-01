@@ -12,10 +12,10 @@ pub mod format;
 pub mod snbt;
 
 #[cfg(feature = "alloc")]
-pub mod deserialize;
+mod deserialize;
 
 #[cfg(feature = "alloc")]
-pub mod serialize;
+mod serialize;
 pub use serialize::{serialize, serialize_borrowed};
 
 #[cfg(feature = "alloc")]

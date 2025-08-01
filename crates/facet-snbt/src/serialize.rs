@@ -4,6 +4,8 @@ use core::convert::Infallible;
 
 use facet_nbt::prelude::*;
 use facet_serialize::Serializer;
+use itoa::Buffer as IntBuffer;
+use ryu::Buffer as FltBuffer;
 
 use crate::{
     SerializeError,
@@ -25,7 +27,7 @@ where
 {
     let mut serializer = SnbtSerializer::<F>::new(buffer);
     facet_serialize::serialize_iterative(facet_reflect::Peek::new(nbt), &mut serializer)?;
-    Ok(Snbt::new_unchecked(serializer.into_inner()))
+    Ok(Snbt::new_unchecked(serializer.buffer))
 }
 
 /// Serialize a [`BorrowedNbt`] into [`Snbt`] with the given [`SnbtFormat`].
@@ -42,86 +44,103 @@ where
 {
     let mut serializer = SnbtSerializer::<F>::new(buffer);
     facet_serialize::serialize_iterative(facet_reflect::Peek::new(nbt), &mut serializer)?;
-    Ok(Snbt::new_unchecked(serializer.into_inner()))
+    Ok(Snbt::new_unchecked(serializer.buffer))
 }
 
 // -------------------------------------------------------------------------------------------------
 
-use sealed::SnbtSerializer;
-mod sealed {
-    use itoa::Buffer as IntBuffer;
-    use ryu::Buffer as FltBuffer;
+pub struct SnbtSerializer<'input, F: SnbtFormat<'input>>
+where F::Inner: SnbtWriter
+{
+    buffer: F::Inner,
+    int_buffer: IntBuffer,
+    flt_buffer: FltBuffer,
 
-    use super::{SerState, SnbtFormat, SnbtWriter};
+    array_prefix: bool,
+    bytes_as_string: bool,
+    depth: usize,
+    is_key: bool,
+    list_depth: usize,
+    separator: bool,
+}
 
-    pub struct SnbtSerializer<'input, F: SnbtFormat<'input>>
-    where F::Inner: SnbtWriter
-    {
-        buffer: F::Inner,
-        int_buffer: IntBuffer,
-        flt_buffer: FltBuffer,
+#[expect(dead_code)]
+impl<'input, F: SnbtFormat<'input>> SnbtSerializer<'input, F>
+where F::Inner: SnbtWriter
+{
+    #[must_use]
+    fn new(buffer: F::Inner) -> Self {
+        Self {
+            buffer,
+            int_buffer: IntBuffer::new(),
+            flt_buffer: FltBuffer::new(),
 
-        state: SerState,
-    }
-
-    #[expect(dead_code)]
-    impl<'input, F: SnbtFormat<'input>> SnbtSerializer<'input, F>
-    where F::Inner: SnbtWriter
-    {
-        #[must_use]
-        pub(super) fn new(buffer: F::Inner) -> Self {
-            Self {
-                buffer,
-                int_buffer: IntBuffer::new(),
-                flt_buffer: FltBuffer::new(),
-                state: SerState::Start,
-            }
-        }
-
-        #[must_use]
-        pub(super) const fn state(&self) -> SerState { self.state }
-
-        #[must_use]
-        pub(super) const fn state_mut(&mut self) -> &mut SerState { &mut self.state }
-
-        #[must_use]
-        pub(super) fn into_inner(self) -> F::Inner { self.buffer }
-
-        pub(super) fn write_int<Integer: itoa::Integer>(
-            &mut self,
-            integer: Integer,
-        ) -> Result<(), <F::Inner as SnbtWriter>::WriteError> {
-            let str = self.int_buffer.format(integer);
-            self.buffer.write_str(str)
-        }
-
-        pub(super) fn write_float<Float: ryu::Float>(
-            &mut self,
-            float: Float,
-        ) -> Result<(), <F::Inner as SnbtWriter>::WriteError> {
-            let str = self.flt_buffer.format(float);
-            self.buffer.write_str(str)
+            array_prefix: false,
+            bytes_as_string: false,
+            depth: 0,
+            is_key: false,
+            list_depth: 0,
+            separator: false,
         }
     }
 
-    impl<'input, F: SnbtFormat<'input>> core::ops::Deref for SnbtSerializer<'input, F>
-    where F::Inner: SnbtWriter
-    {
-        type Target = F::Inner;
+    const fn start_list(&mut self) { self.list_depth |= 1 << (self.depth.saturating_sub(1)); }
 
-        fn deref(&self) -> &Self::Target { &self.buffer }
+    const fn end_list(&mut self) { self.list_depth &= !(1 << (self.depth.saturating_sub(1))); }
+
+    #[must_use]
+    const fn is_list(&self) -> bool { self.list_depth & (1 << (self.depth.saturating_sub(1))) != 0 }
+
+    fn write_separator(&mut self) -> Result<(), <F::Inner as SnbtWriter>::WriteError> {
+        if self.separator {
+            self.write_char(',')
+        } else {
+            self.separator = true;
+            Ok(())
+        }
     }
-    impl<'input, F: SnbtFormat<'input>> core::ops::DerefMut for SnbtSerializer<'input, F>
-    where F::Inner: SnbtWriter
-    {
-        fn deref_mut(&mut self) -> &mut Self::Target { &mut self.buffer }
+
+    fn write_array_prefix(
+        &mut self,
+        prefix: char,
+    ) -> Result<(), <F::Inner as SnbtWriter>::WriteError> {
+        if self.array_prefix {
+            self.array_prefix = false;
+            self.write_char(prefix)?;
+            self.write_char(';')
+        } else {
+            Ok(())
+        }
+    }
+
+    fn write_int<Integer: itoa::Integer>(
+        &mut self,
+        integer: Integer,
+    ) -> Result<(), <F::Inner as SnbtWriter>::WriteError> {
+        let str = self.int_buffer.format(integer);
+        self.buffer.write_str(str)
+    }
+
+    fn write_float<Float: ryu::Float>(
+        &mut self,
+        float: Float,
+    ) -> Result<(), <F::Inner as SnbtWriter>::WriteError> {
+        let str = self.flt_buffer.format(float);
+        self.buffer.write_str(str)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SerState {
-    Start,
-    Compound(bool, bool, bool, usize), // (is_key, array_prefix, separator, depth)
+impl<'input, F: SnbtFormat<'input>> core::ops::Deref for SnbtSerializer<'input, F>
+where F::Inner: SnbtWriter
+{
+    type Target = F::Inner;
+
+    fn deref(&self) -> &Self::Target { &self.buffer }
+}
+impl<'input, F: SnbtFormat<'input>> core::ops::DerefMut for SnbtSerializer<'input, F>
+where F::Inner: SnbtWriter
+{
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.buffer }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -164,16 +183,8 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     }
 
     fn serialize_i8(&mut self, value: i8) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, array, separator, _) = self.state_mut() {
-            if *array {
-                *array = false;
-                self.write_str("B;").unwrap();
-            } else if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('B').unwrap();
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('B').unwrap();
@@ -181,13 +192,7 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     }
 
     fn serialize_i16(&mut self, value: i16) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, array, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('S').unwrap();
@@ -195,16 +200,8 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     }
 
     fn serialize_i32(&mut self, value: i32) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, array, separator, _) = self.state_mut() {
-            if *array {
-                *array = false;
-                self.write_str("I;").unwrap();
-            } else if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('I').unwrap();
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('I').unwrap();
@@ -212,16 +209,8 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     }
 
     fn serialize_i64(&mut self, value: i64) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, array, separator, _) = self.state_mut() {
-            if *array {
-                *array = false;
-                self.write_str("L;").unwrap();
-            } else if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('L').unwrap();
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('L').unwrap();
@@ -233,16 +222,8 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     }
 
     fn serialize_isize(&mut self, value: isize) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, array, separator, _) = self.state_mut() {
-            if *array {
-                *array = false;
-                self.write_str("I;").unwrap();
-            } else if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('I').unwrap();
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('I').unwrap();
@@ -252,13 +233,8 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     // Note: `Legacy` does not support scientific notation for floats
     // which `ryu` uses. `ToString`, however, never scientific notation.
     fn serialize_f32(&mut self, value: f32) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('F').unwrap();
+        self.write_separator().unwrap();
 
         let string = alloc::string::ToString::to_string(&value);
         self.write_str(&string).unwrap();
@@ -268,13 +244,8 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     // Note: `Legacy` does not support scientific notation for floats
     // which `ryu` uses. `ToString`, however, never scientific notation.
     fn serialize_f64(&mut self, value: f64) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('D').unwrap();
+        self.write_separator().unwrap();
 
         let string = alloc::string::ToString::to_string(&value);
         self.write_str(&string).unwrap();
@@ -282,14 +253,7 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     }
 
     fn serialize_char(&mut self, value: char) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
-
+        self.write_separator().unwrap();
         self.write_char(value).unwrap();
         Ok(())
     }
@@ -303,17 +267,12 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
         #[cfg(not(any(feature = "std", feature = "once_cell")))]
         compile_error!("It is required to enable the `once_cell` feature on `no_std` platforms!");
 
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_separator().unwrap();
 
-        if VALID_CHARS
-            .get_or_init(|| regex_lite::Regex::new(r"^[a-zA-Z0-9_\-\.\+]+$").unwrap())
-            .is_match(value)
+        if self.is_key
+            && VALID_CHARS
+                .get_or_init(|| regex_lite::Regex::new(r"^[a-zA-Z0-9_\-\.\+]+$").unwrap())
+                .is_match(value)
         {
             self.write_str(value).unwrap();
         } else {
@@ -326,12 +285,12 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     }
 
     fn serialize_bytes(&mut self, value: &[u8]) -> Result<(), Self::Error> {
-        match self.state_mut() {
-            SerState::Start => Ok(()),
-            SerState::Compound(name, _, separator, _) if *name => {
-                self.serialize_str(&simd_cesu8::decode_lossy(value))
-            }
-            SerState::Compound(..) => value.iter().try_for_each(|v| self.serialize_u8(*v)),
+        if self.depth == 0 {
+            Ok(())
+        } else if self.bytes_as_string {
+            self.serialize_str(&simd_cesu8::decode_lossy(value))
+        } else {
+            value.iter().try_for_each(|&v| self.serialize_u8(v))
         }
     }
 
@@ -348,13 +307,19 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     }
 
     fn serialize_field_name(&mut self, name: &'static str) -> Result<(), Self::Error> {
-        if let SerState::Compound(str, list, ..) = self.state_mut() {
+        if self.depth > 0 {
+            std::println!("Field \"{}\" @ {}", name, self.depth);
             match name {
-                "ByteArray" | "IntArray" | "LongArray" => *list = true,
-                "String" => *str = true,
+                "ByteArray" | "IntArray" | "LongArray" => {
+                    self.start_list();
+                    self.array_prefix = true;
+                }
+                "List" => self.start_list(),
+                "String" => self.bytes_as_string = true,
                 _ => {}
             }
         }
+
         Ok(())
     }
 
@@ -365,74 +330,54 @@ impl Serializer for SnbtSerializer<'_, Legacy> {
     fn end_object(&mut self) -> Result<(), Self::Error> { Ok(()) }
 
     fn start_array(&mut self, len: Option<usize>) -> Result<(), Self::Error> {
-        match self.state_mut() {
-            SerState::Start => Ok(()),
-            SerState::Compound(_, _, separator, _) => {
-                *separator = false;
-                self.write_char('[').unwrap();
-                Ok(())
-            }
+        if !self.is_key && !self.bytes_as_string && self.is_list() {
+            std::println!("Start Array @ {}", self.depth);
+            self.write_char('[').unwrap();
+            self.separator = false;
         }
+
+        Ok(())
     }
 
     fn end_array(&mut self) -> Result<(), Self::Error> {
-        match self.state_mut() {
-            SerState::Start => Ok(()),
-            SerState::Compound(_, array, ..) => {
-                *array = false;
-                self.write_char(']').unwrap();
-                Ok(())
-            }
+        if !self.is_key && !self.bytes_as_string && self.is_list() {
+            std::println!("End Array @ {}", self.depth);
+            self.write_char(']').unwrap();
+            self.array_prefix = false;
+            self.end_list();
         }
+
+        Ok(())
     }
 
     fn start_map(&mut self, len: Option<usize>) -> Result<(), Self::Error> {
-        match self.state_mut() {
-            SerState::Start => *self.state_mut() = SerState::Compound(false, false, false, 0),
-            SerState::Compound(_, _, separator, n) => {
-                let write = *separator;
-                *separator = false;
-                *n += 1;
-
-                if write {
-                    self.write_char(',').unwrap();
-                }
-            }
-        }
-
         self.write_char('{').unwrap();
+        self.separator = false;
+        self.depth += 1;
+
         Ok(())
     }
 
     fn end_map(&mut self) -> Result<(), Self::Error> {
-        match self.state_mut() {
-            SerState::Start => todo!(),
-            SerState::Compound(.., 0) => *self.state_mut() = SerState::Start,
-            SerState::Compound(.., str, depth) => {
-                *str = true;
-                *depth -= 1;
-            }
-        }
-
         self.write_char('}').unwrap();
+        self.depth -= 1;
+
         Ok(())
     }
 
     fn begin_map_key(&mut self) -> Result<(), Self::Error> {
-        if let SerState::Compound(key, ..) = self.state_mut() {
-            *key = true;
-        }
+        self.is_key = true;
+        self.bytes_as_string = true;
 
         Ok(())
     }
 
     fn end_map_key(&mut self) -> Result<(), Self::Error> {
-        if let SerState::Compound(key, _, separator, _) = self.state_mut() {
-            *key = false;
-            *separator = false;
-        }
-
         self.write_char(':').unwrap();
+        self.is_key = false;
+        self.bytes_as_string = false;
+        self.separator = false;
+
         Ok(())
     }
 
@@ -448,7 +393,11 @@ impl Serializer for SnbtSerializer<'_, Modern> {
     type Error = SerializeError;
 
     fn serialize_bool(&mut self, value: bool) -> Result<(), Self::Error> {
-        self.serialize_i8(i8::from(value))
+        match value {
+            true => self.write_str("true").unwrap(),
+            false => self.write_str("false").unwrap(),
+        }
+        Ok(())
     }
 
     #[expect(clippy::cast_possible_wrap)]
@@ -481,13 +430,8 @@ impl Serializer for SnbtSerializer<'_, Modern> {
     }
 
     fn serialize_i8(&mut self, value: i8) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('B').unwrap();
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('B').unwrap();
@@ -495,13 +439,7 @@ impl Serializer for SnbtSerializer<'_, Modern> {
     }
 
     fn serialize_i16(&mut self, value: i16) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('S').unwrap();
@@ -509,13 +447,8 @@ impl Serializer for SnbtSerializer<'_, Modern> {
     }
 
     fn serialize_i32(&mut self, value: i32) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('I').unwrap();
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('I').unwrap();
@@ -523,13 +456,8 @@ impl Serializer for SnbtSerializer<'_, Modern> {
     }
 
     fn serialize_i64(&mut self, value: i64) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('L').unwrap();
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('L').unwrap();
@@ -541,55 +469,38 @@ impl Serializer for SnbtSerializer<'_, Modern> {
     }
 
     fn serialize_isize(&mut self, value: isize) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('I').unwrap();
+        self.write_separator().unwrap();
 
         self.write_int(value).unwrap();
         self.write_char('I').unwrap();
         Ok(())
     }
 
+    // Note: `Legacy` does not support scientific notation for floats
+    // which `ryu` uses. `ToString`, however, never scientific notation.
     fn serialize_f32(&mut self, value: f32) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('F').unwrap();
+        self.write_separator().unwrap();
 
-        self.write_float(value).unwrap();
-        self.write_char('F').unwrap();
+        let string = alloc::string::ToString::to_string(&value);
+        self.write_str(&string).unwrap();
         Ok(())
     }
 
+    // Note: `Legacy` does not support scientific notation for floats
+    // which `ryu` uses. `ToString`, however, never scientific notation.
     fn serialize_f64(&mut self, value: f64) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_array_prefix('D').unwrap();
+        self.write_separator().unwrap();
 
-        self.write_float(value).unwrap();
-        self.write_char('D').unwrap();
+        let string = alloc::string::ToString::to_string(&value);
+        self.write_str(&string).unwrap();
         Ok(())
     }
 
     fn serialize_char(&mut self, value: char) -> Result<(), Self::Error> {
-        if let SerState::Compound(_, _, separator, _) = self.state_mut() {
-            if *separator {
-                self.write_char(',').unwrap();
-            } else {
-                *separator = true;
-            }
-        }
+        self.write_separator().unwrap();
 
         self.write_char(value).unwrap();
         Ok(())
@@ -638,7 +549,7 @@ impl Serializer for SnbtSerializer<'_, Modern> {
 
 // -------------------------------------------------------------------------------------------------
 
-#[expect(missing_docs, clippy::missing_errors_doc)]
+#[expect(clippy::missing_errors_doc)]
 pub trait SnbtWriter {
     type WriteError;
 
