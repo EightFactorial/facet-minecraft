@@ -64,6 +64,7 @@ itoa = { default-features = false, version = "1.0" }
 once_cell = { default-features = false, version = "1.21" }
 owo-colors = { default-features = false, version = "4.2" }
 parking_lot = { default-features = false, version = "0.12" }
+pretty_assertions = { default-features = false, version = "1.4.1" }
 regex-lite = { default-features = false, version = "0.1" }
 ryu = { default-features = false, version = "1.0" }
 simd_cesu8 = { default-features = false, version = "1.0" }

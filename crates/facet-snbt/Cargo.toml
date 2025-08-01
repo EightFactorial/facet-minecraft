@@ -18,12 +18,13 @@ workspace = true
 
 [dev-dependencies]
 divan = { workspace = true }
+pretty_assertions = { workspace = true }
 
 [dependencies]
-facet-core = { features = ["uuid"], workspace = true }
+facet-core = { workspace = true }
 facet-macros = { workspace = true }
-facet-nbt = { features = ["facet", "uuid"], workspace = true }
-facet-reflect = { features = ["uuid"], workspace = true }
+facet-nbt = { features = ["facet"], workspace = true }
+facet-reflect = { workspace = true }
 
 # Optional dependencies
 ariadne = { optional = true, workspace = true }
@@ -48,6 +49,8 @@ rich-diagnostics = [
   "std",
 ]
 
+# Enable support for the `uuid` crate
+uuid = ["facet-core/uuid", "facet-nbt/uuid", "facet-reflect/uuid"]
 # Enable critical-section on `no_std` platforms
 critical-section = ["once_cell?/critical-section"]
 # Enable once_cell on `no_std` platforms
@@ -65,6 +68,7 @@ alloc = [
   "facet-nbt/alloc",
   "facet-reflect/alloc",
   "owo-colors?/alloc",
+  "pretty_assertions/alloc",
 ]
 # Enable support for the standard library
 std = [
@@ -75,6 +79,7 @@ std = [
   "facet-reflect/std",
   "facet-serialize/std",
   "once_cell?/std",
+  "pretty_assertions/std",
   "regex-lite/std",
 ]
 # Enable features using the nightly toolchain

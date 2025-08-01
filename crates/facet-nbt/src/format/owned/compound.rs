@@ -89,12 +89,95 @@ impl<const N: usize> From<[(Mutf8String, NbtTag); N]> for NbtCompound {
 // -------------------------------------------------------------------------------------------------
 
 #[cfg(feature = "facet")]
-#[expect(clippy::elidable_lifetime_names)]
 unsafe impl<'facet> facet_core::Facet<'facet> for NbtCompound {
     const SHAPE: &'static facet::Shape = &const {
         facet::Shape::builder_for_sized::<Self>()
             .type_identifier("NbtCompound")
             .ty(facet::Type::User(facet::UserType::Opaque))
+            .def(facet_core::Def::Map(
+                facet_core::MapDef::builder()
+                    .k(|| Mutf8String::SHAPE)
+                    .v(|| NbtTag::SHAPE)
+                    .vtable(
+                        &const {
+                            facet_core::MapVTableBuilder::new()
+                                .init_in_place_with_capacity(|ptr, cap| unsafe {
+                                    ptr.put(Self::with_capacity(cap))
+                                })
+                                .insert(|ptr, key, val| unsafe {
+                                    let map = ptr.as_mut::<Self>();
+                                    let k = key.read::<Mutf8String>();
+                                    let v = val.read::<NbtTag>();
+                                    map.insert(k, v);
+                                })
+                                .len(|ptr| unsafe { ptr.get::<Self>().len() })
+                                .contains_key(|ptr, key| unsafe {
+                                    ptr.get::<Self>().contains_key(key.get::<Mutf8String>())
+                                })
+                                .get_value_ptr(|ptr, key| unsafe {
+                                    ptr.get::<Self>()
+                                        .get(key.get::<Mutf8String>())
+                                        .map(|v| facet_core::PtrConst::new(core::ptr::from_ref(v)))
+                                })
+                                .iter_vtable(
+                                    facet_core::IterVTable::builder()
+                                        .init_with_value(|ptr| unsafe {
+                                            let iter =
+                                                alloc::boxed::Box::new(ptr.get::<Self>().iter());
+                                            facet_core::PtrMut::new(
+                                                alloc::boxed::Box::into_raw(iter).cast::<u8>(),
+                                            )
+                                        })
+                                        .next(|iter_ptr| unsafe {
+                                            let state = iter_ptr.as_mut::<indexmap::map::Iter<
+                                                'facet,
+                                                Mutf8String,
+                                                NbtTag,
+                                            >>(
+                                            );
+                                            state.next().map(|(key, value)| {
+                                                (
+                                                    facet_core::PtrConst::new(key),
+                                                    facet_core::PtrConst::new(value),
+                                                )
+                                            })
+                                        })
+                                        .next_back(|iter_ptr| unsafe {
+                                            let state = iter_ptr.as_mut::<indexmap::map::Iter<
+                                                'facet,
+                                                Mutf8String,
+                                                NbtTag,
+                                            >>(
+                                            );
+                                            state.next_back().map(|(key, value)| {
+                                                (
+                                                    facet_core::PtrConst::new(key),
+                                                    facet_core::PtrConst::new(value),
+                                                )
+                                            })
+                                        })
+                                        .dealloc(|iter_ptr| unsafe {
+                                            drop(alloc::boxed::Box::from_raw(
+                                                iter_ptr.as_ptr::<indexmap::map::Iter<
+                                                    'facet,
+                                                    Mutf8String,
+                                                    NbtTag,
+                                                >>(
+                                                )
+                                                    as *mut indexmap::map::Iter<
+                                                        'facet,
+                                                        Mutf8String,
+                                                        NbtTag,
+                                                    >,
+                                            ));
+                                        })
+                                        .build(),
+                                )
+                                .build()
+                        },
+                    )
+                    .build(),
+            ))
             .build()
     };
     const VTABLE: &'static facet::ValueVTable = &const {

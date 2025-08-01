@@ -13,8 +13,10 @@ pub mod snbt;
 
 #[cfg(feature = "alloc")]
 pub mod deserialize;
+
 #[cfg(feature = "alloc")]
 pub mod serialize;
+pub use serialize::{serialize, serialize_borrowed};
 
 #[cfg(feature = "alloc")]
 mod error;
@@ -30,8 +32,6 @@ pub mod prelude {
     pub use crate::{
         error::{DeserializeError, SerializeError},
         format::ModernSnbt,
-        serialize::serialize,
-        // deserialize::deserialize,
     };
     pub use crate::{
         format::{LegacySnbt, SnbtFormat},

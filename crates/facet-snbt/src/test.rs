@@ -5,17 +5,30 @@ use alloc::{borrow::Cow, string::String};
 
 use facet_nbt::prelude::*;
 
+use crate::{serialize, serialize_borrowed};
+
 macro_rules! borrow_and_serialize {
     ($name:expr, $raw:expr) => {
         let borrowed = $raw.to_borrowed();
-        let snbt =
-            crate::serialize::serialize::<crate::format::Legacy>(&borrowed, Cow::Owned(String::new())).unwrap();
+        let borrowed_snbt =
+            serialize_borrowed::<crate::format::Legacy>(&borrowed, Cow::Owned(String::new()))
+                .unwrap();
 
         #[cfg(feature = "std")]
         std::println!(
-            "\"{name}\" Raw: {raw:?}\n\"{name}\" Borrowed: {borrowed:?}\n\"{name}\" SNBT: \"{snbt}\"",
+            "\"{name}\" Borrowed: {borrowed:?}\n\"{name}\" SNBT: \"{borrowed_snbt}\"",
             name = $name,
-            raw = $raw,
+        );
+
+        let owned = borrowed.to_owned();
+        let owned_snbt =
+            serialize::<crate::format::Legacy>(&owned, Cow::Owned(String::new())).unwrap();
+
+        pretty_assertions::assert_eq!(
+            borrowed_snbt.as_ref(),
+            owned_snbt.as_ref(),
+            "SNBT serialization mismatch for \"{name}\"",
+            name = $name
         );
     };
 }
