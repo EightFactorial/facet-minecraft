@@ -74,13 +74,13 @@ alloc = [
 std = [
   "alloc",
   "facet-core/std",
-  "facet-deserialize/std",
+  "facet-deserialize?/std",
   "facet-nbt/std",
   "facet-reflect/std",
-  "facet-serialize/std",
+  "facet-serialize?/std",
   "once_cell?/std",
   "pretty_assertions/std",
   "regex-lite/std",
 ]
 # Enable features using the nightly toolchain
-nightly = ["facet-nbt/nightly"]
+nightly = ["facet-nbt/nightly", "simd_cesu8?/nightly"]
