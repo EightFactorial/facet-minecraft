@@ -8,3 +8,10 @@ extern crate alloc;
 extern crate facet_core as facet;
 #[cfg(feature = "std")]
 extern crate std;
+
+pub mod color;
+
+pub mod prelude {
+    //! Re-exports of common types and traits.
+    pub use crate::color::{MineColorize, MineColors};
+}

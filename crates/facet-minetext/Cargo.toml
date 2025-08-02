@@ -22,23 +22,24 @@ pretty_assertions = { workspace = true }
 
 [dependencies]
 ariadne = { optional = true, workspace = true }
+const_panic = { features = ["rust_1_88"], workspace = true }
 facet-core = { optional = true, workspace = true }
 facet-deserialize = { optional = true, workspace = true }
 facet-macros = { optional = true, workspace = true }
 facet-reflect = { optional = true, workspace = true }
 facet-serialize = { optional = true, workspace = true }
-owo-colors = { optional = true, workspace = true }
+owo-colors = { workspace = true }
 
 [features]
 default = ["facet", "std"]
 
 # Enable rich diagnostics
-rich-diagnostics = ["dep:ariadne", "dep:owo-colors", "facet-deserialize?/rich-diagnostics", "std"]
+rich-diagnostics = ["dep:ariadne", "facet-deserialize?/rich-diagnostics", "std"]
 # Enable support for `facet` crates
 facet = ["dep:facet-core", "dep:facet-deserialize", "dep:facet-macros", "dep:facet-reflect", "dep:facet-serialize"]
 
 # Enable support for the alloc library
-alloc = ["facet-core?/alloc", "facet-reflect?/alloc", "owo-colors?/alloc", "pretty_assertions/alloc"]
+alloc = ["facet-core?/alloc", "facet-reflect?/alloc", "owo-colors/alloc", "pretty_assertions/alloc"]
 # Enable support for the standard library
 std = [
   "alloc",
@@ -50,3 +51,7 @@ std = [
 ]
 # Enable features using the nightly toolchain
 nightly = []
+
+[[example]]
+name = "print"
+required-features = ["std"]
