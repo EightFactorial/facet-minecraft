@@ -16,6 +16,11 @@ fn main() {
     println!();
 
     // The `fg_using` and `bg_using` methods to color the text at runtime.
-    println!("{} {}", MSG.fg_using("aqua"), MSG.bg_using("dark_gray"));
-    println!("{} {}", MSG.fg_using(MineColors::White), MSG.bg_using(MineColors::Black));
+    println!("{} {}", MSG.fg_using("aqua"), MSG.bg_using(MineColors::Aqua));
+    println!("{} {}", MSG.fg_using("dark_gray"), MSG.bg_using(MineColors::DarkGray));
+
+    println!();
+
+    // Invalid string colors will fallback to white.
+    println!("{} {}", MSG.fg_using("invalid"), MSG.bg_using("invalid"));
 }
