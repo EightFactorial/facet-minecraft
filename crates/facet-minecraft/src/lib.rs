@@ -8,6 +8,7 @@ const ERROR_SOURCE: &str = env!("CARGO_CRATE_NAME");
 
 extern crate alloc;
 extern crate facet_core as facet;
+
 #[cfg(feature = "std")]
 extern crate std;
 
@@ -24,14 +25,14 @@ pub mod custom;
 mod deserialize;
 #[cfg(feature = "deserialize")]
 pub use deserialize::{
-    DeserializeError, Deserializer, DeserializerExt, ErrorReason, McDeserializer, deserialize,
-    deserialize_iterative, deserialize_remainder,
+    deserialize, deserialize_iterative, deserialize_remainder, DeserializeError, Deserializer,
+    DeserializerExt, ErrorReason, McDeserializer,
 };
 
 #[cfg(feature = "serialize")]
 mod serialize;
 #[cfg(feature = "serialize")]
 pub use serialize::{
-    McSerializer, OwnedPeek, SerializationTask, SerializeError, Serializer, SerializerExt,
-    serialize, serialize_iterative,
+    serialize, serialize_iterative, McSerializer, OwnedPeek, SerializationTask, SerializeError,
+    Serializer, SerializerExt,
 };
