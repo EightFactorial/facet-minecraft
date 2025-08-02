@@ -1,4 +1,4 @@
-//! Color definitions
+//! Preset color definitions
 
 pub mod owo_colors {
     //! Re-exports from the [`owo_colors`] crate.
@@ -12,10 +12,15 @@ macro_rules! generate_colors {
     ($($color:ident $name:literal $char:literal $fg:literal $bg:literal),* $(,)?) => {
 
         /// An enum representing all of the named colors.
+        #[repr(u8)]
         #[expect(missing_docs)]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
         pub enum MineColors {
-            $($color,)*
+            $(
+                #[cfg_attr(feature = "facet", facet(rename = $name))]
+                $color,
+            )*
         }
 
         impl<'a> From<&'a str> for MineColors {

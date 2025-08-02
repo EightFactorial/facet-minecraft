@@ -25,21 +25,45 @@ ariadne = { optional = true, workspace = true }
 const_panic = { features = ["rust_1_88"], workspace = true }
 facet-core = { optional = true, workspace = true }
 facet-deserialize = { optional = true, workspace = true }
+facet-json = { optional = true, workspace = true }
 facet-macros = { optional = true, workspace = true }
 facet-reflect = { optional = true, workspace = true }
 facet-serialize = { optional = true, workspace = true }
+facet-snbt = { optional = true, workspace = true }
+itoa = { workspace = true }
 owo-colors = { workspace = true }
+ryu = { workspace = true }
+simd_cesu8 = { optional = true, workspace = true }
 
 [features]
-default = ["facet", "std"]
+default = ["json", "snbt", "std"]
+
+# Enable reading SNBT-based text,
+# used in versions 1.21.4 and earlier
+json = ["alloc", "dep:facet-json", "facet"]
+# Enable reading JSON-based text,
+# used in versions 1.21.5 and later
+snbt = ["alloc", "dep:facet-snbt", "facet"]
 
 # Enable rich diagnostics
-rich-diagnostics = ["dep:ariadne", "facet-deserialize?/rich-diagnostics", "std"]
+rich-diagnostics = [
+  "dep:ariadne",
+  "facet-deserialize?/rich-diagnostics",
+  "facet-json?/rich-diagnostics",
+  "facet-snbt?/rich-diagnostics",
+  "std",
+]
 # Enable support for `facet` crates
 facet = ["dep:facet-core", "dep:facet-deserialize", "dep:facet-macros", "dep:facet-reflect", "dep:facet-serialize"]
 
 # Enable support for the alloc library
-alloc = ["facet-core?/alloc", "facet-reflect?/alloc", "owo-colors/alloc", "pretty_assertions/alloc"]
+alloc = [
+  "facet-core?/alloc",
+  "facet-reflect?/alloc",
+  "facet-snbt?/alloc",
+  "owo-colors/alloc",
+  "pretty_assertions/alloc",
+]
 # Enable support for the standard library
 std = [
   "alloc",
@@ -47,6 +71,7 @@ std = [
   "facet-deserialize?/std",
   "facet-reflect?/std",
   "facet-serialize?/std",
+  "facet-snbt?/std",
   "pretty_assertions/std",
 ]
 # Enable features using the nightly toolchain
