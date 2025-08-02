@@ -9,7 +9,7 @@ pub mod owo_colors {
 }
 
 macro_rules! generate_colors {
-    ($($color:ident $name:literal $fg:literal $bg:literal),* $(,)?) => {
+    ($($color:ident $name:literal $char:literal $fg:literal $bg:literal),* $(,)?) => {
 
         /// An enum representing all of the named colors.
         #[expect(missing_docs)]
@@ -27,12 +27,29 @@ macro_rules! generate_colors {
             }
         }
 
+        impl From<char> for MineColors {
+            fn from(c: char) -> Self {
+                match c {
+                    $($color::CHAR => Self::$color,)*
+                    _ => Self::White, // Default to white if no match
+                }
+            }
+        }
+
         impl MineColors {
             /// Get the name of the color.
             #[must_use]
             pub const fn name(&self) -> &'static str {
                 match self {
                     $(MineColors::$color => $color::NAME,)*
+                }
+            }
+
+            /// Get the [`char`] used to represent the color.
+            #[must_use]
+            pub const fn char(&self) -> char {
+                match self {
+                    $(MineColors::$color => $color::CHAR,)*
                 }
             }
 
@@ -74,6 +91,7 @@ macro_rules! generate_colors {
             impl private::Sealed for $color {}
             impl MineColor for $color {
                 const NAME: &'static str = $name;
+                const CHAR: char = $char;
 
                 const FG_U32: u32 = const_panic::unwrap_ok!(u32::from_str_radix($fg, 16));
                 const FG_DYNCOLOR: ::owo_colors::DynColors = <Self::Foreground as ::owo_colors::Color>::DYN_COLORS_EQUIVALENT;
@@ -114,28 +132,30 @@ macro_rules! generate_colors {
 }
 
 generate_colors! {
-    Black       "black"        "000000" "000000",
-    DarkBlue    "dark_blue"    "0000AA" "00002A",
-    DarkGreen   "dark_green"   "00AA00" "002A00",
-    DarkAqua    "dark_aqua"    "00AAAA" "002A2A",
-    DarkRed     "dark_red"     "AA0000" "2A0000",
-    DarkPurple  "dark_purple"  "AA00AA" "2A002A",
-    Gold        "gold"         "FFAA00" "3E2A00",
-    Gray        "gray"         "AAAAAA" "2A2A2A",
-    DarkGray    "dark_gray"    "555555" "151515",
-    Blue        "blue"         "5555FF" "15153F",
-    Green       "green"        "55FF55" "153F15",
-    Aqua        "aqua"         "55FFFF" "153F3F",
-    Red         "red"          "FF5555" "3F1515",
-    LightPurple "light_purple" "FF55FF" "3F153F",
-    Yellow      "yellow"       "FFFF55" "3F3F15",
-    White       "white"        "FFFFFF" "3F3F3F",
+    Black       "black"        '0' "000000" "000000",
+    DarkBlue    "dark_blue"    '1' "0000AA" "00002A",
+    DarkGreen   "dark_green"   '2' "00AA00" "002A00",
+    DarkAqua    "dark_aqua"    '3' "00AAAA" "002A2A",
+    DarkRed     "dark_red"     '4' "AA0000" "2A0000",
+    DarkPurple  "dark_purple"  '5' "AA00AA" "2A002A",
+    Gold        "gold"         '6' "FFAA00" "3E2A00",
+    Gray        "gray"         '7' "AAAAAA" "2A2A2A",
+    DarkGray    "dark_gray"    '8' "555555" "151515",
+    Blue        "blue"         '9' "5555FF" "15153F",
+    Green       "green"        'a' "55FF55" "153F15",
+    Aqua        "aqua"         'b' "55FFFF" "153F3F",
+    Red         "red"          'c' "FF5555" "3F1515",
+    LightPurple "light_purple" 'd' "FF55FF" "3F153F",
+    Yellow      "yellow"       'e' "FFFF55" "3F3F15",
+    White       "white"        'f' "FFFFFF" "3F3F3F",
 }
 
 /// A trait for defining foreground and background colors.
 pub trait MineColor: private::Sealed {
     /// The name of the color.
     const NAME: &'static str;
+    /// The character used to represent the color.
+    const CHAR: char;
 
     /// The foreground color type.
     type Foreground: ::owo_colors::Color;
