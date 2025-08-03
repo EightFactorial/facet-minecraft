@@ -22,6 +22,7 @@ pretty_assertions = { workspace = true }
 
 [dependencies]
 ariadne = { optional = true, workspace = true }
+const-str = { workspace = true }
 const_panic = { features = ["rust_1_88"], workspace = true }
 facet = { optional = true, workspace = true }
 facet-deserialize = { optional = true, workspace = true }

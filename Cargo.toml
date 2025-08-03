@@ -58,6 +58,7 @@ facet-serialize = { default-features = false, version = "0.28" }
 
 # Other dependencies
 ariadne = { default-features = false, version = "0.5" }
+const-str = { default-features = false, version = "0.6" }
 const_panic = { default-features = false, version = "0.2" }
 fxhash = { default-features = false, version = "0.2" }
 indexmap = { default-features = false, version = "2.10" }
@@ -66,7 +67,7 @@ itoa = { default-features = false, version = "1.0" }
 once_cell = { default-features = false, version = "1.21" }
 owo-colors = { default-features = false, version = "4.2" }
 parking_lot = { default-features = false, version = "0.12" }
-pretty_assertions = { default-features = false, version = "1.4.1" }
+pretty_assertions = { default-features = false, version = "1.4" }
 regex-lite = { default-features = false, version = "0.1" }
 ryu = { default-features = false, version = "1.0" }
 simd_cesu8 = { default-features = false, version = "1.0" }
