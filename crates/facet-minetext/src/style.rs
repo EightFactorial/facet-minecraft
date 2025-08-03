@@ -164,17 +164,17 @@ impl<'a> TextStyle<'a> {
     /// const CHILD: TextStyle<'static> = TextStyle::NONE;
     ///
     /// // `NONE` has no properties, meaning every property is different.
-    /// assert_eq!(CHILD.difference(ROOT), ROOT);
+    /// assert_eq!(CHILD.diff(ROOT), ROOT);
     ///
     /// const BOLD: TextStyle<'static> = TextStyle::ROOT.with_bold(true);
     ///
     /// // `BOLD` is identical except the bold property set to true,
     /// // while `ROOT` has it set to false. The result will only contain the bold property.
-    /// assert_ne!(BOLD.difference(ROOT), ROOT);
-    /// assert_eq!(BOLD.difference(ROOT), TextStyle::NONE.with_bold(true));
+    /// assert_ne!(BOLD.diff(ROOT), ROOT);
+    /// assert_eq!(BOLD.diff(ROOT), TextStyle::NONE.with_bold(true));
     /// ```
     #[must_use]
-    pub const fn difference<'b>(self, other: TextStyle<'b>) -> TextStyle<'b>
+    pub const fn diff<'b>(self, other: TextStyle<'b>) -> TextStyle<'b>
     where 'a: 'b {
         /// Return `a` if not equal, either if only one value is set, or `None`.
         const fn or_neq<T: Copy + PartialEq>(a: Option<T>, b: Option<T>, eq: bool) -> Option<T> {

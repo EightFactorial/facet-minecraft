@@ -185,6 +185,24 @@ mod private { #[doc(hidden)] pub trait Sealed {} }
 /// A wrapper around [`OwoColorize`](::owo_colors::OwoColorize)
 /// specifically for [`MineColors`].
 pub trait MineColorize: ::owo_colors::OwoColorize {
+    /// Set the foreground and background colors generically.
+    ///
+    /// ---
+    ///
+    /// See [`OwoColorize::fg`](::owo_colors::OwoColorize::fg) and
+    /// [`OwoColorize::bg`](::owo_colors::OwoColorize::bg) for more details.
+    fn fb<CF: MineColor, CB: MineColor>(
+        &self,
+    ) -> ::owo_colors::ComboColorDisplay<
+        '_,
+        <CF as MineColor>::Foreground,
+        <CB as MineColor>::Background,
+        Self,
+    > {
+        <Self as ::owo_colors::OwoColorize>::fg::<<CF as MineColor>::Foreground>(self)
+            .bg::<<CB as MineColor>::Background>()
+    }
+
     /// Set the foreground color generically.
     ///
     /// ---
@@ -207,6 +225,28 @@ pub trait MineColorize: ::owo_colors::OwoColorize {
         &self,
     ) -> ::owo_colors::BgColorDisplay<'_, <C as MineColor>::Background, Self> {
         <Self as ::owo_colors::OwoColorize>::bg::<<C as MineColor>::Background>(self)
+    }
+
+    /// Set the foreground and background colors at runtime.
+    ///
+    /// Only use if you do not know which colors will be used at compile-time.
+    /// If the colors are constant, use [`MineColorize::fb`] instead.
+    ///
+    /// ---
+    /// See [`OwoColorize::fg_using`](::owo_colors::OwoColorize::fg_using) and
+    /// [`OwoColorize::bg_using`](::owo_colors::OwoColorize::bg_using) for more
+    /// details.
+    fn fb_using<CF: Into<MineColors>, CB: Into<MineColors>>(
+        &self,
+        fg: CF,
+        bg: CB,
+    ) -> ::owo_colors::ComboDynColorDisplay<
+        '_,
+        ::owo_colors::DynColors,
+        ::owo_colors::DynColors,
+        Self,
+    > {
+        <Self as ::owo_colors::OwoColorize>::color(self, fg.into().fg()).on_color(bg.into().bg())
     }
 
     /// Set the foreground color at runtime.

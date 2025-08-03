@@ -153,31 +153,17 @@ fn score() {
 #[cfg_attr(feature = "facet", derive(facet::Facet))]
 pub struct SelectorComponent<'a> {
     selector: Cow<'a, str>,
-    #[cfg_attr(feature = "facet", facet(default = Self::default_separator()))]
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Self::is_default_separator))]
+    #[cfg_attr(feature = "facet", facet(default = default_separator()))]
+    #[cfg_attr(feature = "facet", facet(skip_serializing_if = is_default_separator))]
     separator: Box<BorrowedJsonText<'a>>,
 }
-
-impl<'a> SelectorComponent<'a> {
-    fn default_separator() -> Box<BorrowedJsonText<'a>> { Box::new(DEFAULT_SEPARATOR.clone()) }
-
-    #[expect(clippy::borrowed_box)]
-    fn is_default_separator(separator: &Box<BorrowedJsonText<'a>>) -> bool {
-        separator.as_ref() == &DEFAULT_SEPARATOR
-    }
-}
-
-static DEFAULT_SEPARATOR: BorrowedJsonText<'static> = BorrowedJsonText {
-    content: TextContent::Text(TextComponent { text: Cow::Borrowed(", ") }),
-    style: TextStyle::NONE,
-};
 
 #[test]
 fn selector() {
     let selector: BorrowedJsonText<'static> = BorrowedJsonText {
         content: TextContent::Selector(SelectorComponent {
             selector: Cow::Borrowed("@a"),
-            separator: SelectorComponent::default_separator(),
+            separator: default_separator(),
         }),
         style: TextStyle::NONE,
     };
@@ -252,8 +238,9 @@ pub struct NbtComponent<'a> {
 
     #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
     interpret: Option<bool>,
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
-    separator: Option<Box<BorrowedJsonText<'a>>>,
+    #[cfg_attr(feature = "facet", facet(default = default_separator()))]
+    #[cfg_attr(feature = "facet", facet(skip_serializing_if = is_default_separator))]
+    separator: Box<BorrowedJsonText<'a>>,
 
     #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
     block: Option<Cow<'a, str>>,
@@ -261,4 +248,18 @@ pub struct NbtComponent<'a> {
     entity: Option<Cow<'a, str>>,
     #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
     storage: Option<Cow<'a, str>>,
+}
+
+// -------------------------------------------------------------------------------------------------
+
+static DEFAULT_SEPARATOR: BorrowedJsonText<'static> = BorrowedJsonText {
+    content: TextContent::Text(TextComponent { text: Cow::Borrowed(", ") }),
+    style: TextStyle::NONE,
+};
+
+fn default_separator() -> Box<BorrowedJsonText<'static>> { Box::new(DEFAULT_SEPARATOR.clone()) }
+
+#[expect(clippy::borrowed_box)]
+fn is_default_separator<'a>(separator: &Box<BorrowedJsonText<'a>>) -> bool {
+    separator.as_ref() == &DEFAULT_SEPARATOR
 }

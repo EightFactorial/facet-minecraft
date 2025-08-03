@@ -29,9 +29,7 @@ facet-deserialize = { optional = true, workspace = true }
 facet-json = { optional = true, workspace = true }
 facet-serialize = { optional = true, workspace = true }
 facet-snbt = { optional = true, workspace = true }
-itoa = { workspace = true }
 owo-colors = { workspace = true }
-ryu = { workspace = true }
 simd_cesu8 = { optional = true, workspace = true }
 
 [features]
@@ -63,5 +61,5 @@ std = ["alloc", "facet-deserialize?/std", "facet-serialize?/std", "facet-snbt?/s
 nightly = []
 
 [[example]]
-name = "print"
+name = "terminal"
 required-features = ["std"]

@@ -1,4 +1,5 @@
-//! TODO
+//! An example showing how to use [`MineColors`] and [`MineColorize`]
+//! to print colored text to the terminal.
 
 use facet_minetext::color::preset::{
     Blue, DarkPurple, Gold, Green, MineColorize, MineColors, Red, Yellow,
@@ -24,5 +25,5 @@ fn main() {
     println!();
 
     // Invalid string colors will fallback to white.
-    println!("{} {}", MSG.fg_using("invalid"), MSG.bg_using("invalid"));
+    println!("{}", MSG.fb_using("crimson", "transparent"));
 }
