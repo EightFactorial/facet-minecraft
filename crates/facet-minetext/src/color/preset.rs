@@ -15,7 +15,7 @@ macro_rules! generate_colors {
         #[repr(u8)]
         #[expect(missing_docs)]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        #[cfg_attr(feature = "facet", derive(facet_macros::Facet))]
+        #[cfg_attr(feature = "facet", derive(facet::Facet))]
         pub enum MineColors {
             $(
                 #[cfg_attr(feature = "facet", facet(rename = $name))]
@@ -194,7 +194,7 @@ pub trait MineColorize: ::owo_colors::OwoColorize {
     fn fg<C: MineColor>(
         &self,
     ) -> ::owo_colors::FgColorDisplay<'_, <C as MineColor>::Foreground, Self> {
-        <Self as ::owo_colors::OwoColorize>::fg::<<C as MineColor>::Foreground>(&self)
+        <Self as ::owo_colors::OwoColorize>::fg::<<C as MineColor>::Foreground>(self)
     }
 
     /// Set the background color generically.
@@ -206,7 +206,7 @@ pub trait MineColorize: ::owo_colors::OwoColorize {
     fn bg<C: MineColor>(
         &self,
     ) -> ::owo_colors::BgColorDisplay<'_, <C as MineColor>::Background, Self> {
-        <Self as ::owo_colors::OwoColorize>::bg::<<C as MineColor>::Background>(&self)
+        <Self as ::owo_colors::OwoColorize>::bg::<<C as MineColor>::Background>(self)
     }
 
     /// Set the foreground color at runtime.

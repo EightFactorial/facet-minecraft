@@ -1,6 +1,8 @@
 //! TODO
 
-use facet_minetext::color::{Blue, DarkPurple, Gold, Green, MineColorize, MineColors, Red, Yellow};
+use facet_minetext::color::preset::{
+    Blue, DarkPurple, Gold, Green, MineColorize, MineColors, Red, Yellow,
+};
 
 static MSG: &str = "Hello, world!";
 

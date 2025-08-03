@@ -4,12 +4,11 @@
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
-#[cfg(feature = "facet")]
-extern crate facet_core as facet;
 #[cfg(feature = "std")]
 extern crate std;
 
 pub mod color;
+pub mod style;
 
 #[cfg(feature = "json")]
 pub mod json;
@@ -18,9 +17,12 @@ pub mod snbt;
 
 pub mod prelude {
     //! Re-exports of common types and traits.
-    pub use crate::color::{
-        TextColor,
-        custom::CustomColor,
-        preset::{MineColorize, MineColors},
+    pub use crate::{
+        color::{
+            TextColor,
+            custom::CustomColor,
+            preset::{MineColorize, MineColors},
+        },
+        style::TextStyle,
     };
 }
