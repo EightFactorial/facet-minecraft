@@ -60,6 +60,27 @@ impl<'a> TextStyle<'a> {
             && self.obfuscated.is_none()
     }
 
+    /// Reborrow a reference to an owned [`TextStyle`].
+    #[must_use]
+    pub const fn reborrow(&self) -> TextStyle<'_> {
+        TextStyle {
+            font: match &self.font {
+                Some(Cow::Owned(font)) => Some(Cow::Borrowed(font.as_str())),
+                Some(Cow::Borrowed(font)) => Some(Cow::Borrowed(font)),
+                None => None,
+            },
+            color: match &self.color {
+                Some(color) => Some(color.reborrow()),
+                None => None,
+            },
+            bold: self.bold,
+            italic: self.italic,
+            underlined: self.underlined,
+            strikethrough: self.strikethrough,
+            obfuscated: self.obfuscated,
+        }
+    }
+
     /// Set the font of the [`TextStyle`].
     #[must_use]
     pub const fn with_font<'b>(&'b self, font: Cow<'b, str>) -> TextStyle<'b>
@@ -186,6 +207,24 @@ impl<'a> TextStyle<'a> {
         }
     }
 
+    /// Create a new [`TextStyle`] that inherits unset properties from a parent
+    /// style.
+    ///
+    /// This is similar to [`TextStyle::inherit`], but allows for a more
+    /// flexible lifetime relationship between the parent and child styles.
+    #[must_use]
+    pub fn inherit_owned(&self, parent: &TextStyle<'a>) -> TextStyle<'a> {
+        TextStyle {
+            font: self.font.as_ref().or(parent.font.as_ref()).cloned(),
+            color: self.color.as_ref().or(parent.color.as_ref()).cloned(),
+            bold: self.bold.or(parent.bold),
+            italic: self.italic.or(parent.italic),
+            underlined: self.underlined.or(parent.underlined),
+            strikethrough: self.strikethrough.or(parent.strikethrough),
+            obfuscated: self.obfuscated.or(parent.obfuscated),
+        }
+    }
+
     /// Create a new [`TextStyle`] that only contains properties that differ
     /// from another style.
     ///
@@ -210,7 +249,7 @@ impl<'a> TextStyle<'a> {
     pub const fn diff<'b>(&'b self, other: &'b TextStyle<'_>) -> TextStyle<'b>
     where 'a: 'b {
         /// Return `a` if not equal, either if only one value is set, or `None`.
-        const fn or_neq<T: Copy + PartialEq>(a: Option<T>, b: Option<T>, eq: bool) -> Option<T> {
+        const fn or_neq<T: Copy>(a: Option<T>, b: Option<T>, eq: bool) -> Option<T> {
             match (a, b, eq) {
                 (Some(val), Some(_), false) | (Some(val), None, _) | (None, Some(val), _) => {
                     Some(val)
@@ -286,6 +325,33 @@ impl<'a> TextStyle<'a> {
                 other.obfuscated,
                 bool_eq(self.obfuscated, other.obfuscated),
             ),
+        }
+    }
+
+    /// Create a new [`TextStyle`] that only contains properties that differ
+    /// from another style.
+    ///
+    /// This is similar to [`TextStyle::diff`], but allows for a more
+    /// flexible lifetime relationship between the two styles.
+    #[must_use]
+    pub fn diff_owned(&self, other: &TextStyle<'a>) -> TextStyle<'a> {
+        /// Return `a` if not equal, either if only one value is set, or `None`.
+        fn or_neq<T: PartialEq>(a: Option<T>, b: Option<T>) -> Option<T> {
+            match (a, b) {
+                (Some(val), Some(other)) if val != other => Some(val),
+                (Some(val), None) | (None, Some(val)) => Some(val),
+                _ => None,
+            }
+        }
+
+        TextStyle {
+            font: or_neq(self.font.as_ref(), other.font.as_ref()).cloned(),
+            color: or_neq(self.color.as_ref(), other.color.as_ref()).cloned(),
+            bold: or_neq(self.bold, other.bold),
+            italic: or_neq(self.italic, other.italic),
+            underlined: or_neq(self.underlined, other.underlined),
+            strikethrough: or_neq(self.strikethrough, other.strikethrough),
+            obfuscated: or_neq(self.obfuscated, other.obfuscated),
         }
     }
 }

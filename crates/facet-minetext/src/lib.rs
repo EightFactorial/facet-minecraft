@@ -9,9 +9,8 @@ extern crate std;
 pub mod color;
 pub mod style;
 
-#[cfg(feature = "json")]
-pub mod json;
 pub mod snbt;
+pub mod text;
 
 pub mod prelude {
     //! Re-exports of common types and traits.
@@ -22,5 +21,6 @@ pub mod prelude {
             preset::{MineColorize, MineColors},
         },
         style::TextStyle,
+        text::{BorrowedText, TextContent},
     };
 }
