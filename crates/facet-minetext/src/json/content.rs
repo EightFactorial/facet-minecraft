@@ -8,8 +8,7 @@ use crate::style::TextStyle;
 
 // TODO: Add `facet(untagged)` when it is implemented.
 #[repr(u8)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub enum TextContent<'a> {
     Text(TextComponent<'a>),
     Translation(TranslationComponent<'a>),
@@ -41,8 +40,7 @@ impl<'a> From<NbtComponent<'a>> for TextContent<'a> {
 // -------------------------------------------------------------------------------------------------
 
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct TextComponent<'a> {
     pub text: Cow<'a, str>,
 }
@@ -69,13 +67,12 @@ fn text() {
 
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct TranslationComponent<'a> {
     translate: Cow<'a, str>,
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
+    #[facet(skip_serializing_if = Option::is_none)]
     fallback: Option<Cow<'a, str>>,
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Vec::is_empty))]
+    #[facet(skip_serializing_if = Vec::is_empty)]
     with: Vec<BorrowedJsonText<'a>>,
 }
 
@@ -124,8 +121,7 @@ fn translation_with() {
 
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct ScoreComponent<'a> {
     pub name: Cow<'a, str>,
     pub objective: Cow<'a, str>,
@@ -149,12 +145,11 @@ fn score() {
 
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct SelectorComponent<'a> {
     selector: Cow<'a, str>,
-    #[cfg_attr(feature = "facet", facet(default = default_separator()))]
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = is_default_separator))]
+    #[facet(default = default_separator())]
+    #[facet(skip_serializing_if = is_default_separator)]
     separator: Box<BorrowedJsonText<'a>>,
 }
 
@@ -198,8 +193,7 @@ fn selector_separator() {
 // -------------------------------------------------------------------------------------------------
 
 #[repr(transparent)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct KeybindComponent<'a> {
     pub keybind: Cow<'a, str>,
 }
@@ -228,25 +222,24 @@ fn keybind() {
 
 // -------------------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct NbtComponent<'a> {
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
+    #[facet(skip_serializing_if = Option::is_none)]
     source: Option<Cow<'a, str>>,
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
+    #[facet(skip_serializing_if = Option::is_none)]
     path: Option<Cow<'a, str>>,
 
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
+    #[facet(skip_serializing_if = Option::is_none)]
     interpret: Option<bool>,
-    #[cfg_attr(feature = "facet", facet(default = default_separator()))]
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = is_default_separator))]
+    #[facet(default = default_separator())]
+    #[facet(skip_serializing_if = is_default_separator)]
     separator: Box<BorrowedJsonText<'a>>,
 
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
+    #[facet(skip_serializing_if = Option::is_none)]
     block: Option<Cow<'a, str>>,
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
+    #[facet(skip_serializing_if = Option::is_none)]
     entity: Option<Cow<'a, str>>,
-    #[cfg_attr(feature = "facet", facet(skip_serializing_if = Option::is_none))]
+    #[facet(skip_serializing_if = Option::is_none)]
     storage: Option<Cow<'a, str>>,
 }
 

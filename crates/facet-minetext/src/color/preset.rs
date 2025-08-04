@@ -14,11 +14,10 @@ macro_rules! generate_colors {
         /// An enum representing all of the named colors.
         #[repr(u8)]
         #[expect(missing_docs)]
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        #[cfg_attr(feature = "facet", derive(facet::Facet))]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, facet::Facet)]
         pub enum MineColors {
             $(
-                #[cfg_attr(feature = "facet", facet(rename = $name))]
+                #[facet(rename = $name)]
                 $color,
             )*
         }

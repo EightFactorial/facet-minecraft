@@ -1,20 +1,10 @@
 //! Custom color representation.
 
-#[cfg(feature = "alloc")]
 use alloc::borrow::Cow;
 
 /// A string slice that represents a color.
 #[repr(transparent)]
-#[cfg(not(feature = "alloc"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
-pub struct CustomColor<'a>(&'a str);
-
-/// A string slice that represents a color.
-#[repr(transparent)]
-#[cfg(feature = "alloc")]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "facet", derive(facet::Facet))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct CustomColor<'a>(Cow<'a, str>);
 
 impl<'a> CustomColor<'a> {
@@ -27,30 +17,22 @@ impl<'a> CustomColor<'a> {
     /// This constructor does not validate the string.
     #[inline]
     #[must_use]
-    #[cfg(not(feature = "alloc"))]
-    pub const fn new(color: &'a str) -> Self { Self(color) }
-
-    /// Create a new [`CustomColor`] from a hexadecimal string slice.
-    ///
-    /// Supports both 6-character and 7-character strings,
-    /// where the latter starts with a `#`.
-    ///
-    /// # Warning
-    /// This constructor does not validate the string.
-    #[inline]
-    #[must_use]
-    #[cfg(feature = "alloc")]
     pub const fn new(color: &'a str) -> Self { Self(Cow::Borrowed(color)) }
 
-    /// Get the color's inner string slice.
-    #[inline]
+    /// A `const` equivalent to [`PartialEq`].
+    ///
+    /// Should only be used in `const` contexts.
     #[must_use]
-    #[cfg(not(feature = "alloc"))]
-    pub const fn as_str(&self) -> &'a str { self.0 }
+    pub const fn const_eq(&self, other: &CustomColor<'_>) -> bool {
+        const_str::equal!(self.as_str(), other.as_str())
+    }
+
+    /// Reborrow a reference to an owned [`CustomColor`].
+    #[must_use]
+    pub const fn reborrow(&self) -> CustomColor<'_> { CustomColor(Cow::Borrowed(self.as_str())) }
 
     /// Get the color's inner string slice.
     #[must_use]
-    #[cfg(feature = "alloc")]
     pub const fn as_str(&self) -> &str {
         match &self.0 {
             Cow::Borrowed(s) => s,
@@ -110,7 +92,6 @@ impl<'a> From<&'a str> for CustomColor<'a> {
     #[inline]
     fn from(color: &'a str) -> Self { Self::new(color) }
 }
-#[cfg(feature = "alloc")]
 impl<'a> From<&'a Cow<'_, str>> for CustomColor<'a> {
     #[inline]
     fn from(color: &'a Cow<'_, str>) -> Self { Self::new(color) }

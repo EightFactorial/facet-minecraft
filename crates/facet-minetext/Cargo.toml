@@ -18,45 +18,40 @@ workspace = true
 
 [dev-dependencies]
 divan = { workspace = true }
-pretty_assertions = { workspace = true }
+pretty_assertions = { features = ["alloc"], workspace = true }
 
 [dependencies]
-ariadne = { optional = true, workspace = true }
 const-str = { workspace = true }
 const_panic = { features = ["rust_1_88"], workspace = true }
-facet = { optional = true, workspace = true }
-facet-deserialize = { optional = true, workspace = true }
+facet = { features = ["alloc"], workspace = true }
+facet-deserialize = { workspace = true }
+facet-nbt = { features = ["alloc", "facet"], workspace = true }
+facet-serialize = { workspace = true }
+facet-snbt = { features = ["alloc"], workspace = true }
+owo-colors = { features = ["alloc"], workspace = true }
+
+# Optional dependencies
+ariadne = { optional = true, workspace = true }
 facet-json = { optional = true, workspace = true }
-facet-serialize = { optional = true, workspace = true }
-facet-snbt = { optional = true, workspace = true }
-owo-colors = { workspace = true }
-simd_cesu8 = { optional = true, workspace = true }
 
 [features]
-default = ["json", "snbt", "std"]
+default = ["json", "std"]
 
 # Enable reading SNBT-based text,
 # used in versions 1.21.4 and earlier
-json = ["alloc", "dep:facet-json", "facet"]
-# Enable reading JSON-based text,
-# used in versions 1.21.5 and later
-snbt = ["alloc", "dep:facet-snbt", "facet"]
+json = ["dep:facet-json"]
 
 # Enable rich diagnostics
 rich-diagnostics = [
   "dep:ariadne",
-  "facet-deserialize?/rich-diagnostics",
+  "facet-deserialize/rich-diagnostics",
   "facet-json?/rich-diagnostics",
-  "facet-snbt?/rich-diagnostics",
+  "facet-snbt/rich-diagnostics",
   "std",
 ]
-# Enable support for `facet` crates
-facet = ["dep:facet", "dep:facet-deserialize", "dep:facet-serialize"]
 
-# Enable support for the alloc library
-alloc = ["facet-snbt?/alloc", "owo-colors/alloc", "pretty_assertions/alloc"]
 # Enable support for the standard library
-std = ["alloc", "facet-deserialize?/std", "facet-serialize?/std", "facet-snbt?/std", "pretty_assertions/std"]
+std = ["facet-deserialize/std", "facet-serialize/std", "facet-snbt/std", "pretty_assertions/std"]
 # Enable features using the nightly toolchain
 nightly = []
 
