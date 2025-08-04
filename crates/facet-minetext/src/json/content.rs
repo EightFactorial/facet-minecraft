@@ -260,6 +260,6 @@ static DEFAULT_SEPARATOR: BorrowedJsonText<'static> = BorrowedJsonText {
 fn default_separator() -> Box<BorrowedJsonText<'static>> { Box::new(DEFAULT_SEPARATOR.clone()) }
 
 #[expect(clippy::borrowed_box)]
-fn is_default_separator<'a>(separator: &Box<BorrowedJsonText<'a>>) -> bool {
+fn is_default_separator(separator: &Box<BorrowedJsonText<'_>>) -> bool {
     separator.as_ref() == &DEFAULT_SEPARATOR
 }

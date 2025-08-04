@@ -1,10 +1,21 @@
 //! Custom color representation.
 
+#[cfg(feature = "alloc")]
+use alloc::borrow::Cow;
+
 /// A string slice that represents a color.
 #[repr(transparent)]
+#[cfg(not(feature = "alloc"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "facet", derive(facet::Facet))]
 pub struct CustomColor<'a>(&'a str);
+
+/// A string slice that represents a color.
+#[repr(transparent)]
+#[cfg(feature = "alloc")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "facet", derive(facet::Facet))]
+pub struct CustomColor<'a>(Cow<'a, str>);
 
 impl<'a> CustomColor<'a> {
     /// Create a new [`CustomColor`] from a hexadecimal string slice.
@@ -16,12 +27,36 @@ impl<'a> CustomColor<'a> {
     /// This constructor does not validate the string.
     #[inline]
     #[must_use]
+    #[cfg(not(feature = "alloc"))]
     pub const fn new(color: &'a str) -> Self { Self(color) }
+
+    /// Create a new [`CustomColor`] from a hexadecimal string slice.
+    ///
+    /// Supports both 6-character and 7-character strings,
+    /// where the latter starts with a `#`.
+    ///
+    /// # Warning
+    /// This constructor does not validate the string.
+    #[inline]
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    pub const fn new(color: &'a str) -> Self { Self(Cow::Borrowed(color)) }
 
     /// Get the color's inner string slice.
     #[inline]
     #[must_use]
+    #[cfg(not(feature = "alloc"))]
     pub const fn as_str(&self) -> &'a str { self.0 }
+
+    /// Get the color's inner string slice.
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    pub const fn as_str(&self) -> &str {
+        match &self.0 {
+            Cow::Borrowed(s) => s,
+            Cow::Owned(s) => s.as_str(),
+        }
+    }
 
     /// Try to convert the color string to a [`u32`] value.
     ///
@@ -39,13 +74,13 @@ impl<'a> CustomColor<'a> {
     /// assert_eq!(color.try_as_u32(), Ok(0xFF5733));
     /// ```
     pub const fn try_as_u32(&self) -> Result<u32, ParseColorError> {
-        match self.0.len() {
-            6 => match u32::from_str_radix(self.0, 16) {
+        match self.as_str().len() {
+            6 => match u32::from_str_radix(self.as_str(), 16) {
                 Ok(value) => Ok(value),
                 Err(err) => Err(ParseColorError::ParseIntError(err)),
             },
-            7 if self.0.as_bytes()[0] == b'#' => {
-                match u32::from_str_radix(self.0.split_at(1).1, 16) {
+            7 if self.as_str().as_bytes()[0] == b'#' => {
+                match u32::from_str_radix(self.as_str().split_at(1).1, 16) {
                     Ok(value) => Ok(value),
                     Err(err) => Err(ParseColorError::ParseIntError(err)),
                 }
@@ -62,9 +97,9 @@ impl<'a> CustomColor<'a> {
     pub const fn try_as_dyncolor(&self) -> Result<owo_colors::DynColors, ParseColorError> {
         match self.try_as_u32() {
             Ok(value) => Ok(owo_colors::DynColors::Rgb(
-                ((value >> 16) & 0x0000FF) as u8,
-                ((value >> 8) & 0x0000FF) as u8,
-                (value & 0x0000FF) as u8,
+                ((value >> 16) & 0xFF) as u8,
+                ((value >> 8) & 0xFF) as u8,
+                (value & 0xFF) as u8,
             )),
             Err(err) => Err(err),
         }
@@ -76,9 +111,9 @@ impl<'a> From<&'a str> for CustomColor<'a> {
     fn from(color: &'a str) -> Self { Self::new(color) }
 }
 #[cfg(feature = "alloc")]
-impl<'a> From<&'a alloc::borrow::Cow<'_, str>> for CustomColor<'a> {
+impl<'a> From<&'a Cow<'_, str>> for CustomColor<'a> {
     #[inline]
-    fn from(color: &'a alloc::borrow::Cow<'_, str>) -> Self { Self::new(color) }
+    fn from(color: &'a Cow<'_, str>) -> Self { Self::new(color) }
 }
 
 impl TryFrom<CustomColor<'_>> for u32 {
