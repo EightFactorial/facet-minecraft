@@ -16,6 +16,8 @@ const TEXT_A_CHILD_1: BorrowedText<'static> = BorrowedText::new_with(
 );
 const TEXT_A_CHILD_2: BorrowedText<'static> =
     BorrowedText::new_with(TextContent::Text(TextComponent::new("Child A2 ")), TextStyle::NONE);
+const TEXT_A_CHILD_3: BorrowedText<'static> =
+    BorrowedText::new_with(TextContent::Text(TextComponent::new("Child A3 ")), TextStyle::NONE);
 
 const TEXT_B: BorrowedText<'static> = BorrowedText::new_with(
     TextContent::Text(TextComponent::new("Text B ")),
@@ -30,7 +32,10 @@ const TEXT_B_CHILD_2: BorrowedText<'static> = BorrowedText::new_with(
 
 fn main() {
     let text = BASE.with_children(vec![
-        TEXT_A.with_children(vec![TEXT_A_CHILD_1, TEXT_A_CHILD_2]),
+        TEXT_A.with_children(vec![
+            TEXT_A_CHILD_1,
+            TEXT_A_CHILD_2.with_children(vec![TEXT_A_CHILD_3]),
+        ]),
         TEXT_B.with_children(vec![TEXT_B_CHILD_1, TEXT_B_CHILD_2]),
     ]);
 
