@@ -1,29 +1,39 @@
-//! An example showing how to use [`MineColors`] and [`MineColorize`]
-//! to print colored text to the terminal.
+//! An example showing how to create and style [`BorrowedText`] with children,
+//! and why to `propagate` before printing to the terminal.
 
-use facet_minetext::color::preset::{
-    Blue, DarkPurple, Gold, Green, MineColorize, MineColors, Red, Yellow,
-};
+use facet_minetext::{prelude::*, text::content::TextComponent};
 
-static MSG: &str = "Hello, world!";
+const BASE: BorrowedText<'static> =
+    BorrowedText::new_with(TextContent::Text(TextComponent::new("")), TextStyle::NONE);
+
+const TEXT_A: BorrowedText<'static> = BorrowedText::new_with(
+    TextContent::Text(TextComponent::new("Text A ")),
+    TextStyle::NONE.with_color(TextColor::Preset(MineColors::Red)),
+);
+const TEXT_A_CHILD_1: BorrowedText<'static> = BorrowedText::new_with(
+    TextContent::Text(TextComponent::new("Child A1 ")),
+    TextStyle::NONE.with_color(TextColor::Preset(MineColors::Blue)).with_bold(true),
+);
+const TEXT_A_CHILD_2: BorrowedText<'static> =
+    BorrowedText::new_with(TextContent::Text(TextComponent::new("Child A2 ")), TextStyle::NONE);
+
+const TEXT_B: BorrowedText<'static> = BorrowedText::new_with(
+    TextContent::Text(TextComponent::new("Text B ")),
+    TextStyle::NONE.with_color(TextColor::Preset(MineColors::Green)),
+);
+const TEXT_B_CHILD_1: BorrowedText<'static> =
+    BorrowedText::new(TextContent::Text(TextComponent::new("Child B1 ")));
+const TEXT_B_CHILD_2: BorrowedText<'static> = BorrowedText::new_with(
+    TextContent::Text(TextComponent::new("Child B2")),
+    TextStyle::NONE.with_strikethrough(true),
+);
 
 fn main() {
-    // The `fg` and `bg` methods to color the text at compile time.
-    println!("{} {}", MSG.fg::<Red>(), MSG.bg::<Red>());
-    println!("{} {}", MSG.fg::<Gold>(), MSG.bg::<Gold>());
-    println!("{} {}", MSG.fg::<Yellow>(), MSG.bg::<Yellow>());
-    println!("{} {}", MSG.fg::<Green>(), MSG.bg::<Green>());
-    println!("{} {}", MSG.fg::<Blue>(), MSG.bg::<Blue>());
-    println!("{} {}", MSG.fg::<DarkPurple>(), MSG.bg::<DarkPurple>());
+    let text = BASE.with_children(vec![
+        TEXT_A.with_children(vec![TEXT_A_CHILD_1, TEXT_A_CHILD_2]),
+        TEXT_B.with_children(vec![TEXT_B_CHILD_1, TEXT_B_CHILD_2]),
+    ]);
 
-    println!();
-
-    // The `fg_using` and `bg_using` methods to color the text at runtime.
-    println!("{} {}", MSG.fg_using("aqua"), MSG.bg_using(MineColors::Aqua));
-    println!("{} {}", MSG.fg_using("dark_gray"), MSG.bg_using(MineColors::DarkGray));
-
-    println!();
-
-    // Invalid string colors will fallback to white.
-    println!("{}", MSG.fb_using("crimson", "transparent"));
+    println!("Before: {text}");
+    println!("After:  {}", text.propagate(None));
 }

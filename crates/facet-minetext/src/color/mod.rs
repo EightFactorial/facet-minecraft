@@ -15,6 +15,28 @@ pub enum TextColor<'a> {
 }
 
 impl TextColor<'_> {
+    /// Get the color as a [`u32`].
+    ///
+    /// # Errors
+    /// Returns an error if the color is a custom color that cannot be parsed.
+    pub const fn as_u32(&self) -> Result<u32, custom::ParseColorError> {
+        match self {
+            TextColor::Preset(color) => Ok(color.fg_u32()),
+            TextColor::Custom(color) => color.try_as_u32(),
+        }
+    }
+
+    /// Get the color as a [`DynColors`](owo_colors::DynColors).
+    ///
+    /// # Errors
+    /// Returns an error if the color is a custom color that cannot be parsed.
+    pub const fn as_dyncolor(&self) -> Result<owo_colors::DynColors, custom::ParseColorError> {
+        match self {
+            TextColor::Preset(color) => Ok(color.fg()),
+            TextColor::Custom(color) => color.try_as_dyncolor(),
+        }
+    }
+
     /// A `const` equivalent to [`PartialEq`].
     ///
     /// Should only be used in `const` contexts.

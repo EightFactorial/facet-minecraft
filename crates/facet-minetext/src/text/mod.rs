@@ -7,6 +7,8 @@ pub use content::TextContent;
 
 mod interaction;
 
+mod display;
+
 use crate::style::TextStyle;
 
 /// A borrowed text component.
@@ -74,7 +76,11 @@ impl<'a> BorrowedText<'a> {
         self.children = children;
         self
     }
+}
 
+// -------------------------------------------------------------------------------------------------
+
+impl<'a> BorrowedText<'a> {
     /// Returns a simplified version of the [`BorrowedText`] where redundant
     /// styling is removed.
     ///

@@ -2,7 +2,10 @@
 
 use alloc::borrow::Cow;
 
-use crate::color::{TextColor, preset::MineColors};
+use crate::color::{
+    TextColor,
+    preset::{MineColor, MineColors, White},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, facet::Facet)]
 pub struct TextStyle<'a> {
@@ -357,3 +360,48 @@ impl<'a> TextStyle<'a> {
 }
 
 // -------------------------------------------------------------------------------------------------
+
+impl From<TextStyle<'_>> for owo_colors::Style {
+    #[inline]
+    fn from(value: TextStyle<'_>) -> Self { value.to_owo_style() }
+}
+impl From<&TextStyle<'_>> for owo_colors::Style {
+    fn from(value: &TextStyle<'_>) -> Self { value.to_owo_style() }
+}
+
+impl TextStyle<'_> {
+    /// Create a [`owo_colors::Style`] from the [`TextStyle`].
+    #[must_use]
+    pub const fn to_owo_style(&self) -> owo_colors::Style {
+        let mut style = owo_colors::Style::new();
+
+        match self.color.as_ref() {
+            Some(color) => match color.as_u32() {
+                Ok(value) => {
+                    style = style.truecolor(
+                        ((value >> 16) & 0xFF) as u8,
+                        ((value >> 8) & 0xFF) as u8,
+                        (value & 0xFF) as u8,
+                    );
+                }
+                Err(..) => style = style.fg::<<White as MineColor>::Foreground>(),
+            },
+            None => style = style.fg::<<White as MineColor>::Foreground>(),
+        }
+
+        if let Some(true) = self.bold {
+            style = style.bold();
+        }
+        if let Some(true) = self.italic {
+            style = style.italic();
+        }
+        if let Some(true) = self.underlined {
+            style = style.underline();
+        }
+        if let Some(true) = self.strikethrough {
+            style = style.strikethrough();
+        }
+
+        style
+    }
+}

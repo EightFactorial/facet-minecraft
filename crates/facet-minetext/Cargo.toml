@@ -56,5 +56,9 @@ std = ["facet-deserialize/std", "facet-serialize/std", "facet-snbt/std", "pretty
 nightly = []
 
 [[example]]
+name = "colorize"
+required-features = ["std"]
+
+[[example]]
 name = "terminal"
 required-features = ["std"]
