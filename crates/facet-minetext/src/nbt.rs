@@ -1,69 +1,99 @@
 //! TODO
 
+use std::vec::Vec;
+
 use facet_nbt::prelude::*;
 
 use crate::prelude::*;
 
 impl<'a> BorrowedText<'a> {
-    /// Converts a [`BorrowedText`] into a [`BorrowedNbt`].
-    ///
-    /// # Errors
-    /// Returns an error if TODO
-    pub fn try_as_nbt(&self) -> Result<BorrowedNbt<'a>, NbtTextError> {
-        let compound = BorrowedCompound::with_capacity(1);
+    /// Converts a [`BorrowedText`] into a [`NbtCompound`].
+    pub fn as_nbt(&self) -> NbtCompound {
+        let mut compound = NbtCompound::with_capacity(1);
 
-        Ok(BorrowedNbt::from_parts(None, compound))
+        self.content.as_nbt(&mut compound);
+        self.style.as_nbt(&mut compound);
+
+        if !self.children.is_empty() {
+            let mut extra = Vec::with_capacity(self.children.len());
+            for child in &self.children {
+                extra.push(child.as_nbt());
+            }
+
+            compound
+                .insert(Mutf8String::new_str("extra"), NbtTag::List(NbtListTag::Compound(extra)));
+        }
+
+        compound
     }
 
-    /// Converts a [`BorrowedNbt`] into a [`BorrowedText`].
+    /// Converts a [`NbtCompound`] into a [`BorrowedText`].
     ///
     /// # Errors
     /// Returns an error if the NBT does not contain formatted text.
-    pub fn try_from_nbt(_nbt: &BorrowedNbt<'a>) -> Result<Self, NbtTextError> {
+    pub fn try_from_nbt(_nbt: &NbtCompound) -> Result<Self, NbtTextError> {
         let text = BorrowedText::new(TextContent::from(""));
 
         Ok(text)
     }
 }
 
-impl<'a> TryFrom<BorrowedNbt<'a>> for BorrowedText<'a> {
-    type Error = NbtTextError;
-
-    #[inline]
-    fn try_from(nbt: BorrowedNbt<'a>) -> Result<Self, Self::Error> {
-        BorrowedText::try_from_nbt(&nbt)
+impl<'a> TextContent<'a> {
+    fn as_nbt(&self, compound: &mut NbtCompound) {
+        match &self {
+            TextContent::Text(c) => {
+                compound.insert(
+                    Mutf8String::new_str("type"),
+                    NbtTag::String(Mutf8String::new_str("text")),
+                );
+                compound.insert(
+                    Mutf8String::new_str("text"),
+                    NbtTag::String(Mutf8String::new_str(&c.text)),
+                );
+            }
+            TextContent::Translation(_c) => todo!(),
+            TextContent::Score(_c) => todo!(),
+            TextContent::Selector(_c) => todo!(),
+            TextContent::Keybind(_c) => todo!(),
+            TextContent::Nbt(_c) => todo!(),
+        }
     }
 }
-impl<'a> TryFrom<&'a BorrowedNbt<'a>> for BorrowedText<'a> {
+
+impl<'a> TextStyle<'a> {
+    fn as_nbt(&self, _compound: &mut NbtCompound) {}
+}
+
+// -------------------------------------------------------------------------------------------------
+
+impl<'a> TryFrom<NbtCompound> for BorrowedText<'a> {
     type Error = NbtTextError;
 
     #[inline]
-    fn try_from(nbt: &'a BorrowedNbt<'a>) -> Result<Self, Self::Error> {
+    fn try_from(nbt: NbtCompound) -> Result<Self, Self::Error> { BorrowedText::try_from_nbt(&nbt) }
+}
+impl<'a> TryFrom<&'a NbtCompound> for BorrowedText<'a> {
+    type Error = NbtTextError;
+
+    #[inline]
+    fn try_from(nbt: &'a NbtCompound) -> Result<Self, Self::Error> {
         BorrowedText::try_from_nbt(nbt)
     }
 }
 
-impl<'a> TryFrom<BorrowedText<'a>> for BorrowedNbt<'a> {
-    type Error = NbtTextError;
-
+impl<'a> From<BorrowedText<'a>> for NbtCompound {
     #[inline]
-    fn try_from(text: BorrowedText<'a>) -> Result<Self, Self::Error> {
-        BorrowedText::try_as_nbt(&text)
-    }
+    fn from(text: BorrowedText<'a>) -> Self { BorrowedText::as_nbt(&text) }
 }
-impl<'a> TryFrom<&'a BorrowedText<'a>> for BorrowedNbt<'a> {
-    type Error = NbtTextError;
-
+impl<'a> From<&BorrowedText<'a>> for NbtCompound {
     #[inline]
-    fn try_from(text: &'a BorrowedText<'a>) -> Result<Self, Self::Error> {
-        BorrowedText::try_as_nbt(text)
-    }
+    fn from(text: &BorrowedText<'a>) -> Self { BorrowedText::as_nbt(text) }
 }
 
 // -------------------------------------------------------------------------------------------------
 
 /// An error that occurs when converting between
-/// [`BorrowedText`] and [`BorrowedNbt`].
+/// [`BorrowedText`] and [`NbtCompound`].
 pub enum NbtTextError {
     #[expect(missing_docs)]
     Placeholder,
