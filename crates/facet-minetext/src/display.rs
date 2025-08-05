@@ -1,13 +1,18 @@
+//! TODO
+
 use core::fmt::{Display, Formatter, Result};
 
-use super::{BorrowedText, TextContent};
-use crate::style::TextStyle;
+use crate::prelude::*;
 
+/// A trait for accessing data needed for displaying text.
 pub trait TextDisplayData: Sized {}
 
 // -------------------------------------------------------------------------------------------------
 
-/// The [`TextDisplayData`] used by the [`Display`] trait.
+/// The [`TextDisplayData`] used by Rust's [`Display`] trait.
+///
+/// Contains no data and will error if attempting to display text that requires
+/// additional data such as translations.
 struct Empty;
 impl TextDisplayData for Empty {}
 

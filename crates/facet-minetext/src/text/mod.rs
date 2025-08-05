@@ -7,8 +7,6 @@ pub use content::TextContent;
 
 mod interaction;
 
-mod display;
-
 use crate::style::TextStyle;
 
 /// A borrowed text component.

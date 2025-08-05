@@ -7,9 +7,9 @@ extern crate alloc;
 extern crate std;
 
 pub mod color;
+pub mod display;
+pub mod nbt;
 pub mod style;
-
-pub mod snbt;
 pub mod text;
 
 pub mod prelude {
