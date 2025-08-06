@@ -1,13 +1,14 @@
 //! TODO
 
-use std::vec::Vec;
+use alloc::vec::Vec;
 
 use facet_nbt::prelude::*;
 
 use crate::prelude::*;
 
-impl<'a> BorrowedText<'a> {
+impl BorrowedText<'_> {
     /// Converts a [`BorrowedText`] into a [`NbtCompound`].
+    #[must_use]
     pub fn as_nbt(&self) -> NbtCompound {
         let mut compound = NbtCompound::with_capacity(1);
 
@@ -38,7 +39,7 @@ impl<'a> BorrowedText<'a> {
     }
 }
 
-impl<'a> TextContent<'a> {
+impl TextContent<'_> {
     fn as_nbt(&self, compound: &mut NbtCompound) {
         match &self {
             TextContent::Text(c) => {
@@ -60,13 +61,13 @@ impl<'a> TextContent<'a> {
     }
 }
 
-impl<'a> TextStyle<'a> {
-    fn as_nbt(&self, _compound: &mut NbtCompound) {}
+impl TextStyle<'_> {
+    fn as_nbt(&self, _compound: &mut NbtCompound) { todo!() }
 }
 
 // -------------------------------------------------------------------------------------------------
 
-impl<'a> TryFrom<NbtCompound> for BorrowedText<'a> {
+impl TryFrom<NbtCompound> for BorrowedText<'_> {
     type Error = NbtTextError;
 
     #[inline]

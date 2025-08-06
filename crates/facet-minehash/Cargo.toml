@@ -1,0 +1,34 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+name = "facet-minehash"
+readme = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+divan = { workspace = true }
+
+[dependencies]
+crc32c = { workspace = true }
+facet-core = { features = ["alloc"], workspace = true }
+facet-reflect = { features = ["alloc"], workspace = true }
+facet-serialize = { features = ["alloc"], workspace = true }
+
+[features]
+default = ["std"]
+
+# Enable support for the standard library
+std = ["facet-reflect/std", "facet-serialize/std"]
+# Enable features using the nightly toolchain
+nightly = []

@@ -43,6 +43,7 @@ unnecessary_cast = "warn"
 [workspace.dependencies]
 # Workspace crates
 facet-minecraft = { default-features = false, path = "crates/facet-minecraft", version = "0.1" }
+facet-minehash = { default-features = false, path = "crates/facet-minehash", version = "0.1" }
 facet-minetext = { default-features = false, path = "crates/facet-minetext", version = "0.1" }
 facet-nbt = { default-features = false, path = "crates/facet-nbt", version = "0.1" }
 facet-snbt = { default-features = false, path = "crates/facet-snbt", version = "0.1" }
@@ -60,6 +61,7 @@ facet-serialize = { default-features = false, version = "0.28" }
 ariadne = { default-features = false, version = "0.5" }
 const-str = { default-features = false, version = "0.6" }
 const_panic = { default-features = false, version = "0.2" }
+crc32c = { default-features = false, version = "0.6" }
 fxhash = { default-features = false, version = "0.2" }
 indexmap = { default-features = false, version = "2.10" }
 inventory = { default-features = false, version = "0.3" }
