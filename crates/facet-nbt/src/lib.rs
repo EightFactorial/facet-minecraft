@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
 
@@ -19,6 +20,7 @@ pub mod format;
 pub mod mutf8;
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod test;
 
 pub mod prelude {

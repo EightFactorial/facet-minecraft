@@ -37,6 +37,11 @@ default = ["custom", "full", "std"]
 # Enable all serialization and deserialization features
 full = ["deserialize", "json", "serialize"]
 
+# Enable deserialization support
+deserialize = ["dep:facet-reflect"]
+# Enable serialization support
+serialize = ["dep:facet-reflect"]
+
 # Allow custom serialization implementations
 custom = ["dep:facet-reflect", "dep:inventory"]
 # Enable critical-section on `no_std` platforms
@@ -51,13 +56,9 @@ json = ["dep:facet-json", "dep:facet-reflect"]
 # Enable rich diagnostics
 rich-diagnostics = ["dep:ariadne", "facet-json?/rich-diagnostics", "std"]
 
-# Enable deserialization support
-deserialize = ["dep:facet-reflect"]
-# Enable serialization support
-serialize = ["dep:facet-reflect"]
-
 # Enable support for the `uuid` crate
 uuid = ["facet-core/uuid", "facet-reflect?/uuid"]
+
 # Enable support for the standard library
 std = ["facet-core/std", "facet-reflect?/std", "once_cell?/std"]
 # Enable features using the nightly toolchain

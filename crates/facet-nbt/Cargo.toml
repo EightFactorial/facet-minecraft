@@ -24,6 +24,7 @@ ariadne = { optional = true, workspace = true }
 const_panic = { features = ["rust_1_88"], workspace = true }
 facet-core = { optional = true, workspace = true }
 facet-macros = { optional = true, workspace = true }
+facet-minecraft = { features = ["custom"], optional = true, workspace = true }
 facet-reflect = { optional = true, workspace = true }
 fxhash = { optional = true, workspace = true }
 indexmap = { optional = true, workspace = true }
@@ -34,11 +35,14 @@ simd_cesu8 = { optional = true, workspace = true }
 default = ["facet", "std"]
 
 # Enable rich diagnostics
-rich-diagnostics = ["dep:ariadne", "dep:owo-colors", "std"]
+rich-diagnostics = ["dep:ariadne", "dep:owo-colors", "facet-minecraft?/rich-diagnostics", "std"]
 # Enable support for `facet` crates
 facet = ["dep:facet-core", "dep:facet-macros", "dep:facet-reflect"]
 # Enable support for the `uuid` crate
-uuid = ["facet-core?/uuid", "facet-reflect?/uuid"]
+uuid = ["facet-core?/uuid", "facet-minecraft?/uuid", "facet-reflect?/uuid"]
+
+# Enable support for the `facet-minecraft` crate
+facet-minecraft = ["alloc", "dep:facet-minecraft", "facet"]
 
 # Enable support for the alloc library
 alloc = [
@@ -50,6 +54,6 @@ alloc = [
   "owo-colors?/alloc",
 ]
 # Enable support for the standard library
-std = ["alloc", "facet-core?/std", "facet-reflect?/std", "indexmap?/std", "simd_cesu8?/std"]
+std = ["alloc", "facet-core?/std", "facet-minecraft?/std", "facet-reflect?/std", "indexmap?/std", "simd_cesu8?/std"]
 # Enable features using the nightly toolchain
-nightly = ["simd_cesu8?/nightly"]
+nightly = ["facet-minecraft?/nightly", "simd_cesu8?/nightly"]

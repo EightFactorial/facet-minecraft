@@ -414,6 +414,6 @@ impl DeserializeError<'_> {
     ///     ... # Other fields
     /// }
     /// ```
-    #[expect(clippy::ptr_arg, clippy::unused_self)]
+    #[expect(clippy::unused_self)]
     fn build_structure(&self, _source: &mut String) -> Option<Range<usize>> { None }
 }

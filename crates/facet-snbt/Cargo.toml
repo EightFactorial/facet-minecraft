@@ -29,6 +29,7 @@ facet-reflect = { workspace = true }
 # Optional dependencies
 ariadne = { optional = true, workspace = true }
 facet-deserialize = { features = ["alloc"], optional = true, workspace = true }
+facet-minecraft = { features = ["custom"], optional = true, workspace = true }
 facet-serialize = { features = ["alloc"], optional = true, workspace = true }
 itoa = { optional = true, workspace = true }
 once_cell = { features = ["alloc"], optional = true, workspace = true }
@@ -45,16 +46,20 @@ rich-diagnostics = [
   "dep:ariadne",
   "dep:owo-colors",
   "facet-deserialize?/rich-diagnostics",
+  "facet-minecraft?/rich-diagnostics",
   "facet-nbt/rich-diagnostics",
   "std",
 ]
 
 # Enable support for the `uuid` crate
-uuid = ["facet-core/uuid", "facet-nbt/uuid", "facet-reflect/uuid"]
+uuid = ["facet-core/uuid", "facet-minecraft?/uuid", "facet-nbt/uuid", "facet-reflect/uuid"]
 # Enable critical-section on `no_std` platforms
-critical-section = ["once_cell?/critical-section"]
+critical-section = ["facet-minecraft?/critical-section", "once_cell?/critical-section"]
 # Enable once_cell on `no_std` platforms
-once_cell = ["dep:once_cell"]
+once_cell = ["dep:once_cell", "facet-minecraft?/once_cell"]
+
+# Enable support for the `facet-minecraft` crate
+facet-minecraft = ["alloc", "dep:facet-minecraft"]
 
 # Enable support for the alloc library
 alloc = [
@@ -75,6 +80,7 @@ std = [
   "alloc",
   "facet-core/std",
   "facet-deserialize?/std",
+  "facet-minecraft?/std",
   "facet-nbt/std",
   "facet-reflect/std",
   "facet-serialize?/std",
@@ -83,4 +89,4 @@ std = [
   "regex-lite/std",
 ]
 # Enable features using the nightly toolchain
-nightly = ["facet-nbt/nightly", "simd_cesu8?/nightly"]
+nightly = ["facet-minecraft?/nightly", "facet-nbt/nightly", "simd_cesu8?/nightly"]
