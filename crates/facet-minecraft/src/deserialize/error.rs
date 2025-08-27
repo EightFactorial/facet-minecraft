@@ -71,6 +71,7 @@ impl Error for DeserializeError<'_> {}
 /// A reason for a [`DeserializeError`].
 #[non_exhaustive]
 #[expect(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorReason {
     EndOfInput,
     InvalidBool(u8),
@@ -162,6 +163,13 @@ impl ErrorReason {
             }
             _ => None,
         }
+    }
+}
+
+impl Error for ErrorReason {}
+impl Display for ErrorReason {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.error_reason())
     }
 }
 
