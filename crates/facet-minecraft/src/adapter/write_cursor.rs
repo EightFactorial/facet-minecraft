@@ -56,6 +56,18 @@ impl WriteAdapter for SliceCursor<'_> {
     }
 }
 
+impl<'a> WriteAdapter for &mut SliceCursor<'a> {
+    type Error = <SliceCursor<'a> as WriteAdapter>::Error;
+
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
+        <SliceCursor as WriteAdapter>::write(self, buf)
+    }
+
+    #[inline]
+    fn reserve(&mut self, len: usize) { <SliceCursor as WriteAdapter>::reserve(self, len) }
+}
+
 // -------------------------------------------------------------------------------------------------
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
