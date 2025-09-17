@@ -1,0 +1,131 @@
+
+# --- Workspace Dependencies ---
+
+[workspace.dependencies]
+# Workspace Crates
+facet-minecraft = { default-features = false, path = "crates/facet-minecraft", version = "0.1" }
+facet-nbt = { default-features = false, path = "crates/facet-nbt", version = "0.1" }
+
+# Facet Dependencies
+facet = { default-features = false, version = "0.29" }
+facet-core = { default-features = false, version = "0.29" }
+facet-macros = { default-features = false, version = "0.29" }
+facet-reflect = { default-features = false, version = "0.29" }
+
+# Other Dependencies
+ariadne = { default-features = false, version = "0.5" }
+foldhash = { default-features = false, version = "0.2" }
+fxhash = { default-features = false, version = "0.2" }
+indexmap = { default-features = false, version = "2.11" }
+lexical-parse-float = { default-features = false, version = "1.0" }
+lexical-parse-integer = { default-features = false, version = "1.0" }
+lexical-write-float = { default-features = false, version = "1.0" }
+lexical-write-integer = { default-features = false, version = "1.0" }
+linkme = { default-features = false, version = "0.3" }
+simd_cesu8 = { default-features = false, version = "1.1" }
+simdutf8 = { default-features = false, version = "0.1" }
+tracing = { default-features = false, version = "0.1" }
+uuid = { default-features = false, version = "1.18" }
+zerocopy = { default-features = false, version = "0.8" }
+
+# Debug Dependencies
+divan = { version = "0.1" }
+flate2 = { version = "1.1" }
+pretty_assertions = { version = "1.4" }
+proptest = { version = "1.8" }
+tracing-subscriber = { features = ["tracing-log"], version = "0.3" }
+
+# --- Workspace Settings ---
+
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+authors = ["EightFactorial"]
+edition = "2024"
+homepage = "https://github.com/EightFactorial/facet-minecraft"
+include = ["Cargo.toml", "README.md", "src/**/*.rs"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/EightFactorial/facet-minecraft"
+rust-version = "1.90.0"
+version = "0.1.0"
+
+[workspace.lints.rust]
+missing_docs = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unreachable_pub = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+
+[workspace.lints.rustdoc]
+bare_urls = "deny"
+broken_intra_doc_links = "deny"
+invalid_codeblock_attributes = "deny"
+invalid_html_tags = "deny"
+invalid_rust_codeblocks = "deny"
+private_intra_doc_links = "deny"
+
+[workspace.lints.clippy]
+allow_attributes_without_reason = "deny"
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+clone_on_ref_ptr = "warn"
+doc_markdown = "allow"
+module_name_repetitions = "allow"
+needless_pass_by_value = "allow"
+pedantic = { level = "warn", priority = -1 }
+std_instead_of_alloc = "deny"
+std_instead_of_core = "deny"
+unnecessary_cast = "warn"
+
+# --- Git Cliff ---
+
+[workspace.metadata.git-cliff.changelog]
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
+"""
+postprocessors = []
+render_always = true
+trim = true
+
+[workspace.metadata.git-cliff.git]
+commit_parsers = [
+  { body = ".*security", group = "<!-- 8 -->🛡️ Security" },
+  { group = "<!-- 0 -->🚀 Features", message = "^feat" },
+  { group = "<!-- 1 -->🐛 Bug Fixes", message = "^fix" },
+  { group = "<!-- 2 -->🚜 Refactor", message = "^refactor" },
+  { group = "<!-- 3 -->📚 Documentation", message = "^doc" },
+  { group = "<!-- 4 -->⚡ Performance", message = "^perf" },
+  { group = "<!-- 5 -->🎨 Styling", message = "^style" },
+  { group = "<!-- 6 -->🧪 Testing", message = "^test" },
+  { group = "<!-- 7 -->◀️ Revert", message = "^revert" },
+  { message = "^chore|^ci", skip = true },
+]
+commit_preprocessors = []
+conventional_commits = true
+filter_commits = false
+filter_unconventional = true
+link_parsers = []
+protect_breaking_commits = false
+recurse_submodules = false
+require_conventional = false
+sort_commits = "oldest"
+split_commits = false
+topo_order = false
+topo_order_commits = true
+use_branch_tags = false

@@ -1,0 +1,84 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+include = { workspace = true }
+license = { workspace = true }
+name = "facet-snbt"
+readme = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+# --- Benchmarks & Tests ---
+
+[dev-dependencies]
+divan = { workspace = true }
+facet-macros = { workspace = true }
+flate2 = { workspace = true }
+pretty_assertions = { workspace = true }
+proptest = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[[test]]
+name = "deserialize"
+path = "tests/deserialize.rs"
+required-features = ["rich-diagnostics"]
+
+[[test]]
+name = "deserialize_facet"
+path = "tests/deserialize_facet.rs"
+required-features = ["facet-minecraft", "rich-diagnostics"]
+
+[[test]]
+name = "serialize"
+path = "tests/serialize.rs"
+required-features = ["rich-diagnostics"]
+
+[[test]]
+name = "serialize_facet"
+path = "tests/serialize_facet.rs"
+required-features = ["facet-minecraft", "rich-diagnostics"]
+
+# --- Dependencies ---
+
+[dependencies]
+facet-core = { workspace = true }
+facet-nbt = { workspace = true }
+facet-reflect = { workspace = true }
+lexical-parse-float = { features = ["format"], workspace = true }
+lexical-parse-integer = { features = ["format"], workspace = true }
+lexical-write-float = { features = ["format"], workspace = true }
+lexical-write-integer = { features = ["format"], workspace = true }
+
+# Optional dependencies
+ariadne = { workspace = true, optional = true }
+facet-minecraft = { features = ["custom"], workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+
+# --- Features ---
+
+[features]
+default = ["std"]
+
+# Enable rich error messages.
+rich-diagnostics = ["dep:ariadne", "facet-minecraft?/rich-diagnostics", "facet-nbt/rich-diagnostics", "std"]
+# Enable tracing support.
+trace = ["dep:tracing", "facet-minecraft?/trace", "facet-nbt/trace"]
+
+# Enable `facet-minecraft` support.
+facet-minecraft = ["dep:facet-minecraft", "facet-nbt/facet-minecraft"]
+# Enable `foldhash` support.
+foldhash = ["facet-nbt/foldhash"]
+
+# Enable support for the standard library
+std = ["facet-core/std", "facet-reflect/std", "facet-minecraft?/std", "facet-nbt/std", "lexical-parse-float/std", "lexical-parse-integer/std", "lexical-write-float/std", "lexical-write-integer/std", "tracing?/std"]
+# Enable features using the nightly toolchain
+nightly = ["facet-minecraft?/nightly", "facet-nbt/nightly"]

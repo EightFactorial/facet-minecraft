@@ -1,0 +1,99 @@
+[package]
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+include = { workspace = true }
+license = { workspace = true }
+name = "facet-minecraft"
+readme = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+# --- Examples/Tests ---
+
+[dev-dependencies]
+facet = {features = ["alloc", "uuid"], workspace = true }
+pretty_assertions = { workspace = true }
+proptest = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+
+[[example]]
+name = "ping"
+path = "examples/ping.rs"
+required-features = ["std"]
+
+[[test]]
+name = "deserialize"
+path = "tests/deserialize.rs"
+required-features = ["rich-diagnostics"]
+
+[[test]]
+name = "deserialize_error"
+path = "tests/deserialize_error.rs"
+required-features = ["rich-diagnostics"]
+
+[[test]]
+name = "serialize"
+path = "tests/serialize.rs"
+required-features = ["rich-diagnostics"]
+
+[[test]]
+name = "variable_u16"
+path = "tests/integer/var_u16.rs"
+required-features = ["std"]
+
+[[test]]
+name = "variable_u32"
+path = "tests/integer/var_u32.rs"
+required-features = ["std"]
+
+[[test]]
+name = "variable_u64"
+path = "tests/integer/var_u64.rs"
+required-features = ["std"]
+
+[[test]]
+name = "variable_u128"
+path = "tests/integer/var_u128.rs"
+required-features = ["std"]
+
+# --- Dependencies ---
+
+[dependencies]
+facet-core = { features = ["alloc"],  workspace = true }
+facet-reflect = { features = ["alloc"], workspace = true }
+
+# Optional dependencies
+ariadne = { workspace = true, optional = true }
+linkme = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+
+# --- Features ---
+
+[features]
+default = ["std", "uuid"]
+
+# Enable support for custom ser/de functions.
+custom = ["dep:linkme"]
+# Enable support for `uuid`.
+uuid = ["dep:uuid", "facet-core/uuid", "facet-reflect/uuid"]
+
+# Enable rich error messages.
+rich-diagnostics = ["dep:ariadne", "std"]
+# Enable tracing support.
+trace = ["dep:tracing"]
+
+# Enable support for the standard library
+std = ["facet-core/std", "facet-reflect/std", "tracing?/std"]
+# Enable features using the nightly toolchain
+nightly = []
