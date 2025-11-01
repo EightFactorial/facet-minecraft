@@ -59,7 +59,7 @@ facet-reflect = { default-features = false, version = "0.28" }
 facet-serialize = { default-features = false, version = "0.28" }
 
 # Other dependencies
-ariadne = { default-features = false, version = "0.5" }
+ariadne = { default-features = false, version = "0.6" }
 const-str = { default-features = false, version = "0.6" }
 const_panic = { default-features = false, version = "0.2" }
 crc32c = { default-features = false, version = "0.6" }
