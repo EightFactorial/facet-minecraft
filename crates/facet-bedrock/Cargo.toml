@@ -3,7 +3,7 @@ edition = { workspace = true }
 homepage = { workspace = true }
 include = { workspace = true }
 license = { workspace = true }
-name = "facet-minecraft"
+name = "facet-bedrock"
 readme = { workspace = true }
 repository = { workspace = true }
 rust-version = { workspace = true }

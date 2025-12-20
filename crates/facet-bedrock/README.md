@@ -1,4 +1,4 @@
-# facet-minecraft
+# facet-bedrock
 
 ```rust
 //! Read and write anything¹ that implements `Facet`!
