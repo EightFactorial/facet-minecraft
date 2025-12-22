@@ -21,6 +21,13 @@ pub trait Deserializable<'facet>: Facet<'facet> + Sized {
     /// Deserialize a value from a byte slice and returning any
     /// remaining bytes.
     ///
+    /// # Note
+    ///
+    /// This function **does not** support JIT!
+    ///
+    /// Use [`Deserializable::from_slice_borrowed`] or any of the other
+    /// deserialization functions if you want JIT support.
+    ///
     /// # Errors
     ///
     /// This function will return an error if deserialization fails.

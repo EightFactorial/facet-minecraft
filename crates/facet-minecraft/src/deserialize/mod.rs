@@ -1,7 +1,5 @@
 //! TODO
 
-use core::marker::PhantomData;
-
 use facet_format::{
     DeserializeError as FDError, FieldEvidence, FormatDeserializer, FormatParser, ParseEvent,
     ProbeStream,
@@ -10,6 +8,11 @@ use facet_format::{
 mod error;
 pub use error::{DeserializeError, DeserializeErrorKind};
 
+#[cfg(feature = "jit")]
+mod jit;
+#[cfg(feature = "jit")]
+pub use jit::McJitFormat;
+
 pub(crate) mod r#trait;
 pub use r#trait::Deserializable;
 
@@ -17,32 +20,31 @@ pub use r#trait::Deserializable;
 pub type DeserializeFn = fn();
 
 /// A deserializer that implements [`FormatParser`].
-#[derive(Default)]
+#[derive(Debug)]
 pub struct McDeserializer<'de> {
-    consumed: usize,
-    _marker: PhantomData<&'de ()>,
+    counter: usize,
+    #[expect(dead_code, reason = "WIP")]
+    input: &'de [u8],
 }
 
-impl McDeserializer<'_> {
-    /// Create a new [`McDeserializer`].
+impl<'de> McDeserializer<'de> {
+    /// Create a new [`McDeserializer`] using the given counter.
     #[must_use]
-    pub const fn new() -> Self { Self { consumed: 0, _marker: PhantomData } }
+    pub const fn new(input: &'de [u8]) -> Self { Self { counter: 0usize, input } }
 
     /// Returns the number of bytes consumed so far.
     #[inline]
     #[must_use]
-    pub const fn consumed(&self) -> usize { self.consumed }
+    pub const fn consumed(&self) -> usize { self.counter }
 }
 
 /// A deserializer probe that implements [`ProbeStream`].
-pub struct McDeserializerProbe<'a> {
-    _marker: PhantomData<&'a ()>,
-}
+pub struct McDeserializerProbe;
 
 impl<'de> FormatParser<'de> for McDeserializer<'de> {
     type Error = DeserializeError;
     type Probe<'a>
-        = McDeserializerProbe<'de>
+        = McDeserializerProbe
     where
         Self: 'a;
 
@@ -55,7 +57,7 @@ impl<'de> FormatParser<'de> for McDeserializer<'de> {
     fn begin_probe(&mut self) -> Result<Self::Probe<'_>, Self::Error> { todo!() }
 }
 
-impl<'a> ProbeStream<'a> for McDeserializerProbe<'a> {
+impl<'a> ProbeStream<'a> for McDeserializerProbe {
     type Error = DeserializeError;
 
     fn next(&mut self) -> Result<Option<FieldEvidence<'a>>, Self::Error> { todo!() }
@@ -66,6 +68,13 @@ impl<'a> ProbeStream<'a> for McDeserializerProbe<'a> {
 /// Deserialize a value of type `T` from a byte slice and returning any
 /// remaining bytes.
 ///
+/// # Note
+///
+/// This function **does not** support JIT!
+///
+/// Use [`from_slice_borrowed`] or any of the other deserialization functions if
+/// you want JIT support.
+///
 /// # Errors
 ///
 /// This function will return an error if deserialization fails.
@@ -75,7 +84,8 @@ pub fn from_slice<T: Deserializable<'static>>(
     // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
     // deserializable!") };
 
-    let mut format = FormatDeserializer::new_owned(McDeserializer::new());
+    let mut format = FormatDeserializer::new_owned(McDeserializer::new(input));
+
     format.deserialize_root::<T>().and_then(|val| {
         let consumed = format.parser_mut().consumed();
         if let Some(remaining) = input.get(consumed..) {
@@ -100,13 +110,15 @@ pub fn from_slice<T: Deserializable<'static>>(
 /// # Errors
 ///
 /// This function will return an error if deserialization fails.
+#[cfg(not(feature = "jit"))]
 pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
     input: &'input [u8],
 ) -> Result<(T, &'input [u8]), FDError<DeserializeError>> {
     // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
     // deserializable!") };
 
-    let mut format = FormatDeserializer::new(McDeserializer::new());
+    let mut format = FormatDeserializer::new(McDeserializer::new(input));
+
     format.deserialize_root::<T>().and_then(|val| {
         let consumed = format.parser_mut().consumed();
         if let Some(remaining) = input.get(consumed..) {
@@ -116,6 +128,55 @@ pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
             Err(FDError::Parser(DeserializeError::new_eof(consumed, input.len())))
         }
     })
+}
+
+/// Deserialize a value of type `T` from a byte slice and returning any
+/// remaining bytes, allowing zero-copy borrowing.
+///
+/// This variant requires the input to outlive the result (`'input: 'facet`),
+/// enabling zero-copy deserialization of string fields as `&str` or `Cow<str>`.
+///
+/// Use this when you need maximum performance and can guarantee the input
+/// buffer outlives the deserialized value. For most use cases, prefer
+/// [`from_slice`] which doesn't have lifetime requirements.
+///
+/// # Errors
+///
+/// This function will return an error if deserialization fails.
+#[cfg(feature = "jit")]
+pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
+    input: &'input [u8],
+) -> Result<(T, &'input [u8]), FDError<DeserializeError>> {
+    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
+    // deserializable!") };
+
+    let mut format = McDeserializer::new(input);
+
+    if let Some(result) = facet_format::jit::try_deserialize_with_format_jit::<T, _>(&mut format) {
+        result.and_then(|val| {
+            let consumed = format.consumed();
+            if let Some(remaining) = input.get(consumed..) {
+                Ok((val, remaining))
+            } else {
+                // This should never happen, but just in case...
+                Err(FDError::Parser(DeserializeError::new_eof(consumed, input.len())))
+            }
+        })
+    } else {
+        // Fallback to non-JIT deserialization
+
+        let mut format = FormatDeserializer::new(format);
+
+        format.deserialize_root::<T>().and_then(|val| {
+            let consumed = format.parser_mut().consumed();
+            if let Some(remaining) = input.get(consumed..) {
+                Ok((val, remaining))
+            } else {
+                // This should never happen, but just in case...
+                Err(FDError::Parser(DeserializeError::new_eof(consumed, input.len())))
+            }
+        })
+    }
 }
 
 // -------------------------------------------------------------------------------------------------

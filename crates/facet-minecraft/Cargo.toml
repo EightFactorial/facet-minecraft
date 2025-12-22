@@ -31,6 +31,7 @@ uuid = { workspace = true }
 
 # Optional dependencies
 corosensei = { workspace = true, optional = true }
+cranelift-jit = { workspace = true, optional = true }
 facet-pretty = { workspace = true, optional = true }
 futures-io = { workspace = true, optional = true }
 tokio = { features = ["io-util"], workspace = true, optional = true }
@@ -47,6 +48,9 @@ streaming = ["dep:corosensei", "std"]
 futures-io = ["dep:futures-io", "streaming"]
 # Enable tokio support
 tokio = ["dep:tokio", "streaming"]
+
+# Enable JIT compilation support
+jit = ["dep:cranelift-jit", "facet-format/jit", "std"]
 
 # Enable tracing messages
 tracing = ["dep:facet-pretty", "dep:tracing"]
