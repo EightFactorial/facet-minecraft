@@ -53,7 +53,7 @@ facet-snbt = { default-features = false, path = "crates/facet-snbt", version = "
 facet = { default-features = false, version = "0.28" }
 facet-core = { default-features = false, version = "0.28" }
 facet-deserialize = { default-features = false, version = "0.28" }
-facet-json = { default-features = false, version = "0.28" }
+facet-json = { default-features = false, version = "0.33" }
 facet-macros = { default-features = false, version = "0.28" }
 facet-reflect = { default-features = false, version = "0.28" }
 facet-serialize = { default-features = false, version = "0.28" }
