@@ -7,10 +7,10 @@ facet-minecraft = { default-features = false, path = "crates/facet-minecraft", v
 facet-bedrock = { default-features = false, path = "crates/facet-bedrock", version = "0.1" }
 
 # Facet Dependencies
-facet = { default-features = false, git = "https://github.com/facet-rs/facet.git", version = "0.32.2" }
-facet-format = { default-features = false, git = "https://github.com/facet-rs/facet.git", version = "0.32.2" }
-facet-pretty = { default-features = false, git = "https://github.com/facet-rs/facet.git", version = "0.32.2" }
-facet-reflect = { default-features = false, git = "https://github.com/facet-rs/facet.git", version = "0.32.2" }
+facet = { default-features = false, version = "0.33.0" }
+facet-format = { default-features = false, version = "0.33.0" }
+facet-pretty = { default-features = false, version = "0.33.0" }
+facet-reflect = { default-features = false, version = "0.33.0" }
 
 # Other Dependencies
 corosensei = { default-features = false, version = "0.3" }
@@ -18,7 +18,7 @@ foldhash = { default-features = false, version = "0.2" }
 futures-io = { default-features = false, version = "0.3" }
 indexmap = { default-features = false, version = "2.12" }
 miette = { default-features = false, version = "7.6" }
-rapidhash = { default-features = false, version = "4.1" }
+rapidhash = { default-features = false, version = "4.2" }
 tokio = { default-features = false, version = "1.0" }
 tracing = { default-features = false, version = "0.1" }
 uuid = { default-features = false, version = "1.0" }
@@ -28,7 +28,7 @@ zerocopy = { default-features = false, version = "0.8" }
 divan = { version = "0.1" }
 flate2 = { version = "1.1" }
 pretty_assertions = { version = "1.4" }
-proptest = { version = "1.8" }
+proptest = { version = "1.9" }
 tracing-subscriber = { features = ["tracing-log"], version = "0.3" }
 
 # --- Workspace Settings ---
@@ -45,7 +45,7 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/EightFactorial/facet-minecraft"
 rust-version = "1.92.0"
-version = "0.1.0"
+version = "0.0.1"
 
 [workspace.lints.rust]
 missing_docs = "warn"

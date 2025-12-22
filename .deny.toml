@@ -1,17 +1,16 @@
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-ignore = ["RUSTSEC-2025-0057"]
+ignore = []
 version = 2
 
 [licenses]
-allow = ["Apache-2.0", "MIT", "Unicode-3.0"]
+allow = ["Apache-2.0", "ISC", "MIT", "Unicode-3.0"]
 
 [bans]
 external-default-features = "allow"
 highlight = "all"
 multiple-versions = "warn"
-skip-tree = []
 wildcards = "deny"
 
 [bans.build]
@@ -34,6 +33,14 @@ unknown-registry = "deny"
 
 # --- Duplicate Exceptions ---
 
+[[bans.skip-tree]]
+crate = "windows-sys"
+reason = "Updates are too frequent for many crates, leaving multiple versions unavoidable."
+
+[[bans.skip]]
+crate = "unicode-width@0.1.14"
+reason = "Temporary exception until the next release"
+
 # --- Executable Exceptions ---
 
 [[bans.build.bypass]]
@@ -41,21 +48,36 @@ name = "autocfg"
 allow-globs = ["tests/*"]
 
 [[bans.build.bypass]]
-name = "libc"
+name = "bytes"
 allow = [
-  { path = "cherry-pick-stable.sh", checksum = "c7d95e3cf2624115219edc224e3ee56484d3f05f8e157f92d5a0e3a735e51640" },
+  { path = "ci/miri.sh", checksum = "13b2db3432fcdf9e2db6ef9e6ec20d063c0ce63542981a6f77e09306e1e2198e" },
+  { path = "ci/panic-abort.sh", checksum = "aec2e5427117e533d7a9721a926eb6a9d72f264510066baf2c501357df2d936f" },
+  { path = "ci/test-stable.sh", checksum = "fb751f06f314f728c489b7a7854701f632e24de8d0540ea8cf3449c6a853ac3c" },
+  { path = "ci/tsan.sh", checksum = "466b86b19225dd26c756cf2252cb1973f87a145642c99364b462ed7ceb55c7dd" },
 ]
 
 [[bans.build.bypass]]
-name = "shadow_counted"
-allow-globs = [".cehgit.d/*"]
-allow = [ { path = ".cehgit" } ]
+name = "displaydoc"
+allow = [
+  { path = "update-readme.sh", checksum = "7885d60cba79c3dc2b779b9805d520960cc7d8b82d7f1d0c59deff4140ac857b" },
+]
 
 [[bans.build.bypass]]
-name = "wasi"
+name = "owo-colors"
 allow = [
-  { path = "ci/regenerate.sh", checksum = "5dae9a1865118825e40e8efbcff0b6313089e3f7f1f954d007d3296700afa827" },
-  { path = "ci/vendor-wit.sh", checksum = "462d615802b873da11f56dd036062e2da07c302ec49dec7239db515f066768d7" },
+  { path = "scripts/cargo-release-publish.sh", checksum = "9fe047e78c43a566ca1d5e29ad0ec02da95aea922f00c2b68ffa71e60b34eb48" },
+]
+
+[[bans.build.bypass]]
+name = "smallvec"
+allow = [
+  { path = "scripts/run_miri.sh", checksum = "74a9f9adc43f986e81977b03846f7dd00122a0150bd8ec3fe4842a1a787e0f07" },
+]
+
+[[bans.build.bypass]]
+name = "wasm-bindgen-macro"
+allow = [
+  { path = "src/worker.js", checksum = "cb5c33dd41cfad622abce5464a3ceae478904ea16ddc3c6c769ee33e0c086692" },
 ]
 
 [[bans.build.bypass]]
@@ -91,6 +113,6 @@ allow-globs = ["src/rt/libwit_bindgen_*.a"]
 name = "zerocopy"
 allow-globs = ["ci/*", "githooks/*"]
 allow = [
-  { path = "cargo.sh", checksum = "f1899964e521b76e650470c508319a6738c4fe296e75908b628d35e965598f4a" },
+  { path = "cargo.sh", checksum = "8cc26650d78a7377953546bffb612017e748aa0c36c14365cda810d3d1f6ebc8" },
   { path = "win-cargo.bat", checksum = "dbde5af501630f6d14a0681d27f30ef2ffaeb1753d14be2f7cb1a7f285458c07" }
 ]

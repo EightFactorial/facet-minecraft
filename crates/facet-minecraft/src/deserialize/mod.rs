@@ -10,8 +10,11 @@ use facet_format::{
 mod error;
 pub use error::{DeserializeError, DeserializeErrorKind};
 
-mod r#trait;
-pub use r#trait::{Deserializable, TypeDeserializable};
+pub(crate) mod r#trait;
+pub use r#trait::Deserializable;
+
+/// A function pointer to a deserialization function.
+pub type DeserializeFn = fn();
 
 /// A deserializer that implements [`FormatParser`].
 #[derive(Default)]
@@ -19,9 +22,6 @@ pub struct McDeserializer<'de> {
     consumed: usize,
     _marker: PhantomData<&'de ()>,
 }
-
-/// A function pointer to a deserialization function.
-pub type DeserializeFn = fn();
 
 impl McDeserializer<'_> {
     /// Create a new [`McDeserializer`].
@@ -72,6 +72,9 @@ impl<'a> ProbeStream<'a> for McDeserializerProbe<'a> {
 pub fn from_slice<T: Deserializable<'static>>(
     input: &[u8],
 ) -> Result<(T, &[u8]), FDError<DeserializeError>> {
+    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
+    // deserializable!") };
+
     let mut format = FormatDeserializer::new_owned(McDeserializer::new());
     format.deserialize_root::<T>().and_then(|val| {
         let consumed = format.parser_mut().consumed();
@@ -100,6 +103,9 @@ pub fn from_slice<T: Deserializable<'static>>(
 pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
     input: &'input [u8],
 ) -> Result<(T, &'input [u8]), FDError<DeserializeError>> {
+    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
+    // deserializable!") };
+
     let mut format = FormatDeserializer::new(McDeserializer::new());
     format.deserialize_root::<T>().and_then(|val| {
         let consumed = format.parser_mut().consumed();
@@ -121,9 +127,12 @@ pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
 /// This function will return an error if deserialization fails,
 /// or the reader encounters an I/O error.
 #[cfg(feature = "streaming")]
-pub fn from_reader<R: std::io::Read, T: Deserializable<'static>>(
+pub fn from_reader<'facet, T: Deserializable<'facet>, R: std::io::Read>(
     _reader: &mut R,
 ) -> Result<T, FDError<DeserializeError>> {
+    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
+    // deserializable!") };
+
     todo!()
 }
 
@@ -135,9 +144,12 @@ pub fn from_reader<R: std::io::Read, T: Deserializable<'static>>(
 /// This function will return an error if deserialization fails,
 /// or the reader encounters an I/O error.
 #[cfg(feature = "futures-io")]
-pub async fn from_async_reader<R: futures_io::AsyncRead, T: Deserializable<'static>>(
+pub async fn from_async_reader<'facet, T: Deserializable<'facet>, R: futures_io::AsyncRead>(
     _reader: &mut R,
 ) -> Result<T, FDError<DeserializeError>> {
+    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
+    // deserializable!") };
+
     todo!()
 }
 
@@ -149,8 +161,11 @@ pub async fn from_async_reader<R: futures_io::AsyncRead, T: Deserializable<'stat
 /// This function will return an error if deserialization fails,
 /// or the reader encounters an I/O error.
 #[cfg(feature = "tokio")]
-pub async fn from_tokio_reader<R: tokio::io::AsyncRead, T: Deserializable<'static>>(
+pub async fn from_tokio_reader<'facet, T: Deserializable<'facet>, R: tokio::io::AsyncRead>(
     _reader: &mut R,
 ) -> Result<T, FDError<DeserializeError>> {
+    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
+    // deserializable!") };
+
     todo!()
 }

@@ -1,70 +1,104 @@
+//! TODO: Make `Deserializable::DESERIALIZABLE.possible()` a trait bound.
+//!
+//! This would force all types to support deserialization at compile time,
+//! preventing usage of non-deserializable types.
+
 use facet::{Facet, Shape};
+use facet_format::DeserializeError as FDError;
+
+use crate::{
+    common::{TypeSerializeHint, TypeSerializeResult, calculate_shape_hint},
+    deserialize::{self, DeserializeError},
+};
 
 /// A trait for types that can be deserialized.
-pub trait Deserializable<'facet>: Facet<'facet> {
-    /// The [`TypeDeserializable`] result for this type.
-    const DESERIALIZABLE: TypeDeserializable;
-    /// An optional hint for the size of this type when deserialized.
-    const DESERIALIZE_HINT: Option<usize> = None;
+pub trait Deserializable<'facet>: Facet<'facet> + Sized {
+    /// The [`TypeSerializeResult`] result for this type.
+    const DESERIALIZABLE: TypeSerializeResult = calculate_shape_serialize(Self::SHAPE);
+    /// A hint for the size of this type before deserialization.
+    const DESERIALIZE_HINT: TypeSerializeHint = calculate_shape_hint(Self::SHAPE, None);
 
-    /// Returns `true` if the type will always deserialize successfully.
+    /// Deserialize a value from a byte slice and returning any
+    /// remaining bytes.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if deserialization fails.
     #[inline]
-    #[must_use]
-    fn will_deserialize(&self) -> bool { Self::DESERIALIZABLE.will_deserialize() }
+    fn from_slice(input: &[u8]) -> Result<(Self, &[u8]), FDError<DeserializeError>>
+    where
+        'facet: 'static,
+    {
+        deserialize::from_slice::<Self>(input)
+    }
 
-    /// Returns `true` if the type may deserialize successfully.
+    /// Deserialize a value from a byte slice and returning any
+    /// remaining bytes, allowing zero-copy borrowing.
+    ///
+    /// This variant requires the input to outlive the result (`'input:
+    /// 'facet`), enabling zero-copy deserialization of string fields as
+    /// `&str` or `Cow<str>`.
+    ///
+    /// Use this when you need maximum performance and can guarantee the input
+    /// buffer outlives the deserialized value. For most use cases, prefer
+    /// [`Deserializable::from_slice`] which doesn't have lifetime requirements.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if deserialization fails.
     #[inline]
-    #[must_use]
-    fn can_deserialize(&self) -> bool { Self::DESERIALIZABLE.can_deserialize() }
+    fn from_slice_borrowed<'input: 'facet>(
+        input: &'input [u8],
+    ) -> Result<(Self, &'input [u8]), FDError<DeserializeError>> {
+        deserialize::from_slice_borrowed::<Self>(input)
+    }
+
+    /// Deserialize a value of type `T` from a [`Reader`](std::io::Read).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if deserialization fails,
+    /// or the reader encounters an I/O error.
+    #[inline]
+    #[cfg(feature = "streaming")]
+    fn from_reader<R: std::io::Read>(reader: &mut R) -> Result<Self, FDError<DeserializeError>> {
+        deserialize::from_reader::<Self, R>(reader)
+    }
+
+    /// Deserialize a value of type `T` from an asynchronous
+    /// [`AsyncRead`](futures_io::AsyncRead).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if deserialization fails,
+    /// or the reader encounters an I/O error.
+    #[inline]
+    #[cfg(feature = "futures-io")]
+    fn from_async_reader<R: futures_io::AsyncRead>(
+        reader: &mut R,
+    ) -> impl Future<Output = Result<Self, FDError<DeserializeError>>> {
+        deserialize::from_async_reader::<Self, R>(reader)
+    }
+
+    /// Deserialize a value of type `T` from an asynchronous
+    /// [`AsyncRead`](tokio::io::AsyncRead).
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if deserialization fails,
+    /// or the reader encounters an I/O error.
+    #[inline]
+    #[cfg(feature = "tokio")]
+    fn from_tokio_reader<R: tokio::io::AsyncRead>(
+        reader: &mut R,
+    ) -> impl Future<Output = Result<Self, FDError<DeserializeError>>> {
+        deserialize::from_tokio_reader::<Self, R>(reader)
+    }
 }
 
-impl<'facet, T: Facet<'facet>> Deserializable<'facet> for T {
-    const DESERIALIZABLE: TypeDeserializable = calculate_shape_serialize(T::SHAPE);
-    const DESERIALIZE_HINT: Option<usize> = calculate_shape_hint(T::SHAPE);
-}
-
-/// A helper function to calculate the [`TypeDeserializable`] for a [`Shape`].
-const fn calculate_shape_serialize(_shape: &'static Shape) -> TypeDeserializable { todo!() }
-
-/// A helper function to calculate a size hint for a [`Shape`].
-const fn calculate_shape_hint(_shape: &'static Shape) -> Option<usize> { todo!() }
+impl<'facet, T: Facet<'facet>> Deserializable<'facet> for T {}
 
 // -------------------------------------------------------------------------------------------------
 
-/// Indicates whether a type can be deserialized and whether it can fail.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TypeDeserializable {
-    /// The type will always deserialize successfully.
-    Infallible,
-    /// The type may deserialize successfully or fail.
-    Fallible,
-    /// The type will always fail to deserialize.
-    Never,
-}
-
-impl TypeDeserializable {
-    /// Returns `true` if the type will always deserialize successfully.
-    #[must_use]
-    pub const fn will_deserialize(&self) -> bool { matches!(self, TypeDeserializable::Infallible) }
-
-    /// Returns `true` if the type may deserialize successfully.
-    #[must_use]
-    pub const fn can_deserialize(&self) -> bool {
-        matches!(self, TypeDeserializable::Infallible | TypeDeserializable::Fallible)
-    }
-
-    /// Combine two [`TypeDeserializable`] values.
-    #[must_use]
-    #[expect(dead_code, reason = "WIP")]
-    const fn combine(self, other: Self) -> Self {
-        match (self, other) {
-            (TypeDeserializable::Infallible, TypeDeserializable::Infallible) => {
-                TypeDeserializable::Infallible
-            }
-            (TypeDeserializable::Never, _) | (_, TypeDeserializable::Never) => {
-                TypeDeserializable::Never
-            }
-            _ => TypeDeserializable::Fallible,
-        }
-    }
-}
+/// A helper function to calculate the [`TypeSerializeResult`] for a [`Shape`].
+const fn calculate_shape_serialize(_shape: &'static Shape) -> TypeSerializeResult { todo!() }
