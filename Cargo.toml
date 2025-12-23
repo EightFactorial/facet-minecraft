@@ -13,7 +13,7 @@ facet-pretty = { default-features = false, version = "0.33.0" }
 facet-reflect = { default-features = false, version = "0.33.0" }
 
 # Other Dependencies
-cranelift-jit = { default-features = false, version = "0.126" }
+cranelift-jit = { default-features = false, version = "0.127" }
 corosensei = { default-features = false, version = "0.3" }
 foldhash = { default-features = false, version = "0.2" }
 futures-io = { default-features = false, version = "0.3" }
