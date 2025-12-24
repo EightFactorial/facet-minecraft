@@ -7,7 +7,7 @@ facet-minecraft = { default-features = false, path = "crates/facet-minecraft", v
 facet-bedrock = { default-features = false, path = "crates/facet-bedrock", version = "0.1" }
 
 # Facet Dependencies
-facet = { default-features = false, version = "0.33.0" }
+facet = { default-features = false, version = "0.34.0" }
 facet-format = { default-features = false, version = "0.33.0" }
 facet-pretty = { default-features = false, version = "0.33.0" }
 facet-reflect = { default-features = false, version = "0.33.0" }
