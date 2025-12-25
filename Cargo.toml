@@ -10,7 +10,7 @@ facet-bedrock = { default-features = false, path = "crates/facet-bedrock", versi
 facet = { default-features = false, version = "0.33.0" }
 facet-format = { default-features = false, version = "0.33.0" }
 facet-pretty = { default-features = false, version = "0.33.0" }
-facet-reflect = { default-features = false, version = "0.33.0" }
+facet-reflect = { default-features = false, version = "0.34.0" }
 
 # Other Dependencies
 cranelift-jit = { default-features = false, version = "0.126" }
