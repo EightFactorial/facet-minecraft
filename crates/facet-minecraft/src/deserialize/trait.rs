@@ -68,7 +68,10 @@ pub trait Deserializable<'facet>: Facet<'facet> + Sized {
     /// or the reader encounters an I/O error.
     #[inline]
     #[cfg(feature = "streaming")]
-    fn from_reader<R: std::io::Read>(reader: &mut R) -> Result<Self, FDError<DeserializeError>> {
+    fn from_reader<R: std::io::Read>(reader: &mut R) -> Result<Self, FDError<DeserializeError>>
+    where
+        'facet: 'static,
+    {
         deserialize::from_reader::<Self, R>(reader)
     }
 
@@ -80,10 +83,13 @@ pub trait Deserializable<'facet>: Facet<'facet> + Sized {
     /// This function will return an error if deserialization fails,
     /// or the reader encounters an I/O error.
     #[inline]
-    #[cfg(feature = "futures-io")]
-    fn from_async_reader<R: futures_io::AsyncRead>(
+    #[cfg(feature = "futures-lite")]
+    fn from_async_reader<R: futures_lite::AsyncRead + Unpin>(
         reader: &mut R,
-    ) -> impl Future<Output = Result<Self, FDError<DeserializeError>>> {
+    ) -> impl Future<Output = Result<Self, FDError<DeserializeError>>>
+    where
+        'facet: 'static,
+    {
         deserialize::from_async_reader::<Self, R>(reader)
     }
 
@@ -96,9 +102,12 @@ pub trait Deserializable<'facet>: Facet<'facet> + Sized {
     /// or the reader encounters an I/O error.
     #[inline]
     #[cfg(feature = "tokio")]
-    fn from_tokio_reader<R: tokio::io::AsyncRead>(
+    fn from_tokio_reader<R: tokio::io::AsyncRead + Unpin>(
         reader: &mut R,
-    ) -> impl Future<Output = Result<Self, FDError<DeserializeError>>> {
+    ) -> impl Future<Output = Result<Self, FDError<DeserializeError>>>
+    where
+        'facet: 'static,
+    {
         deserialize::from_tokio_reader::<Self, R>(reader)
     }
 }

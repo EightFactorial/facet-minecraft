@@ -27,7 +27,7 @@ pub trait Serializable<'facet>: Facet<'facet> {
     /// or if the buffer cannot be written to.
     #[inline]
     fn to_buffer<'output: 'facet, B: SerializeBuffer>(
-        &'facet self,
+        &self,
         buffer: &'output mut B,
     ) -> Result<&'output [u8], FSError<SerializeError>> {
         serialize::to_buffer::<Self, B>(self, buffer)
@@ -46,15 +46,15 @@ pub trait Serializable<'facet>: Facet<'facet> {
     }
 
     /// Serialize a value of type `T` into an asynchronous
-    /// [`AsyncWrite`](futures_io::AsyncWrite).
+    /// [`AsyncWrite`](futures_lite::AsyncWrite).
     ///
     /// # Errors
     ///
     /// This function will return an error if serialization fails,
     /// or the writer encounters an I/O error.
     #[inline]
-    #[cfg(feature = "futures-io")]
-    fn to_async_writer<W: futures_io::AsyncWrite>(
+    #[cfg(feature = "futures-lite")]
+    fn to_async_writer<W: futures_lite::AsyncWrite + Unpin>(
         &self,
         writer: &mut W,
     ) -> impl Future<Output = Result<(), FSError<SerializeError>>> {
@@ -70,7 +70,7 @@ pub trait Serializable<'facet>: Facet<'facet> {
     /// or the writer encounters an I/O error.
     #[inline]
     #[cfg(feature = "tokio")]
-    fn to_tokio_writer<W: tokio::io::AsyncWrite>(
+    fn to_tokio_writer<W: tokio::io::AsyncWrite + Unpin>(
         &self,
         writer: &mut W,
     ) -> impl Future<Output = Result<(), FSError<SerializeError>>> {

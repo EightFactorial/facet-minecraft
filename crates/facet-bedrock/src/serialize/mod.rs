@@ -2,6 +2,7 @@
 
 use alloc::vec::Vec;
 
+use facet::Facet;
 use facet_format::{FormatSerializer, ScalarValue, SerializeError as FSError};
 use facet_reflect::Peek;
 
@@ -11,12 +12,29 @@ pub use error::{SerializeError, SerializeErrorKind};
 mod r#trait;
 pub use r#trait::{Serializable, TypeSerializable};
 
+/// A function pointer to a serialization function.
+#[derive(Debug, Clone, Copy, Facet)]
+#[facet(opaque)]
+pub struct SerializeFn {
+    ptr: fn(),
+}
+
+impl SerializeFn {
+    /// Create a new [`SerializeFn`].
+    #[inline]
+    #[must_use]
+    pub const fn new(ptr: fn()) -> Self { Self { ptr } }
+
+    /// Call the serialization function.
+    #[inline]
+    pub fn call(&self) { (self.ptr)() }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// A serializer that implements [`FormatSerializer`].
 #[derive(Default)]
 pub struct McSerializer {}
-
-/// A function pointer to a serialization function.
-pub type SerializeFn = fn();
 
 impl McSerializer {
     /// Create a new [`McSerializer`].
@@ -95,8 +113,8 @@ pub fn to_writer<W: std::io::Write, T: Serializable<'static>>(
 ///
 /// This function will return an error if serialization fails,
 /// or the writer encounters an I/O error.
-#[cfg(feature = "futures-io")]
-pub async fn to_async_writer<W: futures_io::AsyncWrite, T: Serializable<'static>>(
+#[cfg(feature = "futures-lite")]
+pub async fn to_async_writer<W: futures_lite::AsyncWrite, T: Serializable<'static>>(
     _value: &T,
     _writer: &mut W,
 ) -> Result<(), FSError<SerializeError>> {

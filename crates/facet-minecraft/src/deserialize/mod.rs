@@ -14,6 +14,15 @@ mod jit;
 #[cfg(feature = "jit")]
 pub use jit::McJitFormat;
 
+#[cfg(feature = "streaming")]
+pub(crate) mod stream;
+#[cfg(feature = "futures-lite")]
+pub use stream::from_async_reader;
+#[cfg(feature = "tokio")]
+pub use stream::from_tokio_reader;
+#[cfg(feature = "streaming")]
+pub use stream::{McStreamDeserializer, from_reader};
+
 pub(crate) mod r#trait;
 pub use r#trait::Deserializable;
 
@@ -144,13 +153,15 @@ impl<'de> McDeserializer<'de> {
                 // Floating point numbers
                 (ScalarType::F32, false) => todo!(),
                 (ScalarType::F64, false) => todo!(),
+                // Unsupported types
                 // ScalarType::Char => todo!(),
                 // ScalarType::IpAddr => todo!(),
                 // ScalarType::Ipv4Addr => todo!(),
                 // ScalarType::Ipv6Addr => todo!(),
                 // ScalarType::SocketAddr => todo!(),
                 // ScalarType::ConstTypeId => todo!(),
-                _ => todo!(),
+                (_, true) => todo!("Variable-length encoding is not supported for this type!"),
+                _ => todo!("Unsupported scalar type!"),
             }
         } else {
             todo!()
@@ -308,56 +319,4 @@ pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
             }
         })
     }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// Deserialize a value of type `T` from a [`Reader`](std::io::Read).
-///
-/// # Errors
-///
-/// This function will return an error if deserialization fails,
-/// or the reader encounters an I/O error.
-#[cfg(feature = "streaming")]
-pub fn from_reader<'facet, T: Deserializable<'facet>, R: std::io::Read>(
-    _reader: &mut R,
-) -> Result<T, FDError<DeserializeError>> {
-    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
-    // deserializable!") };
-
-    todo!()
-}
-
-/// Deserialize a value of type `T` from an asynchronous
-/// [`AsyncRead`](futures_io::AsyncRead).
-///
-/// # Errors
-///
-/// This function will return an error if deserialization fails,
-/// or the reader encounters an I/O error.
-#[cfg(feature = "futures-io")]
-pub async fn from_async_reader<'facet, T: Deserializable<'facet>, R: futures_io::AsyncRead>(
-    _reader: &mut R,
-) -> Result<T, FDError<DeserializeError>> {
-    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
-    // deserializable!") };
-
-    todo!()
-}
-
-/// Deserialize a value of type `T` from an asynchronous
-/// [`AsyncRead`](tokio::io::AsyncRead).
-///
-/// # Errors
-///
-/// This function will return an error if deserialization fails,
-/// or the reader encounters an I/O error.
-#[cfg(feature = "tokio")]
-pub async fn from_tokio_reader<'facet, T: Deserializable<'facet>, R: tokio::io::AsyncRead>(
-    _reader: &mut R,
-) -> Result<T, FDError<DeserializeError>> {
-    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
-    // deserializable!") };
-
-    todo!()
 }

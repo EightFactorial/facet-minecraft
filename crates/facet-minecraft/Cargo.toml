@@ -23,16 +23,16 @@ pretty_assertions = { workspace = true }
 proptest = { workspace = true }
 
 [dependencies]
-facet = { features = ["alloc", "fn-ptr", "uuid"],  workspace = true }
+facet = { features = ["alloc", "uuid"],  workspace = true }
 facet-format = { workspace = true }
 facet-reflect = { workspace = true }
 miette = { workspace = true }
 uuid = { workspace = true }
 
 # Optional dependencies
-corosensei = { workspace = true, optional = true }
+corosensei = { features = ["default-stack", "unwind"], workspace = true, optional = true }
 facet-pretty = { workspace = true, optional = true }
-futures-io = { workspace = true, optional = true }
+futures-lite = { workspace = true, optional = true }
 tokio = { features = ["io-util"], workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
@@ -43,8 +43,8 @@ default = ["std"]
 
 # Enable streaming support
 streaming = ["dep:corosensei", "std"]
-# Enable futures-io support
-futures-io = ["dep:futures-io", "streaming"]
+# Enable futures-lite support
+futures-lite = ["dep:futures-lite", "streaming"]
 # Enable tokio support
 tokio = ["dep:tokio", "streaming"]
 
@@ -55,6 +55,6 @@ jit = ["facet-format/jit", "std"]
 tracing = ["dep:facet-pretty", "dep:tracing"]
 
 # Enable support for the standard library
-std = ["facet/std", "futures-io?/std", "tracing?/std", "uuid/std"]
+std = ["facet/std", "futures-lite?/std", "tracing?/std", "uuid/std"]
 # Enable features using the nightly toolchain
-nightly = []
+nightly = ["corosensei?/asm-unwind"]

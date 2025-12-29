@@ -2,6 +2,7 @@
 
 use core::marker::PhantomData;
 
+use facet::{Facet, Field};
 use facet_format::{
     DeserializeError as FDError, FieldEvidence, FormatDeserializer, FormatParser, ParseEvent,
     ProbeStream,
@@ -13,15 +14,52 @@ pub use error::{DeserializeError, DeserializeErrorKind};
 mod r#trait;
 pub use r#trait::{Deserializable, TypeDeserializable};
 
+/// A function pointer to a deserialization function.
+#[derive(Debug, Clone, Copy, Facet)]
+#[facet(opaque)]
+pub struct DeserializeFn {
+    ptr: for<'de> fn(
+        &mut McDeserializer<'de>,
+        &'de Field,
+    ) -> Result<ParseEvent<'de>, DeserializeError>,
+}
+
+impl DeserializeFn {
+    /// Create a new [`DeserializeFn`].
+    #[inline]
+    #[must_use]
+    pub const fn new(
+        ptr: for<'de> fn(
+            &mut McDeserializer<'de>,
+            &'de Field,
+        ) -> Result<ParseEvent<'de>, DeserializeError>,
+    ) -> Self {
+        Self { ptr }
+    }
+
+    /// Call the deserialization function.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DeserializeError`] if deserialization fails.
+    #[inline]
+    pub fn call<'de>(
+        &self,
+        deserializer: &mut McDeserializer<'de>,
+        field: &'de Field,
+    ) -> Result<ParseEvent<'de>, DeserializeError> {
+        (self.ptr)(deserializer, field)
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
 /// A deserializer that implements [`FormatParser`].
 #[derive(Default)]
 pub struct McDeserializer<'de> {
     consumed: usize,
     _marker: PhantomData<&'de ()>,
 }
-
-/// A function pointer to a deserialization function.
-pub type DeserializeFn = fn();
 
 impl McDeserializer<'_> {
     /// Create a new [`McDeserializer`].
@@ -134,8 +172,8 @@ pub fn from_reader<R: std::io::Read, T: Deserializable<'static>>(
 ///
 /// This function will return an error if deserialization fails,
 /// or the reader encounters an I/O error.
-#[cfg(feature = "futures-io")]
-pub async fn from_async_reader<R: futures_io::AsyncRead, T: Deserializable<'static>>(
+#[cfg(feature = "futures-lite")]
+pub async fn from_async_reader<R: futures_lite::AsyncRead, T: Deserializable<'static>>(
     _reader: &mut R,
 ) -> Result<T, FDError<DeserializeError>> {
     todo!()

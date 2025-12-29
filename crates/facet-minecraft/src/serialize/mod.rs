@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 
-use facet::Shape;
+use facet::{Facet, Shape};
 use facet_format::{FieldOrdering, FormatSerializer, ScalarValue, SerializeError as FSError};
 use facet_reflect::{FieldItem, Peek};
 
@@ -16,14 +16,48 @@ pub(crate) mod r#trait;
 pub use r#trait::Serializable;
 
 /// A function pointer to a serialization function.
-pub type SerializeFn = fn();
+#[derive(Debug, Clone, Copy, Facet)]
+#[facet(opaque)]
+pub struct SerializeFn {
+    ptr: for<'buffer> fn(
+        &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
+    ) -> Result<(), SerializeError>,
+}
+
+impl SerializeFn {
+    /// Create a new [`SerializeFn`].
+    #[inline]
+    #[must_use]
+    pub const fn new(
+        ptr: for<'buffer> fn(
+            &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
+        ) -> Result<(), SerializeError>,
+    ) -> Self {
+        Self { ptr }
+    }
+
+    /// Call the serialization function.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if serialization fails.
+    #[inline]
+    pub fn call<'buffer>(
+        &self,
+        serializer: &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
+    ) -> Result<(), SerializeError> {
+        (self.ptr)(serializer)
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
 
 /// A serializer that implements [`FormatSerializer`].
-pub struct McSerializer<'buffer, B: SerializeBuffer> {
+pub struct McSerializer<'buffer, B: SerializeBuffer + ?Sized> {
     buffer: &'buffer mut B,
 }
 
-impl<'buffer, B: SerializeBuffer> McSerializer<'buffer, B> {
+impl<'buffer, B: SerializeBuffer + ?Sized> McSerializer<'buffer, B> {
     /// Create a new [`McSerializer`].
     #[inline]
     #[must_use]
@@ -33,9 +67,20 @@ impl<'buffer, B: SerializeBuffer> McSerializer<'buffer, B> {
     #[inline]
     #[must_use]
     pub fn into_inner(self) -> &'buffer mut B { self.buffer }
+
+    /// Create a [`McSerializer`] over a
+    /// [`dyn SerializeBuffer`](SerializeBuffer) from this serializer.
+    #[inline]
+    #[must_use]
+    pub const fn as_dyn<'a: 'buffer>(&'a mut self) -> McSerializer<'a, dyn SerializeBuffer + 'a>
+    where
+        B: Sized + 'a,
+    {
+        McSerializer { buffer: self.buffer }
+    }
 }
 
-impl<B: SerializeBuffer> FormatSerializer for McSerializer<'_, B> {
+impl<B: SerializeBuffer + ?Sized> FormatSerializer for McSerializer<'_, B> {
     type Error = SerializeError;
 
     fn begin_struct(&mut self) -> Result<(), Self::Error> { todo!() }
@@ -65,12 +110,15 @@ impl<B: SerializeBuffer> FormatSerializer for McSerializer<'_, B> {
 ///
 /// This function will return an error if serialization fails.
 pub fn to_vec<'facet, T: Serializable<'facet> + ?Sized>(
-    value: &'facet T,
+    value: &T,
 ) -> Result<Vec<u8>, FSError<SerializeError>> {
     // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
     // };
 
-    let mut buffer = T::SERIALIZE_HINT.minimum().map_or_else(Vec::new, Vec::with_capacity);
+    let mut buffer = T::SERIALIZE_HINT
+        .maximum()
+        .or(T::SERIALIZE_HINT.minimum())
+        .map_or_else(Vec::new, Vec::with_capacity);
     to_buffer::<T, Vec<u8>>(value, &mut buffer)?;
     Ok(buffer)
 }
@@ -82,8 +130,8 @@ pub fn to_vec<'facet, T: Serializable<'facet> + ?Sized>(
 ///
 /// This function will return an error if serialization fails,
 /// or if the buffer cannot be written to.
-pub fn to_buffer<'output, 'facet, T: Serializable<'facet> + ?Sized, B: SerializeBuffer>(
-    value: &'facet T,
+pub fn to_buffer<'output, 'facet, T: Serializable<'facet> + ?Sized, B: SerializeBuffer + ?Sized>(
+    value: &T,
     buffer: &'output mut B,
 ) -> Result<&'output [u8], FSError<SerializeError>> {
     // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
@@ -104,35 +152,38 @@ pub fn to_buffer<'output, 'facet, T: Serializable<'facet> + ?Sized, B: Serialize
 /// or the writer encounters an I/O error.
 #[cfg(feature = "streaming")]
 pub fn to_writer<'facet, T: Serializable<'facet> + ?Sized, W: std::io::Write>(
-    _value: &T,
-    _writer: &mut W,
+    value: &T,
+    writer: &mut W,
 ) -> Result<(), FSError<SerializeError>> {
-    // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
-    // };
+    // const { assert!(T::SERIALIZABLE.possible(), "This type is not
+    // serializable!") };
 
-    todo!()
+    std::io::Write::write_all(writer, to_vec::<T>(value)?.as_ref())
+        .map_err(|err| FSError::Backend(SerializeError::from(err)))
 }
 
 /// Serialize a value of type `T` into an asynchronous
-/// [`AsyncWrite`](futures_io::AsyncWrite).
+/// [`AsyncWrite`](futures_lite::AsyncWrite).
 ///
 /// # Errors
 ///
 /// This function will return an error if serialization fails,
 /// or the writer encounters an I/O error.
-#[cfg(feature = "futures-io")]
+#[cfg(feature = "futures-lite")]
 pub async fn to_async_writer<
     'facet,
     T: Serializable<'facet> + ?Sized,
-    W: futures_io::AsyncWrite,
+    W: futures_lite::AsyncWrite + Unpin,
 >(
-    _value: &T,
-    _writer: &mut W,
+    value: &T,
+    writer: &mut W,
 ) -> Result<(), FSError<SerializeError>> {
-    // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
-    // };
+    // const { assert!(T::SERIALIZABLE.possible(), "This type is not
+    // serializable!") };
 
-    todo!()
+    futures_lite::AsyncWriteExt::write_all(writer, to_vec::<T>(value)?.as_ref())
+        .await
+        .map_err(|err| FSError::Backend(SerializeError::from(err)))
 }
 
 /// Serialize a value of type `T` into an asynchronous
@@ -143,12 +194,18 @@ pub async fn to_async_writer<
 /// This function will return an error if serialization fails,
 /// or the writer encounters an I/O error.
 #[cfg(feature = "tokio")]
-pub async fn to_tokio_writer<'facet, T: Serializable<'facet> + ?Sized, W: tokio::io::AsyncWrite>(
-    _value: &T,
-    _writer: &mut W,
+pub async fn to_tokio_writer<
+    'facet,
+    T: Serializable<'facet> + ?Sized,
+    W: tokio::io::AsyncWrite + Unpin,
+>(
+    value: &T,
+    writer: &mut W,
 ) -> Result<(), FSError<SerializeError>> {
     // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
     // };
 
-    todo!()
+    tokio::io::AsyncWriteExt::write_all(writer, to_vec::<T>(value)?.as_ref())
+        .await
+        .map_err(|err| FSError::Backend(SerializeError::from(err)))
 }

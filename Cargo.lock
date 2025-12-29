@@ -82,7 +82,9 @@ checksum = "2b2b4c7e3e97730e6b0b8c5ff5ca82c663d1a645e4f630f4fa4c24e80626787e"
 dependencies = [
  "autocfg",
  "cfg-if",
+ "libc",
  "scopeguard",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -300,7 +302,7 @@ dependencies = [
  "facet-format",
  "facet-pretty",
  "facet-reflect",
- "futures-io",
+ "futures-lite",
  "miette",
  "pretty_assertions",
  "proptest",
@@ -391,7 +393,7 @@ dependencies = [
  "facet-format",
  "facet-pretty",
  "facet-reflect",
- "futures-io",
+ "futures-lite",
  "miette",
  "pretty_assertions",
  "proptest",
@@ -451,10 +453,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "futures-core"
+version = "0.3.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05f29059c0c2090612e8d742178b0580d2dc940c837851ad723096f87af6663e"
+
+[[package]]
 name = "futures-io"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
+
+[[package]]
+name = "futures-lite"
+version = "2.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f78e10609fe0e0b3f4157ffab1876319b5b0db102a2c60dc4626306dc46b44ad"
+dependencies = [
+ "fastrand",
+ "futures-core",
+ "futures-io",
+ "parking",
+ "pin-project-lite",
+]
 
 [[package]]
 name = "getrandom"
@@ -619,6 +640,12 @@ name = "owo-colors"
 version = "4.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c6901729fa79e91a0913333229e9ca5dc725089d1c363b2f4b4760709dc4a52"
+
+[[package]]
+name = "parking"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
 
 [[package]]
 name = "parking_lot"
@@ -1138,6 +1165,15 @@ name = "windows-sys"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+dependencies = [
+ "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "windows-sys"
+version = "0.59.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
 dependencies = [
  "windows-targets 0.52.6",
 ]

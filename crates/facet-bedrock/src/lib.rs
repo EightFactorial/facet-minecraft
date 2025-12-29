@@ -9,7 +9,7 @@ extern crate std;
 pub mod attribute;
 
 pub mod deserialize;
-#[cfg(feature = "futures-io")]
+#[cfg(feature = "futures-lite")]
 pub use deserialize::from_async_reader;
 #[cfg(feature = "streaming")]
 pub use deserialize::from_reader;
@@ -18,7 +18,7 @@ pub use deserialize::from_tokio_reader;
 pub use deserialize::{from_slice, from_slice_borrowed};
 
 pub mod serialize;
-#[cfg(feature = "futures-io")]
+#[cfg(feature = "futures-lite")]
 pub use serialize::to_async_writer;
 #[cfg(feature = "tokio")]
 pub use serialize::to_tokio_writer;
