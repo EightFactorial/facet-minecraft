@@ -39,7 +39,7 @@ tracing = { workspace = true, optional = true }
 # --- Features ---
 
 [features]
-default = ["std"]
+default = ["std", "streaming"]
 
 # Enable streaming support
 streaming = ["dep:corosensei", "std"]

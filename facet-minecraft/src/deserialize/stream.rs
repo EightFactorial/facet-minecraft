@@ -67,6 +67,7 @@ impl<T: Deserializable<'static>> CoWrapper<T> {
     }
 
     /// Complete the deserialization asynchronously.
+    #[allow(dead_code, reason = "May not be used if no async features are enabled")]
     #[expect(clippy::await_holding_refcell_ref, reason = "Necessary for coroutine")]
     async fn complete_async(
         mut self,

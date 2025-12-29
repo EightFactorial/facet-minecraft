@@ -175,7 +175,7 @@ pub fn to_writer<'facet, T: Serializable<'facet> + ?Sized, W: std::io::Write>(
     // const { assert!(T::SERIALIZABLE.possible(), "This type is not
     // serializable!") };
 
-    std::io::Write::write_all(writer, to_vec::<T>(value)?.as_ref())
+    std::io::Write::write_all(writer, to_vec::<T>(value)?.as_slice())
         .map_err(|err| FSError::Backend(SerializeError::from(err)))
 }
 
@@ -198,7 +198,7 @@ pub async fn to_async_writer<
     // const { assert!(T::SERIALIZABLE.possible(), "This type is not
     // serializable!") };
 
-    futures_lite::AsyncWriteExt::write_all(writer, to_vec::<T>(value)?.as_ref())
+    futures_lite::AsyncWriteExt::write_all(writer, to_vec::<T>(value)?.as_slice())
         .await
         .map_err(|err| FSError::Backend(SerializeError::from(err)))
 }
@@ -222,7 +222,7 @@ pub async fn to_tokio_writer<
     // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
     // };
 
-    tokio::io::AsyncWriteExt::write_all(writer, to_vec::<T>(value)?.as_ref())
+    tokio::io::AsyncWriteExt::write_all(writer, to_vec::<T>(value)?.as_slice())
         .await
         .map_err(|err| FSError::Backend(SerializeError::from(err)))
 }
