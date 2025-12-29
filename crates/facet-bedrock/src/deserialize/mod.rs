@@ -46,9 +46,9 @@ impl<'de> FormatParser<'de> for McDeserializer<'de> {
     where
         Self: 'a;
 
-    fn next_event(&mut self) -> Result<ParseEvent<'de>, Self::Error> { todo!() }
+    fn next_event(&mut self) -> Result<Option<ParseEvent<'de>>, Self::Error> { todo!() }
 
-    fn peek_event(&mut self) -> Result<ParseEvent<'de>, Self::Error> { todo!() }
+    fn peek_event(&mut self) -> Result<Option<ParseEvent<'de>>, Self::Error> { todo!() }
 
     fn skip_value(&mut self) -> Result<(), Self::Error> { todo!() }
 

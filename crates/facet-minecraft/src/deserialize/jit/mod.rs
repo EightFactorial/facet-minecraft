@@ -1,7 +1,6 @@
-use cranelift_jit::{JITBuilder, JITModule};
 use facet_format::{
     FormatJitParser,
-    jit::{FunctionBuilder, JitCursor, JitFormat, JitStringValue, Value},
+    jit::{FunctionBuilder, JITBuilder, JITModule, JitCursor, JitFormat, JitStringValue, Value},
 };
 
 use crate::deserialize::McDeserializer;

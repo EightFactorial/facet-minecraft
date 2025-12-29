@@ -85,7 +85,7 @@ impl<'de> McDeserializer<'de> {
     pub const fn consumed(&self) -> usize { self.counter }
 
     /// Parse the next event from the input.
-    fn parse_next(&mut self) -> Result<ParseEvent<'de>, DeserializeError> {
+    fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> {
         let Some(field) = self.iter.next_field(None) else { todo!() };
 
         let mut variable = false;
@@ -94,7 +94,7 @@ impl<'de> McDeserializer<'de> {
             if let Some(McAttr::Deserialize(Some(deserialize_fn))) =
                 field.get_attr(Some("mc"), "deserialize").and_then(Attr::get_as::<McAttr>)
             {
-                return deserialize_fn.call(self, field);
+                return deserialize_fn.call(self, field).map(Some);
             }
             // Check for variable-length encoding
             if Some(&McAttr::Variable)
@@ -163,18 +163,18 @@ impl<'de> FormatParser<'de> for McDeserializer<'de> {
     where
         Self: 'a;
 
-    fn next_event(&mut self) -> Result<ParseEvent<'de>, Self::Error> {
-        self.peek.take().map_or_else(|| self.parse_next(), Ok)
+    fn next_event(&mut self) -> Result<Option<ParseEvent<'de>>, Self::Error> {
+        self.peek.take().map_or_else(|| self.parse_next(), |event| Ok(Some(event)))
     }
 
-    fn peek_event(&mut self) -> Result<ParseEvent<'de>, Self::Error> {
+    fn peek_event(&mut self) -> Result<Option<ParseEvent<'de>>, Self::Error> {
         self.peek.clone().map_or_else(
             || {
                 let event = self.next_event()?;
-                self.peek = Some(event.clone());
+                self.peek.clone_from(&event);
                 Ok(event)
             },
-            Ok,
+            |event| Ok(Some(event)),
         )
     }
 

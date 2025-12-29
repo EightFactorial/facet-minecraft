@@ -48,36 +48,9 @@ name = "autocfg"
 allow-globs = ["tests/*"]
 
 [[bans.build.bypass]]
-name = "bytes"
-allow = [
-  { path = "ci/miri.sh", checksum = "13b2db3432fcdf9e2db6ef9e6ec20d063c0ce63542981a6f77e09306e1e2198e" },
-  { path = "ci/panic-abort.sh", checksum = "aec2e5427117e533d7a9721a926eb6a9d72f264510066baf2c501357df2d936f" },
-  { path = "ci/test-stable.sh", checksum = "fb751f06f314f728c489b7a7854701f632e24de8d0540ea8cf3449c6a853ac3c" },
-  { path = "ci/tsan.sh", checksum = "466b86b19225dd26c756cf2252cb1973f87a145642c99364b462ed7ceb55c7dd" },
-]
-
-[[bans.build.bypass]]
-name = "displaydoc"
-allow = [
-  { path = "update-readme.sh", checksum = "7885d60cba79c3dc2b779b9805d520960cc7d8b82d7f1d0c59deff4140ac857b" },
-]
-
-[[bans.build.bypass]]
 name = "owo-colors"
 allow = [
   { path = "scripts/cargo-release-publish.sh", checksum = "9fe047e78c43a566ca1d5e29ad0ec02da95aea922f00c2b68ffa71e60b34eb48" },
-]
-
-[[bans.build.bypass]]
-name = "smallvec"
-allow = [
-  { path = "scripts/run_miri.sh", checksum = "74a9f9adc43f986e81977b03846f7dd00122a0150bd8ec3fe4842a1a787e0f07" },
-]
-
-[[bans.build.bypass]]
-name = "wasm-bindgen-macro"
-allow = [
-  { path = "src/worker.js", checksum = "cb5c33dd41cfad622abce5464a3ceae478904ea16ddc3c6c769ee33e0c086692" },
 ]
 
 [[bans.build.bypass]]
