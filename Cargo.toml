@@ -3,8 +3,8 @@
 
 [workspace.dependencies]
 # Workspace Crates
-facet-minecraft = { default-features = false, path = "crates/facet-minecraft", version = "0.1" }
-facet-bedrock = { default-features = false, path = "crates/facet-bedrock", version = "0.1" }
+facet-minecraft = { default-features = false, path = "facet-minecraft", version = "0.1" }
+facet-bedrock = { default-features = false, path = "facet-bedrock", version = "0.1" }
 
 # Facet Dependencies
 facet = { default-features = false, version = "0.35.0" }
@@ -34,13 +34,13 @@ tracing-subscriber = { features = ["tracing-log"], version = "0.3" }
 # --- Workspace Settings ---
 
 [workspace]
-members = ["crates/*"]
+members = ["facet-bedrock", "facet-minecraft"]
 resolver = "2"
 
 [workspace.package]
 edition = "2024"
 homepage = "https://github.com/EightFactorial/facet-minecraft"
-include = ["Cargo.toml", "README.md", "src/**/*.rs"]
+include = ["Cargo.toml", "README.md", "src"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/EightFactorial/facet-minecraft"
