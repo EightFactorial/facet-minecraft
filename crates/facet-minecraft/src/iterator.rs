@@ -53,9 +53,18 @@ impl<'de> ShapeFieldIter<'de> {
     #[must_use]
     pub(crate) const fn is_empty(&self) -> bool { self.steps.is_empty() }
 
+    /// Returns `true` if the next item is an enum.
+    #[must_use]
+    pub(crate) const fn is_next_enum(&self) -> bool {
+        matches!(self.steps.as_slice().last(), Some(FieldIterType::Enum(_)))
+    }
+
     /// Get the next [`Shape`] in the iteration,
-    /// optionally specifying an enum's variant.
-    pub(crate) fn next_field(&mut self, variant: Option<usize>) -> Option<FieldOrShape<'de>> {
+    /// providing a closure to read enum variant indices.
+    pub(crate) fn next_field(
+        &mut self,
+        mut variant_fn: impl FnMut() -> usize,
+    ) -> Option<FieldOrShape<'de>> {
         match self.steps.last_mut()? {
             FieldIterType::Struct(fields, range) => {
                 if let Some(next) = range.next().map(|i| &fields[i]) {
@@ -66,11 +75,11 @@ impl<'de> ShapeFieldIter<'de> {
                     self.steps.pop()?;
                 }
                 // Continue to the next field.
-                self.next_field(variant)
+                self.next_field(variant_fn)
             }
             FieldIterType::Enum(variants) => {
                 // Get the selected variant.
-                let selected = &variants[variant.expect("Expected an enum variant index!")];
+                let selected = variants.get(variant_fn())?;
                 // Remove this enum from the stack.
                 self.steps.pop()?;
                 // Push the selected variant's fields onto the stack.
@@ -79,7 +88,7 @@ impl<'de> ShapeFieldIter<'de> {
                     0..selected.data.fields.len(),
                 ));
                 // Continue to the next field.
-                self.next_field(None)
+                self.next_field(variant_fn)
             }
             // Return the field
             FieldIterType::Field(_) => self.steps.pop().map(|step| match step {
@@ -118,20 +127,20 @@ fn iterate_primitive() {
     use facet::Facet;
 
     let mut iter = ShapeFieldIter::new(bool::SHAPE);
-    assert_field(iter.next_field(None), Some(bool::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| unreachable!()), Some(bool::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 
     let mut iter = ShapeFieldIter::new(u8::SHAPE);
-    assert_field(iter.next_field(None), Some(u8::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| unreachable!()), Some(u8::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 
     let mut iter = ShapeFieldIter::new(u32::SHAPE);
-    assert_field(iter.next_field(None), Some(u32::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| unreachable!()), Some(u32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 
     let mut iter = ShapeFieldIter::new(f32::SHAPE);
-    assert_field(iter.next_field(None), Some(f32::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| unreachable!()), Some(f32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 }
 
 #[test]
@@ -145,12 +154,12 @@ fn iterate_newtype() {
     struct NestedNewtype(Newtype);
 
     let mut iter = ShapeFieldIter::new(Newtype::SHAPE);
-    assert_field(iter.next_field(None), Some(u32::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| unreachable!()), Some(u32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 
     let mut iter = ShapeFieldIter::new(NestedNewtype::SHAPE);
-    assert_field(iter.next_field(None), Some(u32::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| unreachable!()), Some(u32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 }
 
 #[test]
@@ -172,20 +181,20 @@ fn iterate_struct() {
     }
 
     let mut iter = ShapeFieldIter::new(TestStruct::SHAPE);
-    assert_field(iter.next_field(None), Some(u8::SHAPE));
-    assert_field(iter.next_field(None), Some(bool::SHAPE));
-    assert_field(iter.next_field(None), Some(u32::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| unreachable!()), Some(u8::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(bool::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(u32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 
     let mut iter = ShapeFieldIter::new(NestedStruct::SHAPE);
-    assert_field(iter.next_field(None), Some(u8::SHAPE));
-    assert_field(iter.next_field(None), Some(bool::SHAPE));
-    assert_field(iter.next_field(None), Some(u32::SHAPE));
-    assert_field(iter.next_field(None), Some(u8::SHAPE));
-    assert_field(iter.next_field(None), Some(bool::SHAPE));
-    assert_field(iter.next_field(None), Some(u32::SHAPE));
-    assert_field(iter.next_field(None), Some(Vec::<u64>::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| unreachable!()), Some(u8::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(bool::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(u32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(u8::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(bool::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(u32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(Vec::<u64>::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 }
 
 #[test]
@@ -211,27 +220,27 @@ fn iterate_enum() {
 
     // Variant A
     let mut iter = ShapeFieldIter::new(TestEnum::SHAPE);
-    assert_field(iter.next_field(Some(0)), Some(u8::SHAPE));
-    assert_field(iter.next_field(None), Some(bool::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| 0), Some(u8::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(bool::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 
     // Variant B
     let mut iter = ShapeFieldIter::new(TestEnum::SHAPE);
-    assert_field(iter.next_field(Some(1)), Some(u32::SHAPE));
-    assert_field(iter.next_field(None), Some(u64::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| 1), Some(u32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(u64::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 
     // Variant C
     let mut iter = ShapeFieldIter::new(TestEnum::SHAPE);
-    assert_field(iter.next_field(Some(2)), None);
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| 2), None);
+    assert_field(iter.next_field(|| unreachable!()), None);
 
     // EnumWrapper
     let mut iter = ShapeFieldIter::new(EnumWrapper::SHAPE);
-    assert_field(iter.next_field(Some(0)), Some(u8::SHAPE));
-    assert_field(iter.next_field(None), Some(bool::SHAPE));
-    assert_field(iter.next_field(None), Some(u16::SHAPE));
-    assert_field(iter.next_field(Some(1)), Some(u32::SHAPE));
-    assert_field(iter.next_field(None), Some(u64::SHAPE));
-    assert_field(iter.next_field(None), None);
+    assert_field(iter.next_field(|| 0), Some(u8::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(bool::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(u16::SHAPE));
+    assert_field(iter.next_field(|| 1), Some(u32::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), Some(u64::SHAPE));
+    assert_field(iter.next_field(|| unreachable!()), None);
 }

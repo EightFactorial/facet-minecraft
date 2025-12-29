@@ -86,7 +86,9 @@ impl<'de> McDeserializer<'de> {
 
     /// Parse the next event from the input.
     fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> {
-        let Some(field) = self.iter.next_field(None) else { todo!() };
+        let Some(field) = self.iter.next_field(|| todo!()) else {
+            return if self.iter.is_empty() { Ok(None) } else { todo!() };
+        };
 
         let mut variable = false;
         if let FieldOrShape::Field(field) = field {
