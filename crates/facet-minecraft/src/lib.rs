@@ -8,6 +8,7 @@ extern crate std;
 
 pub mod attribute;
 pub mod common;
+pub(crate) mod iterator;
 
 pub mod deserialize;
 #[cfg(feature = "futures-io")]

@@ -23,7 +23,7 @@ pretty_assertions = { workspace = true }
 proptest = { workspace = true }
 
 [dependencies]
-facet = { features = ["alloc", "uuid"],  workspace = true }
+facet = { features = ["alloc", "fn-ptr", "uuid"],  workspace = true }
 facet-format = { workspace = true }
 facet-reflect = { workspace = true }
 miette = { workspace = true }

@@ -15,18 +15,28 @@ pub struct McJitFormat;
 impl<'de> FormatJitParser<'de> for McDeserializer<'de> {
     type FormatJit = McJitFormat;
 
-    fn jit_input(&self) -> &'de [u8] { todo!() }
+    fn jit_input(&self) -> &'de [u8] { self.input }
 
-    fn jit_pos(&self) -> Option<usize> { todo!() }
+    fn jit_pos(&self) -> Option<usize> { Some(self.consumed()) }
 
-    fn jit_set_pos(&mut self, _pos: usize) { todo!() }
+    fn jit_set_pos(&mut self, pos: usize) { self.counter = pos; }
 
     fn jit_format(&self) -> Self::FormatJit { McJitFormat }
 
-    fn jit_error(&self, _input: &'de [u8], _error_pos: usize, _error_code: i32) -> Self::Error {
-        todo!()
+    fn jit_error(&self, _input: &'de [u8], _error_pos: usize, error_code: i32) -> Self::Error {
+        match error_code {
+            McJitFormat::ERROR_CODE_EXAMPLE => todo!(),
+            _ => unreachable!("Unknown JIT error: {error_code}"),
+        }
     }
 }
+
+impl McJitFormat {
+    /// The error code for an example error.
+    pub const ERROR_CODE_EXAMPLE: i32 = -1;
+}
+
+// -------------------------------------------------------------------------------------------------
 
 impl JitFormat for McJitFormat {
     const MAP_STATE_ALIGN: u32 = 1;
