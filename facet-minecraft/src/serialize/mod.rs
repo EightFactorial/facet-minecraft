@@ -50,6 +50,23 @@ impl SerializeFn {
     }
 }
 
+impl
+    From<
+        for<'buffer> fn(
+            &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
+        ) -> Result<(), SerializeError>,
+    > for SerializeFn
+{
+    #[inline]
+    fn from(
+        ptr: for<'buffer> fn(
+            &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
+        ) -> Result<(), SerializeError>,
+    ) -> Self {
+        Self::new(ptr)
+    }
+}
+
 // -------------------------------------------------------------------------------------------------
 
 /// A serializer that implements [`FormatSerializer`].

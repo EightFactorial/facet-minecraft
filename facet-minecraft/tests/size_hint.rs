@@ -12,6 +12,7 @@ use uuid::Uuid;
 fn verify() {
     // Size: Exactly `[u8; 0]`
     assert::<()>(TypeSerializeHint::Exact { size: 0 });
+    assert::<&()>(TypeSerializeHint::Exact { size: 0 });
 
     // Size: Exactly `[u8; 1]`
     assert::<bool>(TypeSerializeHint::Exact { size: 1 });
@@ -93,6 +94,17 @@ fn verify() {
     // Size: None (Unsupported)
     assert::<char>(TypeSerializeHint::None);
     assert::<*const u8>(TypeSerializeHint::None);
+
+    // Size: None (Unsupported)
+    assert::<Var<()>>(TypeSerializeHint::None);
+    assert::<Var<u8>>(TypeSerializeHint::None);
+    assert::<Var<&u8>>(TypeSerializeHint::None);
+    assert::<Var<i8>>(TypeSerializeHint::None);
+    assert::<Var<&i8>>(TypeSerializeHint::None);
+    assert::<Var<f32>>(TypeSerializeHint::None);
+    assert::<&Var<f32>>(TypeSerializeHint::None);
+    assert::<Var<f64>>(TypeSerializeHint::None);
+    assert::<&Var<f64>>(TypeSerializeHint::None);
 }
 
 // -------------------------------------------------------------------------------------------------

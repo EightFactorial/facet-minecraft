@@ -165,9 +165,9 @@ impl TypeSerializeHint {
 
 // -------------------------------------------------------------------------------------------------
 
-const LEN_UNBOUNDED_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: None };
 const VAR_U16_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: Some(3) };
 const VAR_U32_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: Some(5) };
+const VAR_U32_UNBOUNDED_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: None };
 const VAR_U64_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: Some(10) };
 const VAR_U128_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: Some(19) };
 
@@ -177,16 +177,27 @@ pub(crate) const fn calculate_shape_hint(
     attrs: Option<&'static [FieldAttribute]>,
 ) -> TypeSerializeHint {
     match shape.def {
+        // If key and value are zero-sized use repr hint,
+        // otherwise use min length repr + unknown max
+        Def::Map(MapDef { k, v, .. }) => {
+            if let TypeSerializeHint::Exact { size: 0 } = calculate_shape_hint(k, attrs)
+                && let TypeSerializeHint::Exact { size: 0 } = calculate_shape_hint(v, attrs)
+            {
+                VAR_U32_HINT
+            } else {
+                VAR_U32_UNBOUNDED_HINT
+            }
+        }
+
         // If inner/key is zero-sized use repr hint,
         // otherwise use min length repr + unknown max
-        Def::Map(MapDef { k: t, .. })
-        | Def::Set(SetDef { t, .. })
+        Def::Set(SetDef { t, .. })
         | Def::List(ListDef { t, .. })
         | Def::Slice(SliceDef { t, .. }) => {
             if let TypeSerializeHint::Exact { size: 0 } = calculate_shape_hint(t, attrs) {
                 VAR_U32_HINT
             } else {
-                LEN_UNBOUNDED_HINT
+                VAR_U32_UNBOUNDED_HINT
             }
         }
 
@@ -199,7 +210,7 @@ pub(crate) const fn calculate_shape_hint(
             if let Some(max) = hint.maximum() {
                 TypeSerializeHint::Range { min: 1, max: Some(1 + max) }
             } else {
-                LEN_UNBOUNDED_HINT
+                VAR_U32_UNBOUNDED_HINT
             }
         }
 
@@ -322,7 +333,7 @@ const fn calculate_ty_hint(
             }
             PrimitiveType::Textual(ty) => match ty {
                 // `str`
-                TextualType::Str => LEN_UNBOUNDED_HINT,
+                TextualType::Str => VAR_U32_UNBOUNDED_HINT,
                 // `char` (not supported)
                 TextualType::Char => TypeSerializeHint::None,
             },
@@ -334,7 +345,7 @@ const fn calculate_ty_hint(
             // `[$ty; N]`: Inner hint * length
             SequenceType::Array(ty) => calculate_shape_hint(ty.t, None).multiply(ty.n),
             // `[$ty]`: VarInt length repr + unknown max
-            SequenceType::Slice(_) => LEN_UNBOUNDED_HINT,
+            SequenceType::Slice(_) => VAR_U32_UNBOUNDED_HINT,
         },
 
         Type::User(ty) => match ty {
@@ -388,7 +399,7 @@ const fn calculate_ty_hint(
                 // TODO: Use `ConstTypeId`/`TypeId` instead of identifiers
                 match shape.type_identifier.as_bytes() {
                     // VarInt length repr + unknown max
-                    b"String" => LEN_UNBOUNDED_HINT,
+                    b"String" => VAR_U32_UNBOUNDED_HINT,
                     // `[u8; 16]`
                     b"Uuid" => TypeSerializeHint::Exact { size: 16 },
                     _ => TypeSerializeHint::None,

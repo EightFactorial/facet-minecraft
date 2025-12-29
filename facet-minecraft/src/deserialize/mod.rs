@@ -69,6 +69,25 @@ impl DeserializeFn {
     }
 }
 
+impl
+    From<
+        for<'de> fn(
+            &mut McDeserializer<'de>,
+            &'de Field,
+        ) -> Result<ParseEvent<'de>, DeserializeError>,
+    > for DeserializeFn
+{
+    #[inline]
+    fn from(
+        ptr: for<'de> fn(
+            &mut McDeserializer<'de>,
+            &'de Field,
+        ) -> Result<ParseEvent<'de>, DeserializeError>,
+    ) -> Self {
+        Self::new(ptr)
+    }
+}
+
 // -------------------------------------------------------------------------------------------------
 
 /// A deserializer that implements [`FormatParser`].
