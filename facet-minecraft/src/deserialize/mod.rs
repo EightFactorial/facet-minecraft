@@ -1,9 +1,9 @@
 //! TODO
 
-use facet::{Attr, Facet, Field, ScalarType, Shape};
+use facet::{Facet, Field, Shape};
 use facet_format::{
-    DeserializeError as FDError, FieldEvidence, FormatDeserializer, FormatParser, ParseEvent,
-    ProbeStream,
+    DeserializeError as FDError, EnumVariantHint, FieldEvidence, FormatDeserializer, FormatParser,
+    ParseEvent, ProbeStream, ScalarTypeHint,
 };
 
 mod error;
@@ -11,6 +11,7 @@ pub use error::{DeserializeError, DeserializeErrorKind};
 
 #[cfg(feature = "jit")]
 mod jit;
+use facet_reflect::Span;
 #[cfg(feature = "jit")]
 pub use jit::McJitFormat;
 
@@ -25,11 +26,6 @@ pub use stream::{McStreamDeserializer, from_reader};
 
 pub(crate) mod r#trait;
 pub use r#trait::Deserializable;
-
-use crate::{
-    attribute::Attr as McAttr,
-    iterator::{FieldOrShape, ShapeFieldIter},
-};
 
 /// A function pointer to a deserialization function.
 #[derive(Debug, Clone, Copy, Facet)]
@@ -96,16 +92,13 @@ pub struct McDeserializer<'de> {
     input: &'de [u8],
     counter: usize,
 
-    iter: ShapeFieldIter<'de>,
     peek: Option<ParseEvent<'de>>,
 }
 
 impl<'de> McDeserializer<'de> {
     /// Create a new [`McDeserializer`] using the given counter.
     #[must_use]
-    pub fn new(shape: &'de Shape, input: &'de [u8]) -> Self {
-        Self { input, counter: 0, iter: ShapeFieldIter::new(shape), peek: None }
-    }
+    pub fn new(input: &'de [u8]) -> Self { Self { input, counter: 0, peek: None } }
 
     /// Returns the number of bytes consumed so far.
     #[inline]
@@ -113,79 +106,7 @@ impl<'de> McDeserializer<'de> {
     pub const fn consumed(&self) -> usize { self.counter }
 
     /// Parse the next event from the input.
-    fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> {
-        let Some(field) = self.iter.next_field(|| todo!()) else {
-            return if self.iter.is_empty() { Ok(None) } else { todo!() };
-        };
-
-        let mut variable = false;
-        if let FieldOrShape::Field(field) = field {
-            // Check for a custom deserializer
-            if let Some(McAttr::Deserialize(Some(deserialize_fn))) =
-                field.get_attr(Some("mc"), "deserialize").and_then(Attr::get_as::<McAttr>)
-            {
-                return deserialize_fn.call(self, field).map(Some);
-            }
-            // Check for variable-length encoding
-            if Some(&McAttr::Variable)
-                == field.get_attr(Some("mc"), "variable").and_then(Attr::get_as::<McAttr>)
-            {
-                variable = true;
-            }
-        }
-
-        let shape = field.shape();
-        if let Some(scalar) = shape.scalar_type() {
-            match (scalar, variable) {
-                // Units, booleans and strings
-                (ScalarType::Unit, false) => todo!(),
-                (ScalarType::Bool, false) => todo!(),
-                (ScalarType::Str, false) => todo!(),
-                (ScalarType::String, false) => todo!(),
-                (ScalarType::CowStr, false) => todo!(),
-                // Standard unsigned integers
-                (ScalarType::U8, false) => todo!(),
-                (ScalarType::U16, false) => todo!(),
-                (ScalarType::U32, false) => todo!(),
-                (ScalarType::U64, false) => todo!(),
-                (ScalarType::U128, false) => todo!(),
-                (ScalarType::USize, false) => todo!(),
-                // Variable-length unsigned integers
-                (ScalarType::U16, true) => todo!(),
-                (ScalarType::U32, true) => todo!(),
-                (ScalarType::U64, true) => todo!(),
-                (ScalarType::U128, true) => todo!(),
-                (ScalarType::USize, true) => todo!(),
-                // Standard signed integers
-                (ScalarType::I8, false) => todo!(),
-                (ScalarType::I16, false) => todo!(),
-                (ScalarType::I32, false) => todo!(),
-                (ScalarType::I64, false) => todo!(),
-                (ScalarType::I128, false) => todo!(),
-                (ScalarType::ISize, false) => todo!(),
-                // Variable-length signed integers
-                (ScalarType::I16, true) => todo!(),
-                (ScalarType::I32, true) => todo!(),
-                (ScalarType::I64, true) => todo!(),
-                (ScalarType::I128, true) => todo!(),
-                (ScalarType::ISize, true) => todo!(),
-                // Floating point numbers
-                (ScalarType::F32, false) => todo!(),
-                (ScalarType::F64, false) => todo!(),
-                // Unsupported types
-                // ScalarType::Char => todo!(),
-                // ScalarType::IpAddr => todo!(),
-                // ScalarType::Ipv4Addr => todo!(),
-                // ScalarType::Ipv6Addr => todo!(),
-                // ScalarType::SocketAddr => todo!(),
-                // ScalarType::ConstTypeId => todo!(),
-                (_, true) => todo!("Variable-length encoding is not supported for this type!"),
-                _ => todo!("Unsupported scalar type!"),
-            }
-        } else {
-            todo!()
-        }
-    }
+    fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> { todo!() }
 }
 
 impl<'de> FormatParser<'de> for McDeserializer<'de> {
@@ -213,6 +134,26 @@ impl<'de> FormatParser<'de> for McDeserializer<'de> {
     fn skip_value(&mut self) -> Result<(), Self::Error> { self.next_event().map(|_| ()) }
 
     fn begin_probe(&mut self) -> Result<Self::Probe<'_>, Self::Error> { Ok(McDeserializerProbe) }
+
+    fn is_self_describing(&self) -> bool { false }
+
+    fn hint_struct_fields(&mut self, _num: usize) {}
+
+    fn hint_scalar_type(&mut self, _hint: ScalarTypeHint) {}
+
+    fn hint_sequence(&mut self) {}
+
+    fn hint_array(&mut self, _len: usize) {}
+
+    fn hint_option(&mut self) {}
+
+    fn hint_map(&mut self) {}
+
+    fn hint_enum(&mut self, _variants: &[EnumVariantHint]) {}
+
+    fn hint_opaque_scalar(&mut self, _ident: &'static str, _shape: &'static Shape) -> bool { false }
+
+    fn current_span(&self) -> Option<Span> { Some(Span::new(self.counter, self.input.len())) }
 }
 
 /// A deserializer probe that implements [`ProbeStream`].
@@ -245,7 +186,7 @@ pub fn from_slice<T: Deserializable<'static>>(
     // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
     // deserializable!") };
 
-    let mut format = FormatDeserializer::new_owned(McDeserializer::new(T::SHAPE, input));
+    let mut format = FormatDeserializer::new_owned(McDeserializer::new(input));
 
     format.deserialize_root::<T>().and_then(|val| {
         let consumed = format.parser_mut().consumed();
@@ -278,7 +219,7 @@ pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
     // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
     // deserializable!") };
 
-    let mut format = FormatDeserializer::new(McDeserializer::new(T::SHAPE, input));
+    let mut format = FormatDeserializer::new(McDeserializer::new(input));
 
     format.deserialize_root::<T>().and_then(|val| {
         let consumed = format.parser_mut().consumed();
@@ -311,7 +252,7 @@ pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
     // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
     // deserializable!") };
 
-    let mut format = McDeserializer::new(T::SHAPE, input);
+    let mut format = McDeserializer::new(input);
 
     if let Some(result) = facet_format::jit::try_deserialize_with_format_jit::<T, _>(&mut format) {
         result.and_then(|val| {

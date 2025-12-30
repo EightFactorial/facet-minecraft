@@ -4,12 +4,13 @@ use std::io::Cursor;
 
 use corosensei::{Coroutine, CoroutineResult, Yielder};
 use facet::Shape;
-use facet_format::{DeserializeError as FDError, FormatDeserializer, FormatParser, ParseEvent};
-
-use crate::{
-    deserialize::{Deserializable, DeserializeError, McDeserializerProbe},
-    iterator::ShapeFieldIter,
+use facet_format::{
+    DeserializeError as FDError, EnumVariantHint, FormatDeserializer, FormatParser, ParseEvent,
+    ScalarTypeHint,
 };
+use facet_reflect::Span;
+
+use crate::deserialize::{Deserializable, DeserializeError, McDeserializerProbe};
 
 /// A wrapper around a [`Coroutine`] for deserializing a value of type `T`.
 struct CoWrapper<T> {
@@ -29,12 +30,8 @@ impl<T: Deserializable<'static>> CoWrapper<T> {
         let cobuffer = Rc::clone(&buffer);
         let coroutine =
             Coroutine::new(move |yielder, ()| -> Result<T, FDError<DeserializeError>> {
-                FormatDeserializer::new_owned(McStreamDeserializer::new(
-                    T::SHAPE,
-                    cobuffer,
-                    yielder,
-                ))
-                .deserialize_root::<T>()
+                FormatDeserializer::new_owned(McStreamDeserializer::new(cobuffer, yielder))
+                    .deserialize_root::<T>()
             });
 
         Self { buffer, coroutine }
@@ -173,7 +170,6 @@ pub struct McStreamDeserializer<'de, 'y> {
     buffer: Rc<RefCell<Cursor<Vec<u8>>>>,
     yielder: &'y Yielder<(), Option<NonZeroUsize>>,
 
-    iter: ShapeFieldIter<'de>,
     peek: Option<ParseEvent<'de>>,
 }
 
@@ -181,11 +177,10 @@ impl<'de, 'y> McStreamDeserializer<'de, 'y> {
     /// Create a new [`McStreamDeserializer`].
     #[must_use]
     pub fn new(
-        shape: &'de Shape,
         buffer: Rc<RefCell<Cursor<Vec<u8>>>>,
         yielder: &'y Yielder<(), Option<NonZeroUsize>>,
     ) -> Self {
-        Self { buffer, yielder, iter: ShapeFieldIter::new(shape), peek: None }
+        Self { buffer, yielder, peek: None }
     }
 
     /// Parse the next event from the input.
@@ -217,4 +212,31 @@ impl<'de> FormatParser<'de> for McStreamDeserializer<'de, '_> {
     fn skip_value(&mut self) -> Result<(), Self::Error> { self.next_event().map(|_| ()) }
 
     fn begin_probe(&mut self) -> Result<Self::Probe<'_>, Self::Error> { Ok(McDeserializerProbe) }
+
+    fn is_self_describing(&self) -> bool { false }
+
+    fn hint_struct_fields(&mut self, _num: usize) {}
+
+    fn hint_scalar_type(&mut self, _hint: ScalarTypeHint) {}
+
+    fn hint_sequence(&mut self) {}
+
+    fn hint_array(&mut self, _len: usize) {}
+
+    fn hint_option(&mut self) {}
+
+    fn hint_map(&mut self) {}
+
+    fn hint_enum(&mut self, _variants: &[EnumVariantHint]) {}
+
+    fn hint_opaque_scalar(&mut self, _ident: &'static str, _shape: &'static Shape) -> bool { false }
+
+    #[expect(clippy::cast_possible_truncation, reason = "")]
+    fn current_span(&self) -> Option<Span> {
+        if let Ok(buffer) = self.buffer.try_borrow() {
+            Some(Span::new(buffer.position() as usize, 0))
+        } else {
+            None
+        }
+    }
 }
