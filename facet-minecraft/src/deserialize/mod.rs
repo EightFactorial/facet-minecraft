@@ -3,26 +3,27 @@
 use facet::{Facet, Field, Shape};
 use facet_format::{
     DeserializeError as FDError, EnumVariantHint, FieldEvidence, FormatDeserializer, FormatParser,
-    ParseEvent, ProbeStream, ScalarTypeHint,
+    ParseEvent, ProbeStream, ScalarTypeHint, ScalarValue,
 };
+use facet_reflect::Span;
 
 mod error;
 pub use error::{DeserializeError, DeserializeErrorKind};
 
 #[cfg(feature = "jit")]
 mod jit;
-use facet_reflect::Span;
 #[cfg(feature = "jit")]
 pub use jit::McJitFormat;
 
+mod parse;
+
+mod stack;
+use stack::{DeserializerStack, StackEntry};
+
 #[cfg(feature = "streaming")]
 pub(crate) mod stream;
-#[cfg(feature = "futures-lite")]
-pub use stream::from_async_reader;
-#[cfg(feature = "tokio")]
-pub use stream::from_tokio_reader;
 #[cfg(feature = "streaming")]
-pub use stream::{McStreamDeserializer, from_reader};
+pub use stream::*;
 
 pub(crate) mod r#trait;
 pub use r#trait::Deserializable;
@@ -92,13 +93,16 @@ pub struct McDeserializer<'de> {
     input: &'de [u8],
     counter: usize,
 
+    stack: DeserializerStack,
     peek: Option<ParseEvent<'de>>,
 }
 
 impl<'de> McDeserializer<'de> {
     /// Create a new [`McDeserializer`] using the given counter.
     #[must_use]
-    pub fn new(input: &'de [u8]) -> Self { Self { input, counter: 0, peek: None } }
+    pub const fn new(input: &'de [u8]) -> Self {
+        Self { input, counter: 0, stack: DeserializerStack::new(), peek: None }
+    }
 
     /// Returns the number of bytes consumed so far.
     #[inline]
@@ -106,7 +110,39 @@ impl<'de> McDeserializer<'de> {
     pub const fn consumed(&self) -> usize { self.counter }
 
     /// Parse the next event from the input.
-    fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> { todo!() }
+    #[expect(unused_variables, reason = "WIP")]
+    fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> {
+        let Some(entry) = self.stack.next_mut() else { return Ok(None) };
+        match entry {
+            StackEntry::Struct { remaining } => todo!(),
+            StackEntry::Enum { variants, variant, remaining } => todo!(),
+            StackEntry::Sequence { remaining } => todo!(),
+            StackEntry::Map { remaining } => todo!(),
+
+            StackEntry::Scalar { hint } => {
+                let hint = *hint;
+                self.parse_scalar(hint, false).map(|value| Some(ParseEvent::Scalar(value)))
+            }
+            StackEntry::Optional { present } => todo!(),
+        }
+    }
+
+    fn parse_scalar(
+        &mut self,
+        hint: ScalarTypeHint,
+        variable: bool,
+    ) -> Result<ScalarValue<'de>, DeserializeError> {
+        match self.input.get(self.counter..) {
+            Some(input) => parse::parse_input(input, hint, variable).map(|(value, consumed)| {
+                self.counter += consumed;
+                value
+            }),
+            None => Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
+                expected: self.counter,
+                found: self.input.len(),
+            })),
+        }
+    }
 }
 
 impl<'de> FormatParser<'de> for McDeserializer<'de> {
@@ -137,23 +173,25 @@ impl<'de> FormatParser<'de> for McDeserializer<'de> {
 
     fn is_self_describing(&self) -> bool { false }
 
-    fn hint_struct_fields(&mut self, _num: usize) {}
+    fn hint_struct_fields(&mut self, num: usize) { self.stack.push_struct_hint(num); }
 
-    fn hint_scalar_type(&mut self, _hint: ScalarTypeHint) {}
+    fn hint_scalar_type(&mut self, hint: ScalarTypeHint) { self.stack.push_scalar_hint(hint); }
 
-    fn hint_sequence(&mut self) {}
+    fn hint_sequence(&mut self) { self.stack.push_sequence_hint(None); }
 
-    fn hint_array(&mut self, _len: usize) {}
+    fn hint_array(&mut self, len: usize) { self.stack.push_sequence_hint(Some(len)); }
 
-    fn hint_option(&mut self) {}
+    fn hint_option(&mut self) { self.stack.push_optional_hint(); }
 
-    fn hint_map(&mut self) {}
+    fn hint_map(&mut self) { self.stack.push_map_hint(); }
 
-    fn hint_enum(&mut self, _variants: &[EnumVariantHint]) {}
+    fn hint_enum(&mut self, variants: &[EnumVariantHint]) { self.stack.push_enum_hint(variants); }
 
     fn hint_opaque_scalar(&mut self, _ident: &'static str, _shape: &'static Shape) -> bool { false }
 
-    fn current_span(&self) -> Option<Span> { Some(Span::new(self.counter, self.input.len())) }
+    fn current_span(&self) -> Option<Span> {
+        Some(Span::new(self.counter, self.input.len().saturating_sub(self.counter)))
+    }
 }
 
 /// A deserializer probe that implements [`ProbeStream`].
@@ -194,7 +232,12 @@ pub fn from_slice<T: Deserializable<'static>>(
             Ok((val, remaining))
         } else {
             // This should never happen, but just in case...
-            Err(FDError::Parser(DeserializeError::new_eof(consumed, input.len())))
+            Err(FDError::Parser(DeserializeError::new(
+                DeserializeErrorKind::UnexpectedEndOfInput {
+                    expected: consumed,
+                    found: input.len(),
+                },
+            )))
         }
     })
 }
@@ -227,7 +270,12 @@ pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
             Ok((val, remaining))
         } else {
             // This should never happen, but just in case...
-            Err(FDError::Parser(DeserializeError::new_eof(consumed, input.len())))
+            Err(FDError::Parser(DeserializeError::new(
+                DeserializeErrorKind::UnexpectedEndOfInput {
+                    expected: consumed,
+                    found: input.len(),
+                },
+            )))
         }
     })
 }
@@ -261,7 +309,12 @@ pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
                 Ok((val, remaining))
             } else {
                 // This should never happen, but just in case...
-                Err(FDError::Parser(DeserializeError::new_eof(consumed, input.len())))
+                Err(FDError::Parser(DeserializeError::new(
+                    DeserializeErrorKind::UnexpectedEndOfInput {
+                        expected: consumed,
+                        found: input.len(),
+                    },
+                )))
             }
         })
     } else {
@@ -275,7 +328,12 @@ pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
                 Ok((val, remaining))
             } else {
                 // This should never happen, but just in case...
-                Err(FDError::Parser(DeserializeError::new_eof(consumed, input.len())))
+                Err(FDError::Parser(DeserializeError::new(
+                    DeserializeErrorKind::UnexpectedEndOfInput {
+                        expected: consumed,
+                        found: input.len(),
+                    },
+                )))
             }
         })
     }

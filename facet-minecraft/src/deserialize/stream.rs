@@ -6,11 +6,14 @@ use corosensei::{Coroutine, CoroutineResult, Yielder};
 use facet::Shape;
 use facet_format::{
     DeserializeError as FDError, EnumVariantHint, FormatDeserializer, FormatParser, ParseEvent,
-    ScalarTypeHint,
+    ScalarTypeHint, ScalarValue,
 };
 use facet_reflect::Span;
 
-use crate::deserialize::{Deserializable, DeserializeError, McDeserializerProbe};
+use crate::deserialize::{
+    Deserializable, DeserializeError, DeserializeErrorKind, DeserializerStack, McDeserializerProbe,
+    StackEntry, parse,
+};
 
 /// A wrapper around a [`Coroutine`] for deserializing a value of type `T`.
 struct CoWrapper<T> {
@@ -165,26 +168,87 @@ pub async fn from_tokio_reader<T: Deserializable<'static>, R: tokio::io::AsyncRe
 // -------------------------------------------------------------------------------------------------
 
 /// TODO
-#[expect(dead_code, reason = "WIP")]
 pub struct McStreamDeserializer<'de, 'y> {
     buffer: Rc<RefCell<Cursor<Vec<u8>>>>,
     yielder: &'y Yielder<(), Option<NonZeroUsize>>,
 
+    stack: DeserializerStack,
     peek: Option<ParseEvent<'de>>,
 }
 
 impl<'de, 'y> McStreamDeserializer<'de, 'y> {
     /// Create a new [`McStreamDeserializer`].
     #[must_use]
-    pub fn new(
+    pub const fn new(
         buffer: Rc<RefCell<Cursor<Vec<u8>>>>,
         yielder: &'y Yielder<(), Option<NonZeroUsize>>,
     ) -> Self {
-        Self { buffer, yielder, peek: None }
+        Self { buffer, yielder, stack: DeserializerStack::new(), peek: None }
     }
 
     /// Parse the next event from the input.
-    fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> { todo!() }
+    #[expect(unused_variables, reason = "WIP")]
+    fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> {
+        let Some(entry) = self.stack.next_mut() else { return Ok(None) };
+        match entry {
+            StackEntry::Struct { remaining } => todo!(),
+            StackEntry::Enum { variants, variant, remaining } => todo!(),
+            StackEntry::Sequence { remaining } => todo!(),
+            StackEntry::Map { remaining } => todo!(),
+
+            StackEntry::Scalar { hint } => {
+                let hint = *hint;
+                self.parse_scalar(hint, false).map(|value| Some(ParseEvent::Scalar(value)))
+            }
+            StackEntry::Optional { present } => todo!(),
+        }
+    }
+
+    fn parse_scalar(
+        &mut self,
+        hint: ScalarTypeHint,
+        variable: bool,
+    ) -> Result<ScalarValue<'static>, DeserializeError> {
+        let cursor = self.buffer.borrow();
+        #[expect(clippy::cast_possible_truncation, reason = "")]
+        let position = cursor.position() as usize;
+
+        match cursor.get_ref().get(position..) {
+            Some(input) => {
+                // Attempt to parse the scalar value
+                let mut result = parse::parse_input_owned(input, hint, variable);
+
+                // If we hit an unexpected end of input, grow the buffer and try again
+                if let Err(err) = &result
+                    && let DeserializeErrorKind::UnexpectedEndOfInput { expected, found } =
+                        *err.kind()
+                    && found < expected
+                {
+                    // Release the borrow and yield
+                    drop(cursor);
+                    self.yielder.suspend(Some(NonZeroUsize::new(expected - found).unwrap()));
+                    // Retry parsing with the grown buffer
+                    let cursor = self.buffer.borrow();
+                    let input = cursor.get_ref().get(position..).unwrap();
+                    result = parse::parse_input_owned(input, hint, variable);
+                }
+
+                // If parsing succeeded, advance the cursor
+                match result {
+                    Ok((value, consumed)) => {
+                        let mut cursor = self.buffer.borrow_mut();
+                        cursor.set_position((position + consumed) as u64);
+                        Ok(value)
+                    }
+                    Err(err) => Err(err),
+                }
+            }
+            None => Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
+                expected: position,
+                found: cursor.get_ref().len(),
+            })),
+        }
+    }
 }
 
 impl<'de> FormatParser<'de> for McStreamDeserializer<'de, '_> {
@@ -215,19 +279,19 @@ impl<'de> FormatParser<'de> for McStreamDeserializer<'de, '_> {
 
     fn is_self_describing(&self) -> bool { false }
 
-    fn hint_struct_fields(&mut self, _num: usize) {}
+    fn hint_struct_fields(&mut self, num: usize) { self.stack.push_struct_hint(num); }
 
-    fn hint_scalar_type(&mut self, _hint: ScalarTypeHint) {}
+    fn hint_scalar_type(&mut self, hint: ScalarTypeHint) { self.stack.push_scalar_hint(hint); }
 
-    fn hint_sequence(&mut self) {}
+    fn hint_sequence(&mut self) { self.stack.push_sequence_hint(None); }
 
-    fn hint_array(&mut self, _len: usize) {}
+    fn hint_array(&mut self, len: usize) { self.stack.push_sequence_hint(Some(len)); }
 
-    fn hint_option(&mut self) {}
+    fn hint_option(&mut self) { self.stack.push_optional_hint(); }
 
-    fn hint_map(&mut self) {}
+    fn hint_map(&mut self) { self.stack.push_map_hint(); }
 
-    fn hint_enum(&mut self, _variants: &[EnumVariantHint]) {}
+    fn hint_enum(&mut self, variants: &[EnumVariantHint]) { self.stack.push_enum_hint(variants); }
 
     fn hint_opaque_scalar(&mut self, _ident: &'static str, _shape: &'static Shape) -> bool { false }
 

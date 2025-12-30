@@ -16,6 +16,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 [lints]
 workspace = true
 
+# --- Tests ---
+
+[[test]]
+name = "deserialize_stream"
+required-features = ["streaming"]
+
 # --- Dependencies ---
 
 [dev-dependencies]
