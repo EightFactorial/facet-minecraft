@@ -6,7 +6,8 @@ use facet_format::{ScalarTypeHint, ScalarValue};
 
 use crate::deserialize::{DeserializeError, DeserializeErrorKind};
 
-pub(crate) fn parse_input(
+#[expect(clippy::too_many_lines, reason = "Complex deserializer for many types")]
+pub(crate) fn parse_scalar(
     input: &[u8],
     hint: ScalarTypeHint,
     variable: bool,
@@ -25,6 +26,7 @@ pub(crate) fn parse_input(
     }
 
     match (hint, variable) {
+        // Fixed-length types
         (ScalarTypeHint::Bool, false) => match as_chunk!(1)[0] {
             0 => Ok((ScalarValue::Bool(false), 1)),
             1 => Ok((ScalarValue::Bool(true), 1)),
@@ -79,27 +81,60 @@ pub(crate) fn parse_input(
             let value = f64::from_be_bytes(*as_chunk!(8));
             Ok((ScalarValue::F64(value), 8))
         }
-        (ScalarTypeHint::String, false) => todo!(),
-        (ScalarTypeHint::Bytes, false) => todo!(),
+
+        // Strings and Bytes
+        (ScalarTypeHint::String, false) => {
+            match parse_scalar(input, ScalarTypeHint::Bytes, false) {
+                Ok((ScalarValue::Bytes(Cow::Borrowed(bytes)), size)) => {
+                    let content = core::str::from_utf8(bytes)
+                        .map_err(|_| DeserializeError::new(DeserializeErrorKind::InvalidUtf8))?;
+                    Ok((ScalarValue::Str(Cow::Borrowed(content)), size))
+                }
+                Ok(_) => unreachable!(),
+                Err(err) => Err(err),
+            }
+        }
+        (ScalarTypeHint::Bytes, false) => {
+            let (len, len_size) = parse_scalar(input, ScalarTypeHint::Usize, true)?;
+            let len = match len {
+                #[expect(clippy::cast_possible_truncation, reason = "")]
+                ScalarValue::U64(v) => v as usize,
+                ScalarValue::U128(v) => v as usize,
+                _ => unreachable!(),
+            };
+
+            let expected = len_size + len;
+            if let Some(slice) = input.get(len_size..expected) {
+                Ok((ScalarValue::Bytes(Cow::Borrowed(slice)), expected))
+            } else {
+                Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
+                    expected,
+                    found: input.len(),
+                }))
+            }
+        }
+
         // Variable-length types
-        (ScalarTypeHint::U8, true) => todo!(),
         (ScalarTypeHint::U16, true) => todo!(),
         (ScalarTypeHint::U32, true) => todo!(),
         (ScalarTypeHint::U64, true) => todo!(),
         (ScalarTypeHint::U128, true) => todo!(),
         (ScalarTypeHint::Usize, true) => todo!(),
-        (ScalarTypeHint::I8, true) => todo!(),
         (ScalarTypeHint::I16, true) => todo!(),
         (ScalarTypeHint::I32, true) => todo!(),
         (ScalarTypeHint::I64, true) => todo!(),
         (ScalarTypeHint::I128, true) => todo!(),
         (ScalarTypeHint::Isize, true) => todo!(),
+
         // Unsupported variable-length types
         (ScalarTypeHint::Bool, true) => todo!(),
+        (ScalarTypeHint::U8, true) => todo!(),
+        (ScalarTypeHint::I8, true) => todo!(),
         (ScalarTypeHint::F32, true) => todo!(),
         (ScalarTypeHint::F64, true) => todo!(),
         (ScalarTypeHint::String, true) => todo!(),
         (ScalarTypeHint::Bytes, true) => todo!(),
+
         // Unsupported types
         (ScalarTypeHint::Char, _) => todo!(),
     }
@@ -109,12 +144,12 @@ pub(crate) fn parse_input(
 
 /// A wrapper over [`parse_input`] that returns owned data.
 #[allow(dead_code, reason = "May not be used if no async features are enabled")]
-pub(crate) fn parse_input_owned(
+pub(crate) fn parse_owned_scalar(
     input: &[u8],
     hint: ScalarTypeHint,
     variable: bool,
 ) -> Result<(ScalarValue<'static>, usize), DeserializeError> {
-    let (value, size) = parse_input(input, hint, variable)?;
+    let (value, size) = parse_scalar(input, hint, variable)?;
     match value {
         ScalarValue::Null => Ok((ScalarValue::Null, size)),
         ScalarValue::Bool(v) => Ok((ScalarValue::Bool(v), size)),

@@ -216,7 +216,7 @@ impl<'de, 'y> McStreamDeserializer<'de, 'y> {
         match cursor.get_ref().get(position..) {
             Some(input) => {
                 // Attempt to parse the scalar value
-                let mut result = parse::parse_input_owned(input, hint, variable);
+                let mut result = parse::parse_owned_scalar(input, hint, variable);
 
                 // If we hit an unexpected end of input, grow the buffer and try again
                 if let Err(err) = &result
@@ -230,7 +230,7 @@ impl<'de, 'y> McStreamDeserializer<'de, 'y> {
                     // Retry parsing with the grown buffer
                     let cursor = self.buffer.borrow();
                     let input = cursor.get_ref().get(position..).unwrap();
-                    result = parse::parse_input_owned(input, hint, variable);
+                    result = parse::parse_owned_scalar(input, hint, variable);
                 }
 
                 // If parsing succeeded, advance the cursor

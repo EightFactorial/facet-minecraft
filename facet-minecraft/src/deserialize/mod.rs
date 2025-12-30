@@ -133,7 +133,7 @@ impl<'de> McDeserializer<'de> {
         variable: bool,
     ) -> Result<ScalarValue<'de>, DeserializeError> {
         match self.input.get(self.counter..) {
-            Some(input) => parse::parse_input(input, hint, variable).map(|(value, consumed)| {
+            Some(input) => parse::parse_scalar(input, hint, variable).map(|(value, consumed)| {
                 self.counter += consumed;
                 value
             }),
