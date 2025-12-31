@@ -5,7 +5,7 @@ ignore = []
 version = 2
 
 [licenses]
-allow = ["Apache-2.0", "ISC", "MIT", "Unicode-3.0"]
+allow = ["Apache-2.0", "MIT", "Unicode-3.0"]
 
 [bans]
 external-default-features = "allow"
@@ -37,21 +37,11 @@ unknown-registry = "deny"
 crate = "windows-sys"
 reason = "Updates are too frequent for many crates, leaving multiple versions unavoidable."
 
-[[bans.skip]]
-crate = "unicode-width@0.1.14"
-reason = "Temporary exception until the next release"
-
 # --- Executable Exceptions ---
 
 [[bans.build.bypass]]
 name = "autocfg"
 allow-globs = ["tests/*"]
-
-[[bans.build.bypass]]
-name = "owo-colors"
-allow = [
-  { path = "scripts/cargo-release-publish.sh", checksum = "9fe047e78c43a566ca1d5e29ad0ec02da95aea922f00c2b68ffa71e60b34eb48" },
-]
 
 [[bans.build.bypass]]
 name = "windows_aarch64_gnullvm"

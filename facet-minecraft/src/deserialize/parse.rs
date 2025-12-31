@@ -6,6 +6,28 @@ use facet_format::{ScalarTypeHint, ScalarValue};
 
 use crate::deserialize::{DeserializeError, DeserializeErrorKind};
 
+/// A wrapper over [`parse_input`] that returns owned data.
+#[allow(dead_code, reason = "May not be used if no async features are enabled")]
+pub(crate) fn parse_owned_scalar(
+    input: &[u8],
+    hint: ScalarTypeHint,
+    variable: bool,
+) -> Result<(ScalarValue<'static>, usize), DeserializeError> {
+    let (value, size) = parse_scalar(input, hint, variable)?;
+    match value {
+        ScalarValue::Null => Ok((ScalarValue::Null, size)),
+        ScalarValue::Bool(v) => Ok((ScalarValue::Bool(v), size)),
+        ScalarValue::I64(v) => Ok((ScalarValue::I64(v), size)),
+        ScalarValue::U64(v) => Ok((ScalarValue::U64(v), size)),
+        ScalarValue::I128(v) => Ok((ScalarValue::I128(v), size)),
+        ScalarValue::U128(v) => Ok((ScalarValue::U128(v), size)),
+        ScalarValue::F64(v) => Ok((ScalarValue::F64(v), size)),
+        ScalarValue::Str(cow) => Ok((ScalarValue::Str(Cow::Owned(cow.into_owned())), size)),
+        ScalarValue::Bytes(cow) => Ok((ScalarValue::Bytes(Cow::Owned(cow.into_owned())), size)),
+    }
+}
+
+/// Parse a [`ScalarValue`] from the given input and [`ScalarTypeHint`].
 #[expect(clippy::too_many_lines, reason = "Complex deserializer for many types")]
 pub(crate) fn parse_scalar(
     input: &[u8],
@@ -115,16 +137,28 @@ pub(crate) fn parse_scalar(
         }
 
         // Variable-length types
-        (ScalarTypeHint::U16, true) => todo!(),
-        (ScalarTypeHint::U32, true) => todo!(),
-        (ScalarTypeHint::U64, true) => todo!(),
-        (ScalarTypeHint::U128, true) => todo!(),
-        (ScalarTypeHint::Usize, true) => todo!(),
-        (ScalarTypeHint::I16, true) => todo!(),
-        (ScalarTypeHint::I32, true) => todo!(),
-        (ScalarTypeHint::I64, true) => todo!(),
-        (ScalarTypeHint::I128, true) => todo!(),
-        (ScalarTypeHint::Isize, true) => todo!(),
+        (ScalarTypeHint::U16, true) => {
+            var_u16(input).map(|(v, s)| (ScalarValue::U64(u64::from(v)), s))
+        }
+        (ScalarTypeHint::U32 | ScalarTypeHint::Usize, true) => {
+            var_u32(input).map(|(v, s)| (ScalarValue::U64(u64::from(v)), s))
+        }
+        (ScalarTypeHint::U64, true) => var_u64(input).map(|(v, s)| (ScalarValue::U64(v), s)),
+        (ScalarTypeHint::U128, true) => var_u128(input).map(|(v, s)| (ScalarValue::U128(v), s)),
+        #[expect(clippy::cast_possible_wrap, reason = "This is desired behavior")]
+        (ScalarTypeHint::I16, true) => {
+            var_u16(input).map(|(v, s)| (ScalarValue::I64(i64::from(v as i16)), s))
+        }
+        #[expect(clippy::cast_possible_wrap, reason = "This is desired behavior")]
+        (ScalarTypeHint::I32 | ScalarTypeHint::Isize, true) => {
+            var_u32(input).map(|(v, s)| (ScalarValue::I64(i64::from(v as i32)), s))
+        }
+        #[expect(clippy::cast_possible_wrap, reason = "This is desired behavior")]
+        (ScalarTypeHint::I64, true) => var_u64(input).map(|(v, s)| (ScalarValue::I64(v as i64), s)),
+        #[expect(clippy::cast_possible_wrap, reason = "This is desired behavior")]
+        (ScalarTypeHint::I128, true) => {
+            var_u128(input).map(|(v, s)| (ScalarValue::I128(v as i128), s))
+        }
 
         // Unsupported variable-length types
         (ScalarTypeHint::Bool, true) => todo!(),
@@ -142,23 +176,90 @@ pub(crate) fn parse_scalar(
 
 // -------------------------------------------------------------------------------------------------
 
-/// A wrapper over [`parse_input`] that returns owned data.
-#[allow(dead_code, reason = "May not be used if no async features are enabled")]
-pub(crate) fn parse_owned_scalar(
-    input: &[u8],
-    hint: ScalarTypeHint,
-    variable: bool,
-) -> Result<(ScalarValue<'static>, usize), DeserializeError> {
-    let (value, size) = parse_scalar(input, hint, variable)?;
-    match value {
-        ScalarValue::Null => Ok((ScalarValue::Null, size)),
-        ScalarValue::Bool(v) => Ok((ScalarValue::Bool(v), size)),
-        ScalarValue::I64(v) => Ok((ScalarValue::I64(v), size)),
-        ScalarValue::U64(v) => Ok((ScalarValue::U64(v), size)),
-        ScalarValue::I128(v) => Ok((ScalarValue::I128(v), size)),
-        ScalarValue::U128(v) => Ok((ScalarValue::U128(v), size)),
-        ScalarValue::F64(v) => Ok((ScalarValue::F64(v), size)),
-        ScalarValue::Str(cow) => Ok((ScalarValue::Str(Cow::Owned(cow.into_owned())), size)),
-        ScalarValue::Bytes(cow) => Ok((ScalarValue::Bytes(Cow::Owned(cow.into_owned())), size)),
+fn var_u16(input: &[u8]) -> Result<(u16, usize), DeserializeError> {
+    let mut number: u16 = 0;
+    let mut index = 0;
+
+    while index < 3 {
+        if let Some(&byte) = input.get(index) {
+            number |= u16::from(byte & 0b0111_1111) << (7 * index);
+            index += 1;
+            if byte & 0b1000_0000 == 0 {
+                break;
+            }
+        } else {
+            Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
+                expected: 1,
+                found: 0,
+            }))?;
+        }
     }
+
+    Ok((number, index))
+}
+
+fn var_u32(input: &[u8]) -> Result<(u32, usize), DeserializeError> {
+    let mut number: u32 = 0;
+    let mut index = 0;
+
+    while index < 5 {
+        if let Some(&byte) = input.get(index) {
+            number |= u32::from(byte & 0b0111_1111) << (7 * index);
+            index += 1;
+            if byte & 0b1000_0000 == 0 {
+                break;
+            }
+        } else {
+            Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
+                expected: 1,
+                found: 0,
+            }))?;
+        }
+    }
+
+    Ok((number, index))
+}
+
+fn var_u64(input: &[u8]) -> Result<(u64, usize), DeserializeError> {
+    let mut number: u64 = 0;
+    let mut index = 0;
+
+    while index < 10 {
+        if let Some(&byte) = input.get(index) {
+            number |= u64::from(byte & 0b0111_1111) << (7 * index);
+            index += 1;
+            if byte & 0b1000_0000 == 0 {
+                break;
+            }
+        } else {
+            Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
+                expected: 1,
+                found: 0,
+            }))?;
+        }
+    }
+
+    Ok((number, index))
+}
+
+fn var_u128(input: &[u8]) -> Result<(u128, usize), DeserializeError> {
+    let mut number: u128 = 0;
+    let mut index = 0;
+
+    while index < 19 {
+        if let Some(&byte) = input.get(index) {
+            number |= u128::from(byte & 0b0111_1111) << (7 * index);
+            index += 1;
+            if byte & 0b1000_0000 == 0 {
+                break;
+            }
+        } else {
+            Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
+                expected: 1,
+                found: 0,
+            }))?;
+        }
+    }
+
+    Ok((number, index))
 }

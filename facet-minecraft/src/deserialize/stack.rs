@@ -3,10 +3,12 @@ use alloc::vec::Vec;
 use facet_format::{EnumVariantHint, ScalarTypeHint};
 
 #[repr(transparent)]
+#[derive(Debug)]
 pub(super) struct DeserializerStack {
     stack: Vec<StackEntry>,
 }
 
+#[derive(Debug)]
 pub(super) enum StackEntry {
     Struct { remaining: usize },
     Enum { variants: Vec<EnumVariantHint>, variant: Option<usize>, remaining: Option<usize> },
