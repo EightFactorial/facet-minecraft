@@ -11,6 +11,11 @@ mod helpers;
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct McJitFormat;
 
+impl McJitFormat {
+    /// The error code for an example error.
+    pub const ERROR_CODE_EXAMPLE: i32 = -1;
+}
+
 impl<'de> FormatJitParser<'de> for McDeserializer<'de> {
     type FormatJit = McJitFormat;
 
@@ -28,11 +33,6 @@ impl<'de> FormatJitParser<'de> for McDeserializer<'de> {
             _ => unreachable!("Unknown JIT error: {error_code}"),
         }
     }
-}
-
-impl McJitFormat {
-    /// The error code for an example error.
-    pub const ERROR_CODE_EXAMPLE: i32 = -1;
 }
 
 // -------------------------------------------------------------------------------------------------

@@ -14,19 +14,29 @@
 - [ ] Java
   - [ ] Documentation
   - [ ] Examples
-  - [ ] Tests
   - [ ] Serialization
-    - [ ] Assert trait
+    - [ ] Custom Functions
+    - [x] Size Hints
+    - [ ] Type Hints
+    - [ ] Tests
   - [ ] Deserialization
-    - [ ] Assert trait
+    - [ ] Custom Functions
+    - [x] Size Hints
+    - [ ] Type Hints
+    - [ ] Tests
 - [ ] Bedrock
   - [ ] Documentation
   - [ ] Examples
-  - [ ] Tests
   - [ ] Serialization
-    - [ ] Assert trait
+    - [ ] Custom Functions
+    - [ ] Size Hints
+    - [ ] Type Hints
+    - [ ] Tests
   - [ ] Deserialization
-    - [ ] Assert trait
+    - [ ] Custom Functions
+    - [ ] Size Hints
+    - [ ] Type Hints
+    - [ ] Tests
 
 ## License
 
