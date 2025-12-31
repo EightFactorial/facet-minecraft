@@ -6,37 +6,35 @@
 ## Usage
 
 ```rust
-/// TODO
+//! TODO
 ```
 
 ## Release Checklist
 
 - [ ] Java
-  - [ ] Documentation
+  - [ ] Tests (WIP)
   - [ ] Examples
-  - [ ] Serialization
+  - [ ] Documentation
+  - [ ] Serialize
     - [ ] Custom Functions
     - [x] Size Hints
     - [ ] Type Hints
-    - [ ] Tests
-  - [ ] Deserialization
+  - [ ] Deserialize
     - [ ] Custom Functions
     - [x] Size Hints
     - [ ] Type Hints
-    - [ ] Tests
 - [ ] Bedrock
-  - [ ] Documentation
+  - [ ] Tests
   - [ ] Examples
-  - [ ] Serialization
+  - [ ] Documentation
+  - [ ] Serialize
     - [ ] Custom Functions
     - [ ] Size Hints
     - [ ] Type Hints
-    - [ ] Tests
-  - [ ] Deserialization
+  - [ ] Deserialize
     - [ ] Custom Functions
     - [ ] Size Hints
     - [ ] Type Hints
-    - [ ] Tests
 
 ## License
 
