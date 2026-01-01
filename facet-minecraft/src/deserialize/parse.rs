@@ -138,23 +138,29 @@ pub(crate) fn parse_scalar(
 
         // Variable-length types
         (ScalarTypeHint::U16, true) => {
-            var_u16(input).map(|(v, s)| (ScalarValue::U64(u64::from(v)), s))
+            var_u16(input).map(|(val, size)| (ScalarValue::U64(u64::from(val)), size))
         }
         (ScalarTypeHint::U32 | ScalarTypeHint::Usize, true) => {
-            var_u32(input).map(|(v, s)| (ScalarValue::U64(u64::from(v)), s))
+            var_u32(input).map(|(val, size)| (ScalarValue::U64(u64::from(val)), size))
         }
-        (ScalarTypeHint::U64, true) => var_u64(input).map(|(v, s)| (ScalarValue::U64(v), s)),
-        (ScalarTypeHint::U128, true) => var_u128(input).map(|(v, s)| (ScalarValue::U128(v), s)),
+        (ScalarTypeHint::U64, true) => {
+            var_u64(input).map(|(val, size)| (ScalarValue::U64(val), size))
+        }
+        (ScalarTypeHint::U128, true) => {
+            var_u128(input).map(|(val, size)| (ScalarValue::U128(val), size))
+        }
         #[expect(clippy::cast_possible_wrap, reason = "This is desired behavior")]
         (ScalarTypeHint::I16, true) => {
-            var_u16(input).map(|(v, s)| (ScalarValue::I64(i64::from(v as i16)), s))
+            var_u16(input).map(|(val, size)| (ScalarValue::I64(i64::from(val as i16)), size))
         }
         #[expect(clippy::cast_possible_wrap, reason = "This is desired behavior")]
         (ScalarTypeHint::I32 | ScalarTypeHint::Isize, true) => {
-            var_u32(input).map(|(v, s)| (ScalarValue::I64(i64::from(v as i32)), s))
+            var_u32(input).map(|(val, size)| (ScalarValue::I64(i64::from(val as i32)), size))
         }
         #[expect(clippy::cast_possible_wrap, reason = "This is desired behavior")]
-        (ScalarTypeHint::I64, true) => var_u64(input).map(|(v, s)| (ScalarValue::I64(v as i64), s)),
+        (ScalarTypeHint::I64, true) => {
+            var_u64(input).map(|(val, size)| (ScalarValue::I64(val as i64), size))
+        }
         #[expect(clippy::cast_possible_wrap, reason = "This is desired behavior")]
         (ScalarTypeHint::I128, true) => {
             var_u128(input).map(|(v, s)| (ScalarValue::I128(v as i128), s))

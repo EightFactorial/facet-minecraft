@@ -31,7 +31,6 @@ uuid = { workspace = true }
 
 # Optional dependencies
 corosensei = { features = ["default-stack", "unwind"], workspace = true, optional = true }
-facet-pretty = { workspace = true, optional = true }
 futures-lite = { workspace = true, optional = true }
 tokio = { features = ["io-util"], workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
@@ -52,7 +51,7 @@ tokio = ["dep:tokio", "streaming"]
 jit = ["facet-format/jit", "std"]
 
 # Enable tracing messages
-tracing = ["dep:facet-pretty", "dep:tracing"]
+tracing = ["dep:tracing"]
 
 # Enable support for the standard library
 std = ["facet/std", "futures-lite?/std", "tracing?/std", "uuid/std"]
