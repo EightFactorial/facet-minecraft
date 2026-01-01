@@ -12,11 +12,12 @@ pub(super) struct DeserializerStack {
 pub(super) enum StackEntry {
     Struct { remaining: usize },
     Enum { variants: Vec<EnumVariantHint>, variant: Option<usize>, remaining: Option<usize> },
+
     Sequence { remaining: Option<usize> },
     Map { remaining: Option<usize> },
+    Optional { present: Option<bool> },
 
     Scalar { hint: ScalarTypeHint },
-    Optional { present: Option<bool> },
 }
 
 // -------------------------------------------------------------------------------------------------

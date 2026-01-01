@@ -112,35 +112,106 @@ impl<'de> McDeserializer<'de> {
     /// Parse the next event from the input.
     #[expect(unused_variables, reason = "WIP")]
     fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> {
+        /// A helper macro to parse a scalar value.
+        macro_rules! parse_scalar {
+            ($hint:expr, $var:expr) => {{
+                match self.input.get(self.counter..) {
+                    Some(input) => {
+                        parse::parse_scalar(input, $hint, $var).map(|(value, consumed)| {
+                            self.counter += consumed;
+                            value
+                        })
+                    }
+                    None => {
+                        Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
+                            expected: self.counter,
+                            found: self.input.len(),
+                        }))
+                    }
+                }
+            }};
+        }
+
         let Some(entry) = self.stack.next_mut() else { return Ok(None) };
+
         match entry {
             StackEntry::Struct { remaining } => todo!(),
-            StackEntry::Enum { variants, variant, remaining } => todo!(),
-            StackEntry::Sequence { remaining } => todo!(),
-            StackEntry::Map { remaining } => todo!(),
+            StackEntry::Enum { variants, variant, remaining } => {
+                // Determine the remaining fields in the variant
+                if remaining.is_none() {
+                    // Determine the enum variant
+                    if variant.is_none() {
+                        match parse_scalar!(ScalarTypeHint::Usize, true)? {
+                            #[expect(clippy::cast_possible_truncation, reason = "")]
+                            ScalarValue::U64(len) => *variant = Some(len as usize),
+                            ScalarValue::U128(len) => *variant = Some(len as usize),
+                            _ => unreachable!(),
+                        }
+                    }
+
+                    let variant = variant.unwrap();
+                    if let Some(hint) = variants.get(variant) {
+                        *remaining = Some(hint.field_count);
+                    } else {
+                        return Err(DeserializeError::new(DeserializeErrorKind::InvalidVariant(
+                            variant,
+                        )));
+                    }
+                }
+
+                todo!()
+            }
+
+            StackEntry::Sequence { remaining } => {
+                // Determine the size of the sequence
+                if remaining.is_none() {
+                    match parse_scalar!(ScalarTypeHint::Usize, true)? {
+                        #[expect(clippy::cast_possible_truncation, reason = "")]
+                        ScalarValue::U64(len) => *remaining = Some(len as usize),
+                        ScalarValue::U128(len) => *remaining = Some(len as usize),
+                        _ => unreachable!(),
+                    }
+                }
+
+                todo!()
+            }
+            StackEntry::Map { remaining } => {
+                // Determine the size of the map
+                if remaining.is_none() {
+                    match parse_scalar!(ScalarTypeHint::Usize, true)? {
+                        #[expect(clippy::cast_possible_truncation, reason = "")]
+                        ScalarValue::U64(len) => *remaining = Some(len as usize),
+                        ScalarValue::U128(len) => *remaining = Some(len as usize),
+                        _ => unreachable!(),
+                    }
+                }
+
+                todo!()
+            }
+            StackEntry::Optional { present } => {
+                // Determine if the value is present
+                if present.is_none() {
+                    if let ScalarValue::Bool(is_present) =
+                        parse_scalar!(ScalarTypeHint::Bool, false)?
+                    {
+                        *present = Some(is_present);
+                    } else {
+                        unreachable!()
+                    }
+                }
+
+                if present.unwrap() {
+                    // `Some` value
+                    todo!()
+                } else {
+                    // `None` value
+                    Ok(Some(ParseEvent::Scalar(ScalarValue::Null)))
+                }
+            }
 
             StackEntry::Scalar { hint } => {
-                let hint = *hint;
-                self.parse_scalar(hint, false).map(|value| Some(ParseEvent::Scalar(value)))
+                parse_scalar!(*hint, false).map(|v| Some(ParseEvent::Scalar(v)))
             }
-            StackEntry::Optional { present } => todo!(),
-        }
-    }
-
-    fn parse_scalar(
-        &mut self,
-        hint: ScalarTypeHint,
-        variable: bool,
-    ) -> Result<ScalarValue<'de>, DeserializeError> {
-        match self.input.get(self.counter..) {
-            Some(input) => parse::parse_scalar(input, hint, variable).map(|(value, consumed)| {
-                self.counter += consumed;
-                value
-            }),
-            None => Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
-                expected: self.counter,
-                found: self.input.len(),
-            })),
         }
     }
 }

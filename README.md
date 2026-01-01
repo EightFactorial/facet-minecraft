@@ -61,11 +61,11 @@ match facet_minecraft::to_vec(&packet) {
   - [ ] Tests (WIP)
   - [ ] Examples
   - [ ] Documentation
-  - [ ] Serialize (WIP)
+  - [ ] Serialize
     - [x] Custom Functions
     - [x] Size Hints
     - [ ] Type Hints
-  - [ ] Deserialize
+  - [ ] Deserialize (WIP)
     - [x] Custom Functions
     - [x] Size Hints
     - [ ] Type Hints

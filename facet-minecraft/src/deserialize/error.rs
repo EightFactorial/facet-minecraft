@@ -27,6 +27,8 @@ impl DeserializeError {
 pub enum DeserializeErrorKind {
     /// An invalid boolean value was encountered.
     InvalidBool(u8),
+    /// An invalid enum variant was encountered.
+    InvalidVariant(usize),
     /// An invalid UTF-8 sequence was encountered.
     InvalidUtf8,
 
