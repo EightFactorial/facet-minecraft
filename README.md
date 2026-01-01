@@ -32,7 +32,6 @@ pub enum ClientIntent {
 
 // ---------------------------------------------------
 
-
 let packet = ClientHelloPacket {
     protocol: 754,
     address: String::from("mc.hypixel.net"),
@@ -52,9 +51,7 @@ match facet_minecraft::to_vec(&packet) {
             ],
         )
     }
-    Err(err) => {
-        panic!("Failed to serialize packet!\n{err}");
-    }
+    Err(err) => panic!("Failed to serialize packet!\n{err}"),
 }
 ```
 
