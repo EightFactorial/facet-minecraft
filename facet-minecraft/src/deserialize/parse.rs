@@ -22,8 +22,12 @@ pub(crate) fn parse_owned_scalar(
         ScalarValue::I128(v) => Ok((ScalarValue::I128(v), size)),
         ScalarValue::U128(v) => Ok((ScalarValue::U128(v), size)),
         ScalarValue::F64(v) => Ok((ScalarValue::F64(v), size)),
-        ScalarValue::Str(cow) => Ok((ScalarValue::Str(Cow::Owned(cow.into_owned())), size)),
+        ScalarValue::Char(v) => Ok((ScalarValue::Char(v), size)),
         ScalarValue::Bytes(cow) => Ok((ScalarValue::Bytes(Cow::Owned(cow.into_owned())), size)),
+        ScalarValue::Str(cow) => Ok((ScalarValue::Str(Cow::Owned(cow.into_owned())), size)),
+        ScalarValue::StringlyTyped(cow) => {
+            Ok((ScalarValue::StringlyTyped(Cow::Owned(cow.into_owned())), size))
+        }
     }
 }
 
