@@ -288,7 +288,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f00d2cc18d1078029c4f94a382875815e28b66f012215b54ef4fa0936e80f6dc"
 dependencies = [
  "autocfg",
- "facet-core",
+ "facet-core 0.41.0",
  "facet-macros",
 ]
 
@@ -299,7 +299,7 @@ dependencies = [
  "corosensei",
  "facet",
  "facet-format",
- "facet-reflect",
+ "facet-reflect 0.41.0",
  "futures-lite",
  "miette",
  "pretty_assertions",
@@ -321,17 +321,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "facet-format"
-version = "0.41.0"
+name = "facet-core"
+version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0998c8e23fedcd8afa8a1f7d132916f0d5687d6cffa77284ca8552eec4fc9ec2"
+checksum = "6337f704e6988f9cfee38f5b2c9001e84c498eb70cb420f6dc0e14ca7c1f85eb"
+dependencies = [
+ "autocfg",
+ "impls",
+]
+
+[[package]]
+name = "facet-format"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "332a9d31f60d8439a68589331f49e5f058937a9e17d067217f3c87621490753d"
 dependencies = [
  "cranelift",
  "cranelift-jit",
  "cranelift-module",
  "cranelift-native",
- "facet-core",
- "facet-reflect",
+ "facet-core 0.42.0",
+ "facet-path",
+ "facet-reflect 0.42.0",
  "facet-solver",
  "libc",
  "museair",
@@ -389,7 +400,7 @@ dependencies = [
  "corosensei",
  "facet",
  "facet-format",
- "facet-reflect",
+ "facet-reflect 0.41.0",
  "futures-lite",
  "miette",
  "pretty_assertions",
@@ -400,22 +411,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "facet-path"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd02b5b9608066f2417238aae3181a18a3b16b698aca7b448a2ec31ad0dba15c"
+dependencies = [
+ "facet-core 0.42.0",
+]
+
+[[package]]
 name = "facet-reflect"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a7c41c01b33cef5c84065ada3a39e15e95a95beaaf6472abcdd3082d679a7df"
 dependencies = [
- "facet-core",
+ "facet-core 0.41.0",
+]
+
+[[package]]
+name = "facet-reflect"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8571d80d292b6a256d2c26a6e85dbb4bc7adad7768457c5157b1d9ab044ee24f"
+dependencies = [
+ "facet-core 0.42.0",
 ]
 
 [[package]]
 name = "facet-solver"
-version = "0.41.0"
+version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8ec56d8d1dd3a28e62d68da4eeadcbad86a41691872a677c04d0efe12f2ad8b"
+checksum = "27e7f3e9d1169c905d07e354cd1d8e4621945f1c1e55881332d30791781c0e52"
 dependencies = [
- "facet-core",
- "facet-reflect",
+ "facet-core 0.42.0",
+ "facet-reflect 0.42.0",
 ]
 
 [[package]]
