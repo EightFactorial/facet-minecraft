@@ -15,6 +15,7 @@ pub(crate) fn parse_owned_scalar(
 ) -> Result<(ScalarValue<'static>, usize), DeserializeError> {
     let (value, size) = parse_scalar(input, hint, variable)?;
     match value {
+        ScalarValue::Unit => Ok((ScalarValue::Unit, size)),
         ScalarValue::Null => Ok((ScalarValue::Null, size)),
         ScalarValue::Bool(v) => Ok((ScalarValue::Bool(v), size)),
         ScalarValue::I64(v) => Ok((ScalarValue::I64(v), size)),
@@ -25,9 +26,6 @@ pub(crate) fn parse_owned_scalar(
         ScalarValue::Char(v) => Ok((ScalarValue::Char(v), size)),
         ScalarValue::Bytes(cow) => Ok((ScalarValue::Bytes(Cow::Owned(cow.into_owned())), size)),
         ScalarValue::Str(cow) => Ok((ScalarValue::Str(Cow::Owned(cow.into_owned())), size)),
-        ScalarValue::StringlyTyped(cow) => {
-            Ok((ScalarValue::StringlyTyped(Cow::Owned(cow.into_owned())), size))
-        }
     }
 }
 
