@@ -2,7 +2,7 @@
 
 use alloc::{borrow::Cow, vec::Vec};
 
-use facet::{Facet, Shape, ShapeLayout};
+use facet::{Facet, Shape, ShapeLayout, Variant};
 use facet_format::{
     DynamicValueEncoding, DynamicValueTag, EnumVariantEncoding, FieldOrdering, FormatSerializer,
     MapEncoding, ScalarValue, SerializeError as FSError, StructFieldMode,
@@ -134,8 +134,12 @@ impl<B: SerializeBuffer + ?Sized> FormatSerializer for McSerializer<'_, B> {
 
     fn end_struct(&mut self) -> Result<(), Self::Error> { Ok(()) }
 
-    fn begin_enum_variant(&mut self, index: usize, _: &'static str) -> Result<(), Self::Error> {
-        self.scalar_variable(ScalarValue::U64(index as u64), true)
+    fn variant_metadata(&mut self, variant: &'static Variant) -> Result<(), Self::Error> {
+        if let Some(disciminant) = variant.discriminant {
+            self.scalar_variable(ScalarValue::I64(disciminant), true)
+        } else {
+            Err(SerializeError::new(SerializeErrorKind::DiscriminantMissing))
+        }
     }
 
     fn field_metadata(&mut self, field: &FieldItem) -> Result<(), Self::Error> {

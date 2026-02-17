@@ -67,6 +67,9 @@ impl SerializeError {
 pub enum SerializeErrorKind {
     /// An error occurred while writing to the buffer.
     BufferError,
+    /// Could not get the discriminant of an enum variant.
+    DiscriminantMissing,
+
     /// Attempted to serialize a type that is not supported.
     UnsupportedType(&'static Shape),
     /// Attempted to variable-length serialize a type that does not support it.
