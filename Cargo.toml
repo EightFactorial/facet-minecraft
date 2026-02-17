@@ -8,6 +8,7 @@ facet-bedrock = { default-features = false, path = "facet-bedrock", version = "0
 
 # Facet Dependencies
 facet = { default-features = false, version = "0.43" }
+facet-core = { default-features = false, version = "0.43" }
 facet-format = { default-features = false, version = "0.43" }
 facet-reflect = { default-features = false, version = "0.43" }
 
@@ -27,7 +28,7 @@ zerocopy = { default-features = false, version = "0.8" }
 divan = { version = "0.1" }
 flate2 = { version = "1.1" }
 pretty_assertions = { version = "1.4" }
-proptest = { version = "1.9" }
+proptest = { version = "1.10" }
 tracing-subscriber = { features = ["tracing-log"], version = "0.3" }
 
 # --- Workspace Settings ---
