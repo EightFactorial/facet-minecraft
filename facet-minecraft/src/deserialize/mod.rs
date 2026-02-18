@@ -1,11 +1,15 @@
 //! TODO
 
+use alloc::borrow::Cow;
+
 use facet::{Facet, Field, Shape};
 use facet_format::{
-    DeserializeError as FDError, EnumVariantHint, FieldEvidence, FormatDeserializer, FormatParser,
-    ParseEvent, ProbeStream, ScalarTypeHint, ScalarValue,
+    ContainerKind, DeserializeError as FDError, EnumVariantHint, FieldEvidence, FieldKey,
+    FieldLocationHint, FormatDeserializer, FormatParser, ParseEvent, ProbeStream, ScalarTypeHint,
+    ScalarValue,
 };
 use facet_reflect::Span;
+use uuid::Uuid;
 
 mod error;
 pub use error::{DeserializeError, DeserializeErrorKind};
@@ -110,7 +114,6 @@ impl<'de> McDeserializer<'de> {
     pub const fn consumed(&self) -> usize { self.counter }
 
     /// Parse the next event from the input.
-    #[expect(unused_variables, reason = "WIP")]
     fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> {
         /// A helper macro to parse a scalar value.
         macro_rules! parse_scalar {
@@ -135,7 +138,15 @@ impl<'de> McDeserializer<'de> {
         let Some(entry) = self.stack.next_mut() else { return Ok(None) };
 
         match entry {
-            StackEntry::Struct { remaining } => todo!(),
+            StackEntry::Struct { remaining } => {
+                if *remaining == 0 {
+                    let _ = self.stack.pop();
+                    Ok(Some(ParseEvent::StructEnd))
+                } else {
+                    *remaining -= 1;
+                    Ok(Some(ParseEvent::OrderedField))
+                }
+            }
             StackEntry::Enum { variants, variant, remaining } => {
                 // Determine the remaining fields in the variant
                 if remaining.is_none() {
@@ -152,14 +163,27 @@ impl<'de> McDeserializer<'de> {
                     let variant = variant.unwrap();
                     if let Some(hint) = variants.get(variant) {
                         *remaining = Some(hint.field_count);
+
+                        Ok(Some(ParseEvent::StructStart(ContainerKind::Object)))
                     } else {
-                        return Err(DeserializeError::new(DeserializeErrorKind::InvalidVariant(
-                            variant,
-                        )));
+                        Err(DeserializeError::new(DeserializeErrorKind::InvalidVariant(variant)))
+                    }
+                } else {
+                    let Some(hint) = variant.and_then(|i| variants.get(i)) else { unreachable!() };
+                    let remaining = remaining.as_mut().unwrap();
+
+                    if *remaining == 0 {
+                        let _ = self.stack.pop();
+                        Ok(Some(ParseEvent::StructEnd))
+                    } else {
+                        *remaining -= 1;
+                        self.peek = Some(ParseEvent::StructStart(ContainerKind::Object));
+                        Ok(Some(ParseEvent::FieldKey(FieldKey::new(
+                            Cow::Borrowed(hint.name),
+                            FieldLocationHint::KeyValue,
+                        ))))
                     }
                 }
-
-                todo!()
             }
 
             StackEntry::Sequence { remaining } => {
@@ -202,15 +226,19 @@ impl<'de> McDeserializer<'de> {
 
                 if present.unwrap() {
                     // `Some` value
-                    todo!()
+                    todo!();
+                    // Ok(Some(ParseEvent::Scalar(ScalarValue::Bool(true))))
                 } else {
                     // `None` value
-                    Ok(Some(ParseEvent::Scalar(ScalarValue::Null)))
+                    Ok(Some(ParseEvent::Scalar(ScalarValue::Bool(false))))
                 }
             }
 
             StackEntry::Scalar { hint } => {
-                parse_scalar!(*hint, false).map(|v| Some(ParseEvent::Scalar(v)))
+                let variable = false; // TODO: Determine if the scalar type is variable-length
+                let scalar = parse_scalar!(*hint, variable).map(|v| Some(ParseEvent::Scalar(v)));
+                let _ = self.stack.pop();
+                scalar
             }
         }
     }
@@ -242,11 +270,24 @@ impl<'de> FormatParser<'de> for McDeserializer<'de> {
 
     fn begin_probe(&mut self) -> Result<Self::Probe<'_>, Self::Error> { Ok(McDeserializerProbe) }
 
+    // ---------------------------------------------------------------------------------------------
+
     fn is_self_describing(&self) -> bool { false }
 
     fn hint_struct_fields(&mut self, num: usize) { self.stack.push_struct_hint(num); }
 
     fn hint_scalar_type(&mut self, hint: ScalarTypeHint) { self.stack.push_scalar_hint(hint); }
+
+    fn hint_opaque_scalar(&mut self, _: &'static str, shape: &'static Shape) -> bool {
+        if shape.is_type::<Uuid>() {
+            self.hint_scalar_type(ScalarTypeHint::U128);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn hint_byte_sequence(&mut self) -> bool { true }
 
     fn hint_sequence(&mut self) { self.stack.push_sequence_hint(None); }
 
@@ -257,8 +298,6 @@ impl<'de> FormatParser<'de> for McDeserializer<'de> {
     fn hint_map(&mut self) { self.stack.push_map_hint(); }
 
     fn hint_enum(&mut self, variants: &[EnumVariantHint]) { self.stack.push_enum_hint(variants); }
-
-    fn hint_opaque_scalar(&mut self, _ident: &'static str, _shape: &'static Shape) -> bool { false }
 
     fn current_span(&self) -> Option<Span> {
         Some(Span::new(self.counter, self.input.len().saturating_sub(self.counter)))

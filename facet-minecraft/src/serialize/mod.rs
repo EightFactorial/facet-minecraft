@@ -8,6 +8,7 @@ use facet_format::{
     MapEncoding, ScalarValue, SerializeError as FSError, StructFieldMode,
 };
 use facet_reflect::{FieldItem, Peek};
+use uuid::Uuid;
 
 mod buffer;
 pub use buffer::SerializeBuffer;
@@ -87,7 +88,7 @@ impl<'buffer, B: SerializeBuffer + ?Sized> McSerializer<'buffer, B> {
         Self { buffer, variable_length: false, value_size: 0 }
     }
 
-    /// Re-borrow the serializer with a shorter lifetime.
+    /// Reborrow the serializer with a shorter lifetime.
     #[inline]
     #[must_use]
     pub const fn reborrow<'a>(&'a mut self) -> McSerializer<'a, B> {
@@ -98,8 +99,7 @@ impl<'buffer, B: SerializeBuffer + ?Sized> McSerializer<'buffer, B> {
         }
     }
 
-    /// Create a [`McSerializer`] over a
-    /// [`dyn SerializeBuffer`](SerializeBuffer) from this serializer.
+    /// Reborrow the serializer over a dynamic buffer.
     #[inline]
     #[must_use]
     pub const fn as_dyn<'a>(&'a mut self) -> McSerializer<'a, dyn SerializeBuffer + 'a>
@@ -119,7 +119,7 @@ impl<'buffer, B: SerializeBuffer + ?Sized> McSerializer<'buffer, B> {
     pub const fn into_inner(self) -> &'buffer mut B { self.buffer }
 }
 
-impl<B: SerializeBuffer + ?Sized> FormatSerializer for McSerializer<'_, B> {
+impl<B: SerializeBuffer> FormatSerializer for McSerializer<'_, B> {
     type Error = SerializeError;
 
     fn struct_metadata(&mut self, shape: &Shape) -> Result<(), Self::Error> {
@@ -139,6 +139,21 @@ impl<B: SerializeBuffer + ?Sized> FormatSerializer for McSerializer<'_, B> {
             self.scalar_variable(ScalarValue::I64(disciminant), true)
         } else {
             Err(SerializeError::new(SerializeErrorKind::DiscriminantMissing))
+        }
+    }
+
+    fn field_metadata_with_value(
+        &mut self,
+        field: &FieldItem,
+        _value: Peek<'_, '_>,
+    ) -> Result<bool, Self::Error> {
+        if let Some(field) = field.field.as_ref()
+            && let Some(attr) = field.get_attr(Some("mc"), "serialize")
+            && let Some(serialize) = attr.get_as::<SerializeFn>()
+        {
+            serialize.call(&mut self.as_dyn()).map(|()| true)
+        } else {
+            Ok(false)
         }
     }
 
@@ -163,8 +178,23 @@ impl<B: SerializeBuffer + ?Sized> FormatSerializer for McSerializer<'_, B> {
         self.scalar_variable(val, variable_length)
     }
 
+    fn is_self_describing(&self) -> bool { false }
+
+    fn serialize_opaque_scalar(
+        &mut self,
+        shape: &'static Shape,
+        value: Peek<'_, '_>,
+    ) -> Result<bool, Self::Error> {
+        if shape.is_type::<Uuid>() {
+            self.scalar_variable(ScalarValue::U128(value.get::<Uuid>().unwrap().as_u128()), false)?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     fn serialize_byte_sequence(&mut self, bytes: &[u8]) -> Result<bool, Self::Error> {
-        self.scalar_variable(ScalarValue::Bytes(Cow::Borrowed(bytes)), true)?;
+        self.scalar_variable(ScalarValue::Bytes(Cow::Borrowed(bytes)), false)?;
         Ok(true)
     }
 
@@ -199,8 +229,6 @@ impl<B: SerializeBuffer + ?Sized> FormatSerializer for McSerializer<'_, B> {
     }
 
     // ---------------------------------------------------------------------------------------------
-
-    fn is_self_describing(&self) -> bool { false }
 
     fn preferred_field_order(&self) -> FieldOrdering { FieldOrdering::Declaration }
 
@@ -350,7 +378,7 @@ pub fn to_vec<'facet, T: Serializable<'facet> + ?Sized>(
 ///
 /// This function will return an error if serialization fails,
 /// or if the buffer cannot be written to.
-pub fn to_buffer<'output, 'facet, T: Serializable<'facet> + ?Sized, B: SerializeBuffer + ?Sized>(
+pub fn to_buffer<'output, 'facet, T: Serializable<'facet> + ?Sized, B: SerializeBuffer>(
     value: &T,
     buffer: &'output mut B,
 ) -> Result<&'output [u8], FSError<SerializeError>> {

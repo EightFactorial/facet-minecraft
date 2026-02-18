@@ -49,7 +49,7 @@ pub enum DeserializeErrorKind {
 
 impl Error for DeserializeError {}
 impl Display for DeserializeError {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> fmt::Result { todo!() }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { core::fmt::Debug::fmt(self, f) }
 }
 
 #[cfg(feature = "std")]

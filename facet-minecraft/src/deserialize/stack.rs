@@ -38,7 +38,6 @@ impl DeserializerStack {
     /// Pop the next entry off the stack.
     #[inline]
     #[must_use]
-    #[expect(dead_code, reason = "WIP")]
     pub(super) fn pop(&mut self) -> Option<StackEntry> { self.stack.pop() }
 
     pub(super) fn push_struct_hint(&mut self, fields: usize) {
