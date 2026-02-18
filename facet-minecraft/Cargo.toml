@@ -30,9 +30,10 @@ proptest = { workspace = true }
 
 [dependencies]
 facet = { features = ["alloc", "uuid"],  workspace = true }
-facet-format = { workspace = true }
+facet-error = { workspace = true }
 facet-reflect = { workspace = true }
 miette = { workspace = true }
+smallvec = { features = ["const_generics", "const_new", "union"], workspace = true }
 uuid = { workspace = true }
 
 # Optional dependencies
@@ -53,13 +54,10 @@ futures-lite = ["dep:futures-lite", "streaming"]
 # Enable tokio support
 tokio = ["dep:tokio", "streaming"]
 
-# Enable JIT compilation support
-jit = ["facet-format/jit", "std"]
-
 # Enable tracing messages
 tracing = ["dep:tracing"]
 
 # Enable support for the standard library
-std = ["facet/std", "futures-lite?/std", "tracing?/std", "uuid/std"]
+std = ["facet/std", "futures-lite?/std", "tracing?/std", "smallvec/write", "uuid/std"]
 # Enable features using the nightly toolchain
-nightly = ["corosensei?/asm-unwind"]
+nightly = ["corosensei?/asm-unwind", "smallvec/specialization"]

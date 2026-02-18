@@ -1,0 +1,574 @@
+//! [`SerializeIter`]
+#![allow(dead_code, reason = "WIP")]
+
+use facet::{Def, Facet, Shape, Type, UserType};
+use facet_reflect::{
+    FieldsForSerializeIter, HasFields, Peek, PeekDynamicValueArrayIter, PeekDynamicValueObjectIter,
+    PeekListIter, PeekListLikeIter, PeekMapIter, PeekOption, PeekPointer, PeekResult, PeekSetIter,
+};
+use smallvec::SmallVec;
+
+use crate::serialize::error::SerializeIterError;
+
+/// An iterator over the fields of a type.
+pub struct SerializeIter<'mem, 'facet> {
+    input: &'static Shape,
+    state: SmallVec<[ItemState<'mem, 'facet>; 8]>,
+    next: Option<PeekValue<'mem>>,
+}
+
+struct ItemState<'mem, 'facet> {
+    iter: PeekIter<'mem, 'facet>,
+    length: i128,
+    write_length: bool,
+    variable: bool,
+}
+
+enum PeekIter<'mem, 'facet> {
+    Scalar(Peek<'mem, 'facet>),
+    Map(PeekMapIter<'mem, 'facet>),
+    Set(PeekSetIter<'mem, 'facet>),
+    List(PeekListIter<'mem, 'facet>),
+    ListLike(PeekListLikeIter<'mem, 'facet>),
+    // NdArray(PeekNdArray<'mem, 'facet>),
+    Fields(FieldsForSerializeIter<'mem, 'facet>),
+    DynamicValueArray(PeekDynamicValueArrayIter<'mem, 'facet>),
+    DynamicValueObject(PeekDynamicValueObjectIter<'mem, 'facet>),
+    Option(PeekOption<'mem, 'facet>),
+    Result(PeekResult<'mem, 'facet>),
+    Pointer(PeekPointer<'mem, 'facet>),
+}
+
+/// A value returned by [`SerializeIter`].
+///
+/// Does not care about signed/unsigned values as they serialize the same,
+/// and treats all variable-length values as [`u128`]s for simplicity.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PeekValue<'mem> {
+    /// A [`unit`](::core::primitive::unit) value.
+    Unit(()),
+    /// A [`bool`] value.
+    Bool(bool),
+    /// A [`u8`] value.
+    U8(u8),
+    /// A [`u16`] value.
+    U16(u16),
+    /// A [`u32`] value.
+    U32(u32),
+    /// A [`u64`] value.
+    U64(u64),
+    /// A [`u128`] value.
+    U128(u128),
+    /// A variable-length value.
+    Variable(u128),
+    /// An [`f32`] value.
+    F32(f32),
+    /// An [`f64`] value.
+    F64(f64),
+    /// A [`&[u8]`](::core::primitive::slice) value.
+    Bytes(&'mem [u8]),
+}
+
+impl<'mem, 'facet> TryFrom<Peek<'mem, 'facet>> for PeekValue<'mem> {
+    type Error = SerializeIterError<'mem, 'facet>;
+
+    fn try_from(value: Peek<'mem, 'facet>) -> Result<Self, Self::Error> {
+        if let Ok(&()) = value.get::<()>() {
+            Ok(Self::Unit(()))
+        } else if let Ok(&bool) = value.get::<bool>() {
+            Ok(Self::Bool(bool))
+        } else if let Ok(&u8) = value.get::<u8>() {
+            Ok(Self::U8(u8))
+        } else if let Ok(&i8) = value.get::<i8>() {
+            Ok(Self::U8(i8 as u8))
+        } else if let Ok(&u16) = value.get::<u16>() {
+            Ok(Self::U16(u16))
+        } else if let Ok(&i16) = value.get::<i16>() {
+            Ok(Self::U16(i16 as u16))
+        } else if let Ok(&u32) = value.get::<u32>() {
+            Ok(Self::U32(u32))
+        } else if let Ok(&i32) = value.get::<i32>() {
+            Ok(Self::U32(i32 as u32))
+        } else if let Ok(&u64) = value.get::<u64>() {
+            Ok(Self::U64(u64))
+        } else if let Ok(&i64) = value.get::<i64>() {
+            Ok(Self::U64(i64 as u64))
+        } else if let Ok(&u128) = value.get::<u128>() {
+            Ok(Self::U128(u128))
+        } else if let Ok(&i128) = value.get::<i128>() {
+            Ok(Self::U128(i128 as u128))
+        } else if let Ok(&usize) = value.get::<usize>() {
+            Ok(Self::U64(usize as u64))
+        } else if let Ok(&isize) = value.get::<isize>() {
+            Ok(Self::U64(isize as u64))
+        } else if let Ok(&f32) = value.get::<f32>() {
+            Ok(Self::F32(f32))
+        } else if let Ok(&f64) = value.get::<f64>() {
+            Ok(Self::F64(f64))
+        } else if let Some(str) = value.as_str() {
+            Ok(Self::Bytes(str.as_bytes()))
+        } else if let Some(bytes) = value.as_bytes() {
+            Ok(Self::Bytes(bytes))
+        } else {
+            Err(SerializeIterError::new())
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
+    /// Create a new [`SerializeIter`] for the given input.
+    #[must_use]
+    pub fn new<T: Facet<'facet> + ?Sized>(
+        input: &'mem T,
+    ) -> Result<Self, SerializeIterError<'mem, 'facet>> {
+        let mut iter = Self { input: T::SHAPE, state: SmallVec::new_const(), next: None };
+        iter.state.push(Self::create_state(Peek::new(input), false)?);
+        Ok(iter)
+    }
+
+    /// Create an [`ItemState`] for the given [`Peek`].
+    fn create_state(
+        peek: Peek<'mem, 'facet>,
+        variable: bool,
+    ) -> Result<ItemState<'mem, 'facet>, SerializeIterError<'mem, 'facet>> {
+        match peek.shape().def {
+            Def::Scalar => Ok(ItemState {
+                iter: PeekIter::Scalar(peek),
+                length: 1,
+                write_length: false,
+                variable,
+            }),
+            Def::Map(_) => {
+                let map = peek.into_map()?;
+                Ok(ItemState {
+                    length: map.len() as i128,
+                    write_length: true,
+                    iter: PeekIter::Map(map.iter()),
+                    variable,
+                })
+            }
+            Def::Set(_) => {
+                let set = peek.into_set()?;
+                Ok(ItemState {
+                    length: set.len() as i128,
+                    write_length: true,
+                    iter: PeekIter::Set(set.iter()),
+                    variable,
+                })
+            }
+            Def::List(_) => {
+                let list = peek.into_list()?;
+                Ok(ItemState {
+                    length: list.len() as i128,
+                    write_length: true,
+                    iter: PeekIter::List(list.iter()),
+                    variable,
+                })
+            }
+            Def::Array(_) => {
+                let array = peek.into_list_like()?;
+                Ok(ItemState {
+                    length: array.len() as i128,
+                    write_length: false,
+                    iter: PeekIter::ListLike(array.iter()),
+                    variable,
+                })
+            }
+            Def::Slice(_) => {
+                let slice = peek.into_list_like()?;
+                Ok(ItemState {
+                    length: slice.len() as i128,
+                    write_length: true,
+                    iter: PeekIter::ListLike(slice.iter()),
+                    variable,
+                })
+            }
+            Def::DynamicValue(_) => {
+                let dynamic = peek.into_dynamic_value()?;
+                if let Some(iter) = dynamic.array_iter() {
+                    Ok(ItemState {
+                        length: iter.len() as i128,
+                        write_length: false,
+                        iter: PeekIter::DynamicValueArray(iter),
+                        variable,
+                    })
+                } else if let Some(iter) = dynamic.object_iter() {
+                    Ok(ItemState {
+                        length: iter.len() as i128,
+                        write_length: false,
+                        iter: PeekIter::DynamicValueObject(iter),
+                        variable,
+                    })
+                } else {
+                    Err(SerializeIterError::new())
+                }
+            }
+
+            Def::Option(_) => {
+                let option = peek.into_option()?;
+                Ok(ItemState {
+                    length: option.is_some() as i128,
+                    write_length: true,
+                    iter: PeekIter::Option(option),
+                    variable,
+                })
+            }
+            Def::Result(_) => {
+                let result = peek.into_result()?;
+                Ok(ItemState {
+                    length: result.is_ok() as i128,
+                    write_length: true,
+                    iter: PeekIter::Result(result),
+                    variable,
+                })
+            }
+            Def::Pointer(_) => Ok(ItemState {
+                length: 0,
+                write_length: false,
+                iter: PeekIter::Pointer(peek.into_pointer()?),
+                variable,
+            }),
+
+            _ if matches!(peek.shape().ty, Type::User(UserType::Struct(_))) => {
+                let struct_peek = peek.into_struct()?;
+                Ok(ItemState {
+                    length: struct_peek.field_count() as i128,
+                    write_length: false,
+                    iter: PeekIter::Fields(struct_peek.fields_for_serialize()),
+                    variable: false,
+                })
+            }
+
+            // TODO: Return errors instead of unwrapping
+            _ if matches!(peek.shape().ty, Type::User(UserType::Enum(_))) => {
+                let enum_peek = peek.into_enum()?;
+                let variant = enum_peek.active_variant().unwrap();
+                Ok(ItemState {
+                    length: variant.discriminant.unwrap() as i128,
+                    write_length: true,
+                    iter: PeekIter::Fields(enum_peek.fields_for_serialize()),
+                    variable: false,
+                })
+            }
+
+            _ => Err(SerializeIterError::new()),
+        }
+    }
+}
+
+impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
+    type Item = Result<PeekValue<'mem>, SerializeIterError<'mem, 'facet>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        macro_rules! wrap {
+            ($expr:expr) => {
+                match $expr {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err)),
+                }
+            };
+        }
+
+        if let Some(next) = self.next.take() {
+            return Some(Ok(next));
+        }
+
+        loop {
+            let state = self.state.last_mut()?;
+
+            if state.write_length {
+                state.write_length = false;
+                return Some(Ok(PeekValue::Variable(state.length as u128)));
+            }
+
+            match &mut state.iter {
+                // Pop and return the scalar value.
+                PeekIter::Scalar(_) => {
+                    let state = self.state.pop().unwrap_or_else(|| unreachable!());
+                    let PeekIter::Scalar(peek) = state.iter else { unreachable!() };
+
+                    match wrap!(PeekValue::try_from(peek)) {
+                        PeekValue::Unit(()) => {
+                            continue;
+                        }
+                        value @ PeekValue::Bytes(bytes) => {
+                            self.next = Some(value);
+                            return Some(Ok(PeekValue::Variable(bytes.len() as u128)));
+                        }
+                        value => {
+                            return Some(Ok(value));
+                        }
+                    };
+                }
+
+                // Push values onto the stack for the next iteration.
+                PeekIter::Map(iter) => match iter.next() {
+                    Some((key, val)) => {
+                        let variable = state.variable;
+                        self.state.push(wrap!(Self::create_state(val, variable)));
+                        self.state.push(wrap!(Self::create_state(key, variable)));
+                    }
+                    None => {
+                        let _ = self.state.pop()?;
+                    }
+                },
+                PeekIter::Set(iter) => {
+                    if let Some(value) = iter.next() {
+                        let variable = state.variable;
+                        self.state.push(wrap!(Self::create_state(value, variable)));
+                    } else {
+                        let _ = self.state.pop()?;
+                    }
+                }
+                PeekIter::List(iter) => {
+                    if let Some(value) = iter.next() {
+                        let variable = state.variable;
+                        self.state.push(wrap!(Self::create_state(value, variable)));
+                    } else {
+                        let _ = self.state.pop()?;
+                    }
+                }
+                PeekIter::ListLike(iter) => {
+                    if let Some(value) = iter.next() {
+                        let variable = state.variable;
+                        self.state.push(wrap!(Self::create_state(value, variable)));
+                    } else {
+                        let _ = self.state.pop()?;
+                    }
+                }
+                PeekIter::Fields(iter) => {
+                    if let Some((field, value)) = iter.next() {
+                        // Look for `#[facet(mc::variable)]`
+                        let mut variable = false;
+                        if let Some(field) = field.field.as_ref() {
+                            variable = field.has_attr(Some("mc"), "variable");
+                        }
+
+                        self.state.push(wrap!(Self::create_state(value, variable)));
+                    } else {
+                        let _ = self.state.pop()?;
+                    }
+                }
+                PeekIter::DynamicValueArray(iter) => {
+                    if let Some(value) = iter.next() {
+                        let variable = state.variable;
+                        self.state.push(wrap!(Self::create_state(value, variable)));
+                    } else {
+                        let _ = self.state.pop()?;
+                    }
+                }
+                PeekIter::DynamicValueObject(iter) => {
+                    if let Some((key, value)) = iter.next() {
+                        let variable = state.variable;
+                        self.state.push(wrap!(Self::create_state(value, variable)));
+                        self.state.push(wrap!(Self::create_state(Peek::new(key), variable)));
+                    } else {
+                        let _ = self.state.pop()?;
+                    }
+                }
+
+                PeekIter::Option(option) => {
+                    if let Some(value) = option.value() {
+                        *state = wrap!(Self::create_state(value, state.variable));
+                    } else {
+                        let _ = self.state.pop()?;
+                    }
+                }
+                PeekIter::Result(result) => {
+                    if let Some(result) = result.ok() {
+                        *state = wrap!(Self::create_state(result, state.variable));
+                    } else if let Some(result) = result.err() {
+                        *state = wrap!(Self::create_state(result, state.variable));
+                    } else {
+                        unreachable!("Result wasn't either `Ok` or `Err`?");
+                    }
+                }
+                PeekIter::Pointer(ptr) => {
+                    let inner = wrap!(ptr.borrow_inner().ok_or_else(|| SerializeIterError::new()));
+                    *state = wrap!(Self::create_state(inner, state.variable));
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+#[test]
+fn primitive() {
+    let mut iter = SerializeIter::new(&0u8).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&0i8).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&256u128).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U128(256))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&256i128).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U128(256))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new("string").unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(6))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bytes(b"string"))));
+    assert!(iter.next().is_none());
+}
+
+#[test]
+fn list() {
+    static ARRAY: &'static [u8; 4] = &[0u8; 4];
+    static SLICE: &'static [u8] = &[0u8; 4];
+
+    let mut iter = SerializeIter::new(ARRAY).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(SLICE).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(4))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
+    assert!(iter.next().is_none());
+
+    let vec = alloc::vec![0u32; 4];
+    let mut iter = SerializeIter::new(&vec).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(4))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
+    assert!(iter.next().is_none());
+}
+
+#[test]
+fn map() {
+    let mut bset = alloc::collections::BTreeSet::new();
+    for i in 0..8 {
+        bset.insert(i);
+    }
+    let mut iter = SerializeIter::new(&bset).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(8))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(2))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(3))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(4))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(5))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(6))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(7))));
+    assert!(iter.next().is_none());
+
+    let mut bmap = alloc::collections::BTreeMap::new();
+    for i in 0..8u32 {
+        bmap.insert(i, 255);
+    }
+    let mut iter = SerializeIter::new(&bmap).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(8))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(2))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(3))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(4))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(5))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(6))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(7))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
+    assert!(iter.next().is_none());
+}
+
+#[test]
+fn r#struct() {
+    #[derive(Facet)]
+    struct Unit;
+
+    #[derive(Facet)]
+    struct NewType(&'static str);
+
+    #[derive(Facet)]
+    struct Generic<T>(T);
+
+    let mut iter = SerializeIter::new(&Unit).unwrap();
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&NewType("string2")).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(7))));
+    assert!(iter.next().is_some_and(|r| r.is_ok_and(|val| val == PeekValue::Bytes(b"string2"))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&Generic(NewType("string3"))).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(7))));
+    assert!(iter.next().is_some_and(|r| r.is_ok_and(|val| val == PeekValue::Bytes(b"string3"))));
+    assert!(iter.next().is_none());
+}
+
+#[test]
+fn r#enum() {
+    #[repr(i8)]
+    #[derive(Facet)]
+    enum Example {
+        Unit,
+        UnitExplicit(()),
+        Single(bool),
+        Tuple(bool, bool),
+        Fields { a: &'static str, b: Option<u32> },
+        Negative = -1,
+    }
+
+    let mut iter = SerializeIter::new(&Example::Unit).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(0))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&Example::UnitExplicit(())).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&Example::Single(true)).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(true))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&Example::Tuple(true, true)).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(3))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(true))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(true))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&Example::Fields { a: "123", b: None }).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(4))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(3))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bytes(b"123"))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(0))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&Example::Fields { a: "123", b: Some(123) }).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(4))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(3))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bytes(b"123"))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(123))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&Example::Negative).unwrap();
+    assert_eq!((-1i128).to_le_bytes(), 340282366920938463463374607431768211455u128.to_le_bytes());
+    assert!(iter.next().is_some_and(|res| {
+        res.is_ok_and(|val| val == PeekValue::Variable(340282366920938463463374607431768211455u128))
+    }));
+    assert!(iter.next().is_none());
+}

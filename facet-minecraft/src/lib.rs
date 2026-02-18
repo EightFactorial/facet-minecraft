@@ -7,22 +7,11 @@ extern crate alloc;
 extern crate std;
 
 pub mod attribute;
-pub mod common;
+pub mod hint;
+pub mod result;
 
 pub mod deserialize;
-#[cfg(feature = "futures-lite")]
-pub use deserialize::from_async_reader;
-#[cfg(feature = "streaming")]
-pub use deserialize::from_reader;
-#[cfg(feature = "tokio")]
-pub use deserialize::from_tokio_reader;
-pub use deserialize::{Deserializable, from_slice, from_slice_borrowed};
+pub use deserialize::fns::*;
 
 pub mod serialize;
-#[cfg(feature = "futures-lite")]
-pub use serialize::to_async_writer;
-#[cfg(feature = "tokio")]
-pub use serialize::to_tokio_writer;
-#[cfg(feature = "streaming")]
-pub use serialize::to_writer;
-pub use serialize::{Serializable, to_buffer, to_vec};
+pub use serialize::fns::*;

@@ -5,7 +5,7 @@
 //! Until then, this can be forced via trait bounds and compiler errors.
 #![allow(unpredictable_function_pointer_comparisons, reason = "Correct!")]
 
-use crate::{deserialize::DeserializeFn, serialize::SerializeFn};
+use crate::{deserialize::fns::DeserializeFn, serialize::fns::SerializeFn};
 
 facet::define_attr_grammar! {
     ns "mc";

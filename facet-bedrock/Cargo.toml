@@ -24,7 +24,7 @@ proptest = { workspace = true }
 
 [dependencies]
 facet = { features = ["alloc", "uuid"],  workspace = true }
-facet-format = { workspace = true }
+facet-error = { workspace = true }
 facet-reflect = { workspace = true }
 miette = { workspace = true }
 uuid = { workspace = true }
@@ -46,9 +46,6 @@ streaming = ["dep:corosensei", "std"]
 futures-lite = ["dep:futures-lite", "streaming"]
 # Enable tokio support
 tokio = ["dep:tokio", "streaming"]
-
-# Enable JIT compilation support
-jit = ["facet-format/jit", "std"]
 
 # Enable tracing messages
 tracing = ["dep:tracing"]
