@@ -1,4 +1,7 @@
 //! TODO
+#![no_std]
+
+extern crate alloc;
 
 use facet::Facet;
 use facet_minecraft::{
@@ -10,8 +13,10 @@ use facet_minecraft::{
 struct TestCursor(&'static [u8]);
 
 impl TestCursor {
-    fn read<T: Deserialize<'static>>(&mut self) -> Result<T, DeserializeError> {
-        let (value, remaining) = T::from_slice(self.0)?;
+    fn read<T: Deserialize<'static> + Facet<'static>>(
+        &mut self,
+    ) -> Result<T, DeserializeError<'static>> {
+        let (value, remaining) = T::from_slice_remainder(self.0)?;
         self.0 = remaining;
         Ok(value)
     }

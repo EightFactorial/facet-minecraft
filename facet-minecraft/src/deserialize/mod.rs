@@ -46,6 +46,22 @@ pub trait Deserialize<'facet>: Sized {
         todo!()
     }
 
+    /// Deserialize a value from a [`slice`](::core::primitive::slice),
+    /// returning any remaining data.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DeserializeError`] if deserialization fails.
+    fn from_slice_remainder<'a>(
+        _slice: &'a [u8],
+    ) -> Result<(Self, &'a [u8]), DeserializeError<'static>>
+    where
+        Self: Facet<'static>,
+    {
+        let _iter = DeserializeIter::<false>::new::<Self>();
+        todo!()
+    }
+
     /// Deserialize a value from a reader.
     ///
     /// # Errors

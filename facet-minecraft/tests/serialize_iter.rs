@@ -1,14 +1,14 @@
 //! TODO
 #![allow(dead_code, reason = "Used in tests")]
-// #![no_std]
+#![no_std]
+
+extern crate alloc;
 
 use facet::Facet;
 use facet_minecraft::{
     self as mc, SerializeFn,
     serialize::iter::{PeekValue, SerializeIter},
 };
-
-extern crate alloc;
 
 #[test]
 fn primitive() {

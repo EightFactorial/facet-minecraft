@@ -19,8 +19,8 @@ workspace = true
 # --- Tests ---
 
 [[test]]
-name = "deserialize_stream"
-required-features = ["streaming"]
+name = "deserialize_reader"
+required-features = ["std"]
 
 # --- Dependencies ---
 

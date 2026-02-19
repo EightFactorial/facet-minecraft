@@ -2,14 +2,16 @@
 
 use std::io::Cursor;
 
-use facet_format::DeserializeError as FDError;
-use facet_minecraft::{Deserializable, deserialize::DeserializeError};
+use facet::Facet;
+use facet_minecraft::{Deserialize, deserialize::error::DeserializeError};
 
 #[repr(transparent)]
 struct TestCursor(Cursor<&'static [u8]>);
 
 impl TestCursor {
-    fn read<T: Deserializable<'static>>(&mut self) -> Result<T, FDError<DeserializeError>> {
+    fn read<T: Deserialize<'static> + Facet<'static>>(
+        &mut self,
+    ) -> Result<T, DeserializeError<'static>> {
         T::from_reader(&mut self.0)
     }
 }

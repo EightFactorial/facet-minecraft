@@ -63,6 +63,19 @@ pub fn from_slice_owned<T: Facet<'static>>(slice: &[u8]) -> Result<T, Deserializ
     Deserialize::from_slice_owned(slice)
 }
 
+/// Deserialize a value from a [`slice`](::core::primitive::slice),
+/// returning any remaining data.
+///
+/// # Errors
+///
+/// Returns a [`DeserializeError`] if deserialization fails.
+#[inline]
+pub fn from_slice_remainder<'a, T: Facet<'static>>(
+    slice: &'a [u8],
+) -> Result<(T, &'a [u8]), DeserializeError<'static>> {
+    Deserialize::from_slice_remainder(slice)
+}
+
 /// Deserialize a value from a reader.
 ///
 /// # Errors
