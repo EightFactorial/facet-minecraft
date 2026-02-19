@@ -37,6 +37,7 @@ smallvec = { features = ["const_generics", "const_new", "union"], workspace = tr
 uuid = { workspace = true }
 
 # Optional dependencies
+corosensei = { features = ["default-stack", "unwind"], workspace = true, optional = true }
 futures-lite = { workspace = true, optional = true }
 tokio = { features = ["io-util", "rt"], workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
@@ -47,9 +48,9 @@ tracing = { workspace = true, optional = true }
 default = ["std"]
 
 # Enable futures-lite support
-futures-lite = ["dep:futures-lite", "std"]
+futures-lite = ["dep:corosensei", "dep:futures-lite", "std"]
 # Enable tokio support
-tokio = ["dep:tokio", "std"]
+tokio = ["dep:corosensei", "dep:tokio", "std"]
 
 # Enable tracing messages
 tracing = ["dep:tracing"]
@@ -57,4 +58,4 @@ tracing = ["dep:tracing"]
 # Enable support for the standard library
 std = ["facet/std", "futures-lite?/std", "tracing?/std", "smallvec/write", "uuid/std"]
 # Enable features using the nightly toolchain
-nightly = ["smallvec/specialization"]
+nightly = ["corosensei?/asm-unwind", "smallvec/specialization"]

@@ -13,6 +13,8 @@ use smallvec::SmallVec;
 use crate::{SerializeFn, serialize::error::SerializeIterError};
 
 /// An iterator over the fields of a type.
+///
+/// Uses [`Peek`]s to provide access to field data.
 pub struct SerializeIter<'mem, 'facet> {
     input: &'static Shape,
     state: SmallVec<[ItemState<'mem, 'facet>; 8]>,

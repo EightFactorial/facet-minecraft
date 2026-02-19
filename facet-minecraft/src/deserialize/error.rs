@@ -7,7 +7,6 @@
     reason = "Temporary"
 )]
 
-use alloc::boxed::Box;
 use core::{
     error::Error,
     fmt::{self, Debug, Display},
@@ -26,22 +25,21 @@ impl<'facet> DeserializeError<'facet> {
     pub fn new() -> Self { Self { _phantom: core::marker::PhantomData } }
 }
 
-impl Debug for DeserializeError<'_> {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
-}
-
+impl Error for DeserializeError<'_> {}
 impl Display for DeserializeError<'_> {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
 }
 
-impl From<DeserializeError<'_>> for Box<dyn Error + Send + Sync> {
-    fn from(_: DeserializeError<'_>) -> Self { todo!() }
+impl Debug for DeserializeError<'_> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
 }
 
-impl<'facet> From<DeserializeIterError<'facet>> for DeserializeError<'facet> {
-    fn from(_: DeserializeIterError<'facet>) -> Self {
-        Self { _phantom: core::marker::PhantomData }
-    }
+impl<'facet> From<ReflectError> for DeserializeError<'facet> {
+    fn from(_: ReflectError) -> Self { todo!() }
+}
+#[cfg(feature = "std")]
+impl From<std::io::Error> for DeserializeError<'_> {
+    fn from(_: std::io::Error) -> Self { todo!() }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -60,4 +58,10 @@ impl<'facet> DeserializeIterError<'facet> {
 
 impl From<ReflectError> for DeserializeIterError<'_> {
     fn from(_: ReflectError) -> Self { Self::new() }
+}
+
+impl<'facet> From<DeserializeIterError<'facet>> for DeserializeError<'facet> {
+    fn from(_: DeserializeIterError<'facet>) -> Self {
+        Self { _phantom: core::marker::PhantomData }
+    }
 }

@@ -1,6 +1,5 @@
 //! TODO
 #![allow(unpredictable_function_pointer_comparisons, reason = "Shouldn't be compared like that")]
-#![expect(clippy::result_unit_err, reason = "Temporary")]
 
 use facet::{Facet, Partial};
 
@@ -70,9 +69,9 @@ pub fn from_slice_owned<T: Facet<'static>>(slice: &[u8]) -> Result<T, Deserializ
 ///
 /// Returns a [`DeserializeError`] if deserialization fails.
 #[inline]
-pub fn from_slice_remainder<'a, T: Facet<'static>>(
-    slice: &'a [u8],
-) -> Result<(T, &'a [u8]), DeserializeError<'static>> {
+pub fn from_slice_remainder<T: Facet<'static>>(
+    slice: &[u8],
+) -> Result<(T, &[u8]), DeserializeError<'static>> {
     Deserialize::from_slice_remainder(slice)
 }
 
