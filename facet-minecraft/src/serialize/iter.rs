@@ -112,6 +112,8 @@ impl<'mem, 'facet> TryFrom<Peek<'mem, 'facet>> for PeekValue<'mem, 'facet> {
             Ok(Self::Bytes(str.as_bytes()))
         } else if let Some(bytes) = value.as_bytes() {
             Ok(Self::Bytes(bytes))
+        } else if let Ok(str) = value.get::<alloc::string::String>() {
+            Ok(Self::Bytes(str.as_bytes()))
         } else {
             Err(SerializeIterError::new())
         }

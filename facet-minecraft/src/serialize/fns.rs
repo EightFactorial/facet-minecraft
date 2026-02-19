@@ -46,6 +46,17 @@ impl SerializeFn {
 
 // -------------------------------------------------------------------------------------------------
 
+/// Serialize a value into a [`Vec`].
+///
+/// # Errors
+///
+/// Returns a [`SerializeError`] if serialization fails.
+pub fn to_vec<'mem, 'facet, T: Serialize<'facet>>(
+    value: &'mem T,
+) -> Result<alloc::vec::Vec<u8>, SerializeError<'mem, 'facet>> {
+    Serialize::to_vec(value)
+}
+
 /// Serialize a value into a buffer.
 ///
 /// # Errors

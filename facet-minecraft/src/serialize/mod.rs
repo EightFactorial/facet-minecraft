@@ -99,6 +99,8 @@ pub trait Serialize<'facet>: Facet<'facet> {
     }
 }
 
+impl<'facet, T: Facet<'facet> + ?Sized> Serialize<'facet> for T {}
+
 // -------------------------------------------------------------------------------------------------
 
 /// Collect the values from a [`Peek`] into a [`SmallVec`].
