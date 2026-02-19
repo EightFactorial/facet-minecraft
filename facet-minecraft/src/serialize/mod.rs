@@ -165,7 +165,7 @@ fn to_buffer_inner<'mem, 'facet, B: SerializeBuffer>(
             PeekValue::U128(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
             PeekValue::F32(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
             PeekValue::F64(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
-            PeekValue::Bytes(items) => wrap!(buffer.write_data(items)),
+            PeekValue::Bytes(items) => wrap!(buffer.write_data(items.as_ref())),
             PeekValue::Variable(val) => {
                 let length = variable_to_bytes(val, &mut variable);
                 wrap!(buffer.write_data(&variable[..length]));
@@ -200,7 +200,7 @@ fn to_writer_inner<W: std::io::Write>(
             PeekValue::U128(val) => writer.write_all(&val.to_be_bytes())?,
             PeekValue::F32(val) => writer.write_all(&val.to_be_bytes())?,
             PeekValue::F64(val) => writer.write_all(&val.to_be_bytes())?,
-            PeekValue::Bytes(items) => writer.write_all(items)?,
+            PeekValue::Bytes(items) => writer.write_all(items.as_ref())?,
             PeekValue::Variable(val) => {
                 let length = variable_to_bytes(val, &mut variable);
                 writer.write_all(&variable[..length])?;
@@ -236,7 +236,7 @@ async fn to_async_writer_inner<W: futures_lite::AsyncWrite + Unpin>(
             PeekValue::U128(val) => writer.write_all(&val.to_be_bytes()).await?,
             PeekValue::F32(val) => writer.write_all(&val.to_be_bytes()).await?,
             PeekValue::F64(val) => writer.write_all(&val.to_be_bytes()).await?,
-            PeekValue::Bytes(items) => writer.write_all(items).await?,
+            PeekValue::Bytes(items) => writer.write_all(items.as_ref()).await?,
             PeekValue::Variable(val) => {
                 let length = variable_to_bytes(val, &mut variable);
                 writer.write_all(&variable[..length]).await?;
@@ -272,7 +272,7 @@ async fn to_tokio_writer_inner<W: tokio::io::AsyncWrite + Unpin>(
             PeekValue::U128(val) => writer.write_all(&val.to_be_bytes()).await?,
             PeekValue::F32(val) => writer.write_all(&val.to_be_bytes()).await?,
             PeekValue::F64(val) => writer.write_all(&val.to_be_bytes()).await?,
-            PeekValue::Bytes(items) => writer.write_all(items).await?,
+            PeekValue::Bytes(items) => writer.write_all(items.as_ref()).await?,
             PeekValue::Variable(val) => {
                 let length = variable_to_bytes(val, &mut variable);
                 writer.write_all(&variable[..length]).await?;

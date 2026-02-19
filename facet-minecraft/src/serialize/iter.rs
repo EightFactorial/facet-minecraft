@@ -1,6 +1,8 @@
 //! [`SerializeIter`] and related types.
 #![allow(dead_code, reason = "WIP")]
 
+use alloc::borrow::Cow;
+
 use facet::{Def, Facet, Shape, Type, UserType};
 use facet_reflect::{
     FieldsForSerializeIter, HasFields, Peek, PeekDynamicValueArrayIter, PeekDynamicValueObjectIter,
@@ -43,7 +45,7 @@ enum PeekIter<'mem, 'facet> {
 ///
 /// Does not care about signed/unsigned values as they serialize the same,
 /// and treats all variable-length values as [`u128`]s for simplicity.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PeekValue<'mem, 'facet> {
     /// A [`unit`](::core::primitive::unit) value.
     Unit(()),
@@ -66,7 +68,7 @@ pub enum PeekValue<'mem, 'facet> {
     /// An [`f64`] value.
     F64(f64),
     /// A [`&[u8]`](::core::primitive::slice) value.
-    Bytes(&'mem [u8]),
+    Bytes(Cow<'mem, [u8]>),
     /// A [`Peek`] and [`SerializeFn`] to use.
     Custom(Peek<'mem, 'facet>, SerializeFn),
 }
@@ -109,11 +111,13 @@ impl<'mem, 'facet> TryFrom<Peek<'mem, 'facet>> for PeekValue<'mem, 'facet> {
         } else if let Ok(&f64) = value.get::<f64>() {
             Ok(Self::F64(f64))
         } else if let Some(str) = value.as_str() {
-            Ok(Self::Bytes(str.as_bytes()))
+            Ok(Self::Bytes(Cow::Borrowed(str.as_bytes())))
         } else if let Some(bytes) = value.as_bytes() {
-            Ok(Self::Bytes(bytes))
+            Ok(Self::Bytes(Cow::Borrowed(bytes)))
         } else if let Ok(str) = value.get::<alloc::string::String>() {
-            Ok(Self::Bytes(str.as_bytes()))
+            Ok(Self::Bytes(Cow::Borrowed(str.as_bytes())))
+        } else if let Ok(uuid) = value.get::<uuid::Uuid>() {
+            Ok(Self::U128(uuid.as_u128()))
         } else {
             Err(SerializeIterError::new())
         }
@@ -334,9 +338,10 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                         // Ignore `Unit`s
                         PeekValue::Unit(()) => {}
                         // Append a length prefix to byte slices.
-                        value @ PeekValue::Bytes(bytes) => {
-                            self.next = Some(value);
-                            return Some(Ok(PeekValue::Variable(bytes.len() as u128)));
+                        PeekValue::Bytes(bytes) => {
+                            let length = PeekValue::Variable(bytes.len() as u128);
+                            self.next = Some(PeekValue::Bytes(bytes));
+                            return Some(Ok(length));
                         }
 
                         // For other values, just return them as-is.
