@@ -29,9 +29,9 @@ pretty_assertions = { workspace = true }
 proptest = { workspace = true }
 
 [dependencies]
-facet = { features = ["alloc", "uuid"],  workspace = true }
+facet = { features = ["alloc", "reflect", "uuid"],  workspace = true }
 facet-error = { workspace = true }
-facet-reflect = { workspace = true }
+facet-reflect = { features = ["alloc"], workspace = true }
 miette = { workspace = true }
 smallvec = { features = ["const_generics", "const_new", "union"], workspace = true }
 uuid = { workspace = true }

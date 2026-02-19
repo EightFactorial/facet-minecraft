@@ -96,6 +96,7 @@ dependencies = [
  "autocfg",
  "facet-core",
  "facet-macros",
+ "facet-reflect",
 ]
 
 [[package]]

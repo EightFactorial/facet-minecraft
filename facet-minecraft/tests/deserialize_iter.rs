@@ -1,6 +1,6 @@
 //! TODO
 #![allow(dead_code, reason = "Used in tests")]
-#![no_std]
+// #![no_std]
 
 use facet::Facet;
 use facet_minecraft::{
@@ -134,6 +134,15 @@ fn r#struct() {
     }
 
     #[derive(Facet)]
+    struct OptionalVariable {
+        #[facet(mc::variable)]
+        a: u16,
+        #[facet(mc::variable)]
+        b: Option<u16>,
+        c: Variable,
+    }
+
+    #[derive(Facet)]
     struct Custom {
         a: u8,
         #[facet(mc::serialize = SerializeFn::new(|_, _| todo!()))]
@@ -161,6 +170,16 @@ fn r#struct() {
     assert!(iter.next().is_none());
 
     let mut iter = SerializeIter::new(&Variable { a: 1, b: 2, c: false }).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(false))));
+    assert!(iter.next().is_none());
+
+    let input = OptionalVariable { a: 1, b: Some(2), c: Variable { a: 1, b: 2, c: false } };
+    let mut iter = SerializeIter::new(&input).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(1))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(false))));

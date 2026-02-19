@@ -1,4 +1,4 @@
-//! [`SerializeIter`]
+//! [`SerializeIter`] and related types.
 #![allow(dead_code, reason = "WIP")]
 
 use facet::{Def, Facet, Shape, Type, UserType};
@@ -300,6 +300,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
         loop {
             let state = self.state.last_mut()?;
 
+            // Write a length prefix if necessary
             if state.write_length {
                 state.write_length = false;
                 return Some(Ok(PeekValue::Variable(state.length.cast_unsigned())));
@@ -350,7 +351,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                     Some((key, val)) => {
                         let variable = state.variable;
                         self.state.push(wrap!(Self::create_state(val, variable)));
-                        self.state.push(wrap!(Self::create_state(key, variable)));
+                        self.state.push(wrap!(Self::create_state(key, false)));
                     }
                     None => {
                         let _ = self.state.pop()?;
@@ -416,7 +417,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                     if let Some((key, value)) = iter.next() {
                         let variable = state.variable;
                         self.state.push(wrap!(Self::create_state(value, variable)));
-                        self.state.push(wrap!(Self::create_state(Peek::new(key), variable)));
+                        self.state.push(wrap!(Self::create_state(Peek::new(key), false)));
                     } else {
                         let _ = self.state.pop()?;
                     }
