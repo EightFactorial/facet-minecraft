@@ -43,7 +43,7 @@ match facet_minecraft::to_vec(&packet) {
         assert_eq!(
             vec,
             &[
-                0x00, 0x00, 0x02, 0xF2, // Protocol (754)
+                242, 5, // Protocol (754)
                 0x0E, 0x6D, 0x63, 0x2E, 0x68, 0x79, 0x70, 0x69, 0x78, 0x65, 0x6C, 0x2E, 0x6E, 0x65, 0x74, // Address (14, "mc.hypixel.net")
                 0x63, 0xDD, // Port (25565)
                 0x01, // Intent (Status)

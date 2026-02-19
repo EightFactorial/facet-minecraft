@@ -292,6 +292,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
             };
         }
 
+        // If the next value is already prepared, return it.
         if let Some(next) = self.next.take() {
             return Some(Ok(next));
         }
@@ -311,11 +312,33 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                     let PeekIter::Scalar(peek) = state.iter else { unreachable!() };
 
                     match wrap!(PeekValue::try_from(peek)) {
+                        // Use `Variable` for variable-length integers.
+                        PeekValue::U16(val) if state.variable => {
+                            return Some(Ok(PeekValue::Variable(u128::from(val))));
+                        }
+                        PeekValue::U32(val) if state.variable => {
+                            return Some(Ok(PeekValue::Variable(u128::from(val))));
+                        }
+                        PeekValue::U64(val) if state.variable => {
+                            return Some(Ok(PeekValue::Variable(u128::from(val))));
+                        }
+                        PeekValue::U128(val) if state.variable => {
+                            return Some(Ok(PeekValue::Variable(val)));
+                        }
+                        // Return an error on non-integers marked as variable-length.
+                        _ if state.variable => {
+                            return Some(Err(SerializeIterError::new()));
+                        }
+
+                        // Ignore `Unit`s
                         PeekValue::Unit(()) => {}
+                        // Append a length prefix to byte slices.
                         value @ PeekValue::Bytes(bytes) => {
                             self.next = Some(value);
                             return Some(Ok(PeekValue::Variable(bytes.len() as u128)));
                         }
+
+                        // For other values, just return them as-is.
                         value => {
                             return Some(Ok(value));
                         }
@@ -363,12 +386,12 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                         if let Some(field) = field.field.as_ref() {
                             // Look for `#[facet(mc::serialize = my_fn)]`
                             if let Some(attr) = field.get_attr(Some("mc"), "serialize") {
+                                // Use the custom serialize function
                                 if let Some(crate::attribute::Attr::Serialize(Some(serialize))) =
                                     attr.get_as::<crate::attribute::Attr>()
                                 {
                                     return Some(Ok(PeekValue::Custom(value, *serialize)));
                                 }
-
                                 return Some(Err(SerializeIterError::new()));
                             }
 

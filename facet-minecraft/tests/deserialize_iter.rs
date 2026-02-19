@@ -126,6 +126,14 @@ fn r#struct() {
     }
 
     #[derive(Facet)]
+    struct Variable {
+        a: u8,
+        #[facet(mc::variable)]
+        b: u16,
+        c: bool,
+    }
+
+    #[derive(Facet)]
     struct Custom {
         a: u8,
         #[facet(mc::serialize = SerializeFn::new(|_, _| todo!()))]
@@ -149,6 +157,12 @@ fn r#struct() {
     let mut iter = SerializeIter::new(&Fields { a: 1, b: 2, c: false }).unwrap();
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(1))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U16(2))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(false))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&Variable { a: 1, b: 2, c: false }).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(false))));
     assert!(iter.next().is_none());
 
