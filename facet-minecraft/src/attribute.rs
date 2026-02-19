@@ -12,6 +12,7 @@ facet::define_attr_grammar! {
     crate_path ::facet_minecraft::attribute;
 
     /// Attributes used by the Minecraft protocol.
+    #[derive(facet::Facet)]
     pub enum Attr {
         /// Marks a field as variably-sized.
         Variable,

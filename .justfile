@@ -1,5 +1,5 @@
 ALL_FEATURES := "all-features"
-DEF_FEATURES := "features=default,std,streaming"
+DEF_FEATURES := "features=default,std"
 NO_FEATURES := "no-default-features"
 
 # Generate the changelog

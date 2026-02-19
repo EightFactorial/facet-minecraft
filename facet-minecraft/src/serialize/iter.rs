@@ -8,13 +8,13 @@ use facet_reflect::{
 };
 use smallvec::SmallVec;
 
-use crate::serialize::error::SerializeIterError;
+use crate::{SerializeFn, serialize::error::SerializeIterError};
 
 /// An iterator over the fields of a type.
 pub struct SerializeIter<'mem, 'facet> {
     input: &'static Shape,
     state: SmallVec<[ItemState<'mem, 'facet>; 8]>,
-    next: Option<PeekValue<'mem>>,
+    next: Option<PeekValue<'mem, 'facet>>,
 }
 
 struct ItemState<'mem, 'facet> {
@@ -44,7 +44,7 @@ enum PeekIter<'mem, 'facet> {
 /// Does not care about signed/unsigned values as they serialize the same,
 /// and treats all variable-length values as [`u128`]s for simplicity.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PeekValue<'mem> {
+pub enum PeekValue<'mem, 'facet> {
     /// A [`unit`](::core::primitive::unit) value.
     Unit(()),
     /// A [`bool`] value.
@@ -67,11 +67,14 @@ pub enum PeekValue<'mem> {
     F64(f64),
     /// A [`&[u8]`](::core::primitive::slice) value.
     Bytes(&'mem [u8]),
+    /// A [`Peek`] and [`SerializeFn`] to use.
+    Custom(Peek<'mem, 'facet>, SerializeFn),
 }
 
-impl<'mem, 'facet> TryFrom<Peek<'mem, 'facet>> for PeekValue<'mem> {
+impl<'mem, 'facet> TryFrom<Peek<'mem, 'facet>> for PeekValue<'mem, 'facet> {
     type Error = SerializeIterError<'mem, 'facet>;
 
+    #[expect(clippy::cast_sign_loss, reason = "Desired behavior")]
     fn try_from(value: Peek<'mem, 'facet>) -> Result<Self, Self::Error> {
         if let Ok(&()) = value.get::<()>() {
             Ok(Self::Unit(()))
@@ -118,17 +121,34 @@ impl<'mem, 'facet> TryFrom<Peek<'mem, 'facet>> for PeekValue<'mem> {
 // -------------------------------------------------------------------------------------------------
 
 impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
-    /// Create a new [`SerializeIter`] for the given input.
-    #[must_use]
+    /// Create a new [`SerializeIter`] for the given type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the type is not supported for serialization.
+    #[inline]
     pub fn new<T: Facet<'facet> + ?Sized>(
         input: &'mem T,
     ) -> Result<Self, SerializeIterError<'mem, 'facet>> {
-        let mut iter = Self { input: T::SHAPE, state: SmallVec::new_const(), next: None };
-        iter.state.push(Self::create_state(Peek::new(input), false)?);
+        Self::new_from_peek(Peek::new(input))
+    }
+
+    /// Create a new [`SerializeIter`] for the given [`Peek`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the [`Peek`] is not a supported type for
+    /// serialization.
+    pub fn new_from_peek(
+        peek: Peek<'mem, 'facet>,
+    ) -> Result<Self, SerializeIterError<'mem, 'facet>> {
+        let mut iter = Self { input: peek.shape(), state: SmallVec::new_const(), next: None };
+        iter.state.push(Self::create_state(peek, false)?);
         Ok(iter)
     }
 
     /// Create an [`ItemState`] for the given [`Peek`].
+    #[expect(clippy::too_many_lines, reason = "Handles many cases")]
     fn create_state(
         peek: Peek<'mem, 'facet>,
         variable: bool,
@@ -209,7 +229,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
             Def::Option(_) => {
                 let option = peek.into_option()?;
                 Ok(ItemState {
-                    length: option.is_some() as i128,
+                    length: i128::from(option.is_some()),
                     write_length: true,
                     iter: PeekIter::Option(option),
                     variable,
@@ -218,7 +238,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
             Def::Result(_) => {
                 let result = peek.into_result()?;
                 Ok(ItemState {
-                    length: result.is_ok() as i128,
+                    length: i128::from(result.is_ok()),
                     write_length: true,
                     iter: PeekIter::Result(result),
                     variable,
@@ -246,7 +266,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                 let enum_peek = peek.into_enum()?;
                 let variant = enum_peek.active_variant().unwrap();
                 Ok(ItemState {
-                    length: variant.discriminant.unwrap() as i128,
+                    length: i128::from(variant.discriminant.unwrap()),
                     write_length: true,
                     iter: PeekIter::Fields(enum_peek.fields_for_serialize()),
                     variable: false,
@@ -256,12 +276,11 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
             _ => Err(SerializeIterError::new()),
         }
     }
-}
 
-impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
-    type Item = Result<PeekValue<'mem>, SerializeIterError<'mem, 'facet>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    #[expect(clippy::too_many_lines, reason = "Handles many cases")]
+    fn next_inner(
+        &mut self,
+    ) -> Option<Result<PeekValue<'mem, 'facet>, SerializeIterError<'mem, 'facet>>> {
         macro_rules! wrap {
             ($expr:expr) => {
                 match $expr {
@@ -280,7 +299,7 @@ impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
 
             if state.write_length {
                 state.write_length = false;
-                return Some(Ok(PeekValue::Variable(state.length as u128)));
+                return Some(Ok(PeekValue::Variable(state.length.cast_unsigned())));
             }
 
             match &mut state.iter {
@@ -290,9 +309,7 @@ impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
                     let PeekIter::Scalar(peek) = state.iter else { unreachable!() };
 
                     match wrap!(PeekValue::try_from(peek)) {
-                        PeekValue::Unit(()) => {
-                            continue;
-                        }
+                        PeekValue::Unit(()) => {}
                         value @ PeekValue::Bytes(bytes) => {
                             self.next = Some(value);
                             return Some(Ok(PeekValue::Variable(bytes.len() as u128)));
@@ -300,7 +317,7 @@ impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
                         value => {
                             return Some(Ok(value));
                         }
-                    };
+                    }
                 }
 
                 // Push values onto the stack for the next iteration.
@@ -340,9 +357,20 @@ impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
                 }
                 PeekIter::Fields(iter) => {
                     if let Some((field, value)) = iter.next() {
-                        // Look for `#[facet(mc::variable)]`
                         let mut variable = false;
                         if let Some(field) = field.field.as_ref() {
+                            // Look for `#[facet(mc::serialize = my_fn)]`
+                            if let Some(attr) = field.get_attr(Some("mc"), "serialize") {
+                                if let Some(crate::attribute::Attr::Serialize(Some(serialize))) =
+                                    attr.get_as::<crate::attribute::Attr>()
+                                {
+                                    return Some(Ok(PeekValue::Custom(value, *serialize)));
+                                }
+
+                                return Some(Err(SerializeIterError::new()));
+                            }
+
+                            // Look for `#[facet(mc::variable)]`
                             variable = field.has_attr(Some("mc"), "variable");
                         }
 
@@ -386,7 +414,7 @@ impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
                     }
                 }
                 PeekIter::Pointer(ptr) => {
-                    let inner = wrap!(ptr.borrow_inner().ok_or_else(|| SerializeIterError::new()));
+                    let inner = wrap!(ptr.borrow_inner().ok_or_else(SerializeIterError::new));
                     *state = wrap!(Self::create_state(inner, state.variable));
                 }
             }
@@ -394,181 +422,18 @@ impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
     }
 }
 
-// -------------------------------------------------------------------------------------------------
+impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
+    type Item = Result<PeekValue<'mem, 'facet>, SerializeIterError<'mem, 'facet>>;
 
-#[test]
-fn primitive() {
-    let mut iter = SerializeIter::new(&0u8).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_none());
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.next_inner() {
+            Some(Ok(value)) => Some(Ok(value)),
+            None => None,
 
-    let mut iter = SerializeIter::new(&0i8).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&256u128).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U128(256))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&256i128).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U128(256))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new("string").unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(6))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bytes(b"string"))));
-    assert!(iter.next().is_none());
-}
-
-#[test]
-fn list() {
-    static ARRAY: &'static [u8; 4] = &[0u8; 4];
-    static SLICE: &'static [u8] = &[0u8; 4];
-
-    let mut iter = SerializeIter::new(ARRAY).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(SLICE).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(4))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(0))));
-    assert!(iter.next().is_none());
-
-    let vec = alloc::vec![0u32; 4];
-    let mut iter = SerializeIter::new(&vec).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(4))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
-    assert!(iter.next().is_none());
-}
-
-#[test]
-fn map() {
-    let mut bset = alloc::collections::BTreeSet::new();
-    for i in 0..8 {
-        bset.insert(i);
+            Some(Err(err)) => {
+                self.state.clear(); // Prevent further iteration after an error
+                Some(Err(err))
+            }
+        }
     }
-    let mut iter = SerializeIter::new(&bset).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(8))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(1))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(2))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(3))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(4))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(5))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(6))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(7))));
-    assert!(iter.next().is_none());
-
-    let mut bmap = alloc::collections::BTreeMap::new();
-    for i in 0..8u32 {
-        bmap.insert(i, 255);
-    }
-    let mut iter = SerializeIter::new(&bmap).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(8))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(0))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(1))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(2))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(3))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(4))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(5))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(6))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(7))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(255))));
-    assert!(iter.next().is_none());
-}
-
-#[test]
-fn r#struct() {
-    #[derive(Facet)]
-    struct Unit;
-
-    #[derive(Facet)]
-    struct NewType(&'static str);
-
-    #[derive(Facet)]
-    struct Generic<T>(T);
-
-    let mut iter = SerializeIter::new(&Unit).unwrap();
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&NewType("string2")).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(7))));
-    assert!(iter.next().is_some_and(|r| r.is_ok_and(|val| val == PeekValue::Bytes(b"string2"))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&Generic(NewType("string3"))).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(7))));
-    assert!(iter.next().is_some_and(|r| r.is_ok_and(|val| val == PeekValue::Bytes(b"string3"))));
-    assert!(iter.next().is_none());
-}
-
-#[test]
-fn r#enum() {
-    #[repr(i8)]
-    #[derive(Facet)]
-    enum Example {
-        Unit,
-        UnitExplicit(()),
-        Single(bool),
-        Tuple(bool, bool),
-        Fields { a: &'static str, b: Option<u32> },
-        Negative = -1,
-    }
-
-    let mut iter = SerializeIter::new(&Example::Unit).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(0))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&Example::UnitExplicit(())).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&Example::Single(true)).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(true))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&Example::Tuple(true, true)).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(3))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(true))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(true))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&Example::Fields { a: "123", b: None }).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(4))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(3))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bytes(b"123"))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(0))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&Example::Fields { a: "123", b: Some(123) }).unwrap();
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(4))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(3))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bytes(b"123"))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U32(123))));
-    assert!(iter.next().is_none());
-
-    let mut iter = SerializeIter::new(&Example::Negative).unwrap();
-    assert_eq!((-1i128).to_le_bytes(), 340282366920938463463374607431768211455u128.to_le_bytes());
-    assert!(iter.next().is_some_and(|res| {
-        res.is_ok_and(|val| val == PeekValue::Variable(340282366920938463463374607431768211455u128))
-    }));
-    assert!(iter.next().is_none());
 }

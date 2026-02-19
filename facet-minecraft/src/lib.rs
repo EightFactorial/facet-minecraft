@@ -8,10 +8,9 @@ extern crate std;
 
 pub mod attribute;
 pub mod hint;
-pub mod result;
 
 pub mod deserialize;
-pub use deserialize::fns::*;
+pub use deserialize::{Deserialize, fns::*};
 
 pub mod serialize;
-pub use serialize::fns::*;
+pub use serialize::{Serialize, fns::*};

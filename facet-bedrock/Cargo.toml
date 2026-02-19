@@ -30,7 +30,6 @@ miette = { workspace = true }
 uuid = { workspace = true }
 
 # Optional dependencies
-corosensei = { features = ["default-stack", "unwind"], workspace = true, optional = true }
 futures-lite = { workspace = true, optional = true }
 tokio = { features = ["io-util"], workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
@@ -38,14 +37,12 @@ tracing = { workspace = true, optional = true }
 # --- Features ---
 
 [features]
-default = ["std", "streaming"]
+default = ["std"]
 
-# Enable streaming support
-streaming = ["dep:corosensei", "std"]
 # Enable futures-lite support
-futures-lite = ["dep:futures-lite", "streaming"]
+futures-lite = ["dep:futures-lite", "std"]
 # Enable tokio support
-tokio = ["dep:tokio", "streaming"]
+tokio = ["dep:tokio", "std"]
 
 # Enable tracing messages
 tracing = ["dep:tracing"]
@@ -53,4 +50,4 @@ tracing = ["dep:tracing"]
 # Enable support for the standard library
 std = ["facet/std", "futures-lite?/std", "tracing?/std", "uuid/std"]
 # Enable features using the nightly toolchain
-nightly = ["corosensei?/asm-unwind"]
+nightly = []
