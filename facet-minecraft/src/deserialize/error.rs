@@ -1,58 +1,67 @@
+//! TODO
+#![allow(
+    clippy::new_without_default,
+    unknown_lints,
+    renamed_and_removed_lints,
+    elidable_lifetime_names,
+    reason = "Temporary"
+)]
+
 use core::{
     error::Error,
-    fmt::{self, Display, Formatter},
+    fmt::{self, Debug, Display},
 };
 
-/// An error that occurred during deserialization.
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct DeserializeError {
-    kind: DeserializeErrorKind,
+use facet_reflect::ReflectError;
+
+/// An error that can occur during deserialization.
+pub struct DeserializeError<'facet> {
+    _phantom: core::marker::PhantomData<&'facet ()>,
 }
 
-impl DeserializeError {
+impl<'facet> DeserializeError<'facet> {
     /// Create a new [`DeserializeError`].
-    #[inline]
     #[must_use]
-    pub const fn new(kind: DeserializeErrorKind) -> Self { Self { kind } }
-
-    /// Get the kind of deserialization error.
-    #[inline]
-    #[must_use]
-    pub const fn kind(&self) -> &DeserializeErrorKind { &self.kind }
+    pub fn new() -> Self { Self { _phantom: core::marker::PhantomData } }
 }
 
-/// The type of deserialization error.
-#[derive(Debug)]
-pub enum DeserializeErrorKind {
-    /// An invalid boolean value was encountered.
-    InvalidBool(u8),
-    /// An invalid enum variant was encountered.
-    InvalidVariant(usize),
-    /// An invalid UTF-8 sequence was encountered.
-    InvalidUtf8,
+impl Error for DeserializeError<'_> {}
+impl Display for DeserializeError<'_> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
+}
 
-    /// The input ended unexpectedly.
-    UnexpectedEndOfInput {
-        /// The number of additional bytes expected.
-        expected: usize,
-        /// The number of bytes actually found.
-        found: usize,
-    },
+impl Debug for DeserializeError<'_> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
+}
 
-    /// An I/O error occurred.
-    #[cfg(feature = "std")]
-    Io(std::io::Error),
+impl<'facet> From<ReflectError> for DeserializeError<'facet> {
+    fn from(_: ReflectError) -> Self { todo!() }
+}
+#[cfg(feature = "std")]
+impl From<std::io::Error> for DeserializeError<'_> {
+    fn from(_: std::io::Error) -> Self { todo!() }
 }
 
 // -------------------------------------------------------------------------------------------------
 
-impl Error for DeserializeError {}
-impl Display for DeserializeError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { core::fmt::Debug::fmt(self, f) }
+/// An error that can occur during deserialization.
+#[derive(Debug)]
+pub struct DeserializeIterError<'facet> {
+    _phantom: core::marker::PhantomData<&'facet ()>,
 }
 
-#[cfg(feature = "std")]
-impl From<std::io::Error> for DeserializeError {
-    fn from(err: std::io::Error) -> Self { Self { kind: DeserializeErrorKind::Io(err) } }
+impl<'facet> DeserializeIterError<'facet> {
+    /// Create a new [`DeserializeIterError`].
+    #[must_use]
+    pub fn new() -> Self { Self { _phantom: core::marker::PhantomData } }
+}
+
+impl From<ReflectError> for DeserializeIterError<'_> {
+    fn from(_: ReflectError) -> Self { Self::new() }
+}
+
+impl<'facet> From<DeserializeIterError<'facet>> for DeserializeError<'facet> {
+    fn from(_: DeserializeIterError<'facet>) -> Self {
+        Self { _phantom: core::marker::PhantomData }
+    }
 }

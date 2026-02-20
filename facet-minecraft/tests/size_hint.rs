@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use facet::Facet;
-use facet_minecraft::{self as mc, Serializable, common::TypeSerializeHint};
+use facet_minecraft::{self as mc, Serialize, hint::TypeSerializeHint};
 use uuid::Uuid;
 
 #[test]
@@ -114,11 +114,11 @@ fn verify() {
 struct Var<T>(#[facet(mc::variable)] T);
 
 /// A helper function to verify the [`TypeSerializeHint`] of a given type.
-fn assert<'facet, T: Serializable<'facet>>(hint: TypeSerializeHint) {
+fn assert<'facet, T: Serialize<'facet>>(hint: TypeSerializeHint) {
     assert_eq!(
         &hint,
-        T::SERIALIZE_HINT,
-        "The size of {} does not match the expected value!\nDef:\n  {:?}\nType:\n  {:?}\n",
+        T::SIZE_HINT,
+        "The size of `{}` does not match the expected value!\nDef:\n  {:?}\nType:\n  {:?}\n",
         T::SHAPE.type_name(),
         T::SHAPE.def,
         T::SHAPE.ty,

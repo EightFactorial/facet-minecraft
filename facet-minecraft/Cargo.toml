@@ -19,8 +19,8 @@ workspace = true
 # --- Tests ---
 
 [[test]]
-name = "deserialize_stream"
-required-features = ["streaming"]
+name = "deserialize_reader"
+required-features = ["std"]
 
 # --- Dependencies ---
 
@@ -29,37 +29,33 @@ pretty_assertions = { workspace = true }
 proptest = { workspace = true }
 
 [dependencies]
-facet = { features = ["alloc", "uuid"],  workspace = true }
-facet-format = { workspace = true }
-facet-reflect = { workspace = true }
+facet = { features = ["alloc", "reflect", "uuid"],  workspace = true }
+facet-error = { workspace = true }
+facet-reflect = { features = ["alloc"], workspace = true }
 miette = { workspace = true }
+smallvec = { features = ["const_generics", "const_new", "union"], workspace = true }
 uuid = { workspace = true }
 
 # Optional dependencies
 corosensei = { features = ["default-stack", "unwind"], workspace = true, optional = true }
 futures-lite = { workspace = true, optional = true }
-tokio = { features = ["io-util"], workspace = true, optional = true }
+tokio = { features = ["io-util", "rt"], workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 # --- Features ---
 
 [features]
-default = ["std", "streaming"]
+default = ["std"]
 
-# Enable streaming support
-streaming = ["dep:corosensei", "std"]
 # Enable futures-lite support
-futures-lite = ["dep:futures-lite", "streaming"]
+futures-lite = ["dep:corosensei", "dep:futures-lite", "std"]
 # Enable tokio support
-tokio = ["dep:tokio", "streaming"]
-
-# Enable JIT compilation support
-jit = ["facet-format/jit", "std"]
+tokio = ["dep:corosensei", "dep:tokio", "std"]
 
 # Enable tracing messages
 tracing = ["dep:tracing"]
 
 # Enable support for the standard library
-std = ["facet/std", "futures-lite?/std", "tracing?/std", "uuid/std"]
+std = ["facet/std", "futures-lite?/std", "tracing?/std", "smallvec/write", "uuid/std"]
 # Enable features using the nightly toolchain
-nightly = ["corosensei?/asm-unwind"]
+nightly = ["corosensei?/asm-unwind", "smallvec/specialization"]

@@ -1,15 +1,22 @@
 //! TODO
+#![no_std]
+
+extern crate alloc;
 
 use facet::Facet;
-use facet_format::DeserializeError as FDError;
-use facet_minecraft::{self as mc, Deserializable, deserialize::DeserializeError};
+use facet_minecraft::{
+    self as mc,
+    deserialize::{Deserialize, error::DeserializeError},
+};
 
 #[repr(transparent)]
 struct TestCursor(&'static [u8]);
 
 impl TestCursor {
-    fn read<T: Deserializable<'static>>(&mut self) -> Result<T, FDError<DeserializeError>> {
-        let (value, remaining) = T::from_slice(self.0)?;
+    fn read<T: Deserialize<'static> + Facet<'static>>(
+        &mut self,
+    ) -> Result<T, DeserializeError<'static>> {
+        let (value, remaining) = T::from_slice_remainder(self.0)?;
         self.0 = remaining;
         Ok(value)
     }
