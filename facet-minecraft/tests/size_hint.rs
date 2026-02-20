@@ -118,7 +118,7 @@ fn assert<'facet, T: Serialize<'facet>>(hint: TypeSerializeHint) {
     assert_eq!(
         &hint,
         T::SIZE_HINT,
-        "The size of {} does not match the expected value!\nDef:\n  {:?}\nType:\n  {:?}\n",
+        "The size of `{}` does not match the expected value!\nDef:\n  {:?}\nType:\n  {:?}\n",
         T::SHAPE.type_name(),
         T::SHAPE.def,
         T::SHAPE.ty,

@@ -18,11 +18,11 @@ foldhash = { default-features = false, version = "0.2" }
 futures-lite = { default-features = false, version = "2.0" }
 indexmap = { default-features = false, version = "2.12" }
 miette = { default-features = false, version = "7.6" }
+smallvec = { default-features = false, version = "1.15" }
 tokio = { default-features = false, version = "1.0" }
 tracing = { default-features = false, version = "0.1" }
 uuid = { default-features = false, version = "1.0" }
 zerocopy = { default-features = false, version = "0.8" }
-smallvec = { default-features = false, version = "1.15" }
 
 # Debug Dependencies
 divan = { version = "0.1" }

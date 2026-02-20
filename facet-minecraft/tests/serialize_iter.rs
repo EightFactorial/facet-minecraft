@@ -4,6 +4,8 @@
 
 extern crate alloc;
 
+use alloc::{vec, vec::Vec};
+
 use facet::Facet;
 use facet_minecraft::{
     self as mc, SerializeFn,
@@ -130,7 +132,7 @@ fn r#struct() {
         a: u8,
         #[facet(mc::variable)]
         b: u16,
-        c: bool,
+        c: Vec<u8>,
     }
 
     #[derive(Facet)]
@@ -169,20 +171,23 @@ fn r#struct() {
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(false))));
     assert!(iter.next().is_none());
 
-    let mut iter = SerializeIter::new(&Variable { a: 1, b: 2, c: false }).unwrap();
+    let input = Variable { a: 1, b: 2, c: Vec::new() };
+    let mut iter = SerializeIter::new(&input).unwrap();
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(1))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(false))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(0))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bytes(&[]))));
     assert!(iter.next().is_none());
 
-    let input = OptionalVariable { a: 1, b: Some(2), c: Variable { a: 1, b: 2, c: false } };
+    let input = OptionalVariable { a: 1, b: Some(2), c: Variable { a: 1, b: 2, c: vec![0] } };
     let mut iter = SerializeIter::new(&input).unwrap();
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(1))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(2))));
-    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(false))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Variable(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bytes(&[0]))));
     assert!(iter.next().is_none());
 
     let mut iter = SerializeIter::new(&Custom { a: 1, b: 2, c: false }).unwrap();
