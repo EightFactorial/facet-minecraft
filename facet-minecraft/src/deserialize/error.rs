@@ -10,6 +10,7 @@
 use core::{
     error::Error,
     fmt::{self, Debug, Display},
+    str::Utf8Error,
 };
 
 use facet_reflect::ReflectError;
@@ -58,6 +59,9 @@ impl<'facet> DeserializeIterError<'facet> {
 
 impl From<ReflectError> for DeserializeIterError<'_> {
     fn from(_: ReflectError) -> Self { Self::new() }
+}
+impl From<Utf8Error> for DeserializeIterError<'_> {
+    fn from(_: Utf8Error) -> Self { Self::new() }
 }
 
 impl<'facet> From<DeserializeIterError<'facet>> for DeserializeError<'facet> {

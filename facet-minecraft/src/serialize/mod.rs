@@ -87,7 +87,7 @@ pub trait Serialize<'facet>: Facet<'facet> {
     ///
     /// Returns a [`SerializeError`] if serialization fails or if writing fails.
     #[inline]
-    #[cfg(feature = "futures-lite")]
+    #[cfg(feature = "tokio")]
     fn to_tokio_writer<'a, W: tokio::io::AsyncWrite + Unpin>(
         &'a self,
         writer: &'a mut W,
@@ -125,6 +125,7 @@ fn parse_peek<'mem, 'facet>(
 /// Write a variable-length integer to a buffer.
 ///
 /// Returns the length of the written data.
+#[inline]
 fn variable_to_bytes(mut val: u128, buffer: &mut [u8; 19]) -> usize {
     let mut byte;
     let mut index = 0;
