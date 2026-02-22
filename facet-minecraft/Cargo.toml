@@ -27,6 +27,7 @@ required-features = ["std"]
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 proptest = { workspace = true }
+tracing-subscriber = { features = ["alloc"], workspace = true }
 
 [dependencies]
 facet = { features = ["alloc", "reflect", "uuid"],  workspace = true }

@@ -27,11 +27,21 @@ impl TestCursor {
 #[derive(Facet)]
 struct Var<T>(#[facet(mc::variable)] pub T);
 
+#[cfg(feature = "tracing")]
+fn trace() -> tracing::subscriber::DefaultGuard {
+    use tracing_subscriber::prelude::*;
+    let subscriber =
+        tracing_subscriber::registry().with(tracing_subscriber::fmt::layer().with_test_writer());
+    tracing::subscriber::set_default(subscriber)
+}
+
 // -------------------------------------------------------------------------------------------------
 
 #[test]
 #[expect(clippy::bool_assert_comparison, reason = "Easier to read")]
 fn bool() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 0, 1, 0, 1, 0, 1, 2]);
 
     assert_eq!(cursor.read::<bool>().unwrap(), false);
@@ -47,6 +57,8 @@ fn bool() {
 
 #[test]
 fn u8() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
 
     assert_eq!(cursor.read::<u8>().unwrap(), 0u8);
@@ -61,6 +73,8 @@ fn u8() {
 
 #[test]
 fn i8() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
 
     assert_eq!(cursor.read::<i8>().unwrap(), 0i8);
@@ -75,6 +89,8 @@ fn i8() {
 
 #[test]
 fn u16() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7]);
 
     assert_eq!(cursor.read::<u16>().unwrap(), 0u16);
@@ -89,6 +105,8 @@ fn u16() {
 
 #[test]
 fn var_u16() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
     assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 0u16);
@@ -103,6 +121,8 @@ fn var_u16() {
 
 #[test]
 fn i16() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7]);
 
     assert_eq!(cursor.read::<i16>().unwrap(), 0i16);
@@ -117,6 +137,8 @@ fn i16() {
 
 #[test]
 fn var_i16() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
     assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 0i16);
@@ -131,6 +153,8 @@ fn var_i16() {
 
 #[test]
 fn u32() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0,
         0, 7,
@@ -148,6 +172,8 @@ fn u32() {
 
 #[test]
 fn var_u32() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
     assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 0u32);
@@ -162,6 +188,8 @@ fn var_u32() {
 
 #[test]
 fn i32() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0,
         0, 7,
@@ -179,6 +207,8 @@ fn i32() {
 
 #[test]
 fn var_i32() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
     assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 0i32);
@@ -193,6 +223,8 @@ fn var_i32() {
 
 #[test]
 fn u64() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
         0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0,
@@ -211,6 +243,8 @@ fn u64() {
 
 #[test]
 fn var_u64() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
     assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 0u64);
@@ -225,6 +259,8 @@ fn var_u64() {
 
 #[test]
 fn i64() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
         0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0,
@@ -243,6 +279,8 @@ fn i64() {
 
 #[test]
 fn var_i64() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
     assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 0i64);
@@ -257,6 +295,8 @@ fn var_i64() {
 
 #[test]
 fn u128() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -277,6 +317,8 @@ fn u128() {
 
 #[test]
 fn var_u128() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
     assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 0u128);
@@ -291,6 +333,8 @@ fn var_u128() {
 
 #[test]
 fn i128() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -311,6 +355,8 @@ fn i128() {
 
 #[test]
 fn var_i128() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
 
     assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 0i128);
@@ -325,6 +371,8 @@ fn var_i128() {
 
 #[test]
 fn f32() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 0, 0, 0, 63, 128, 0, 0, 64, 0, 0, 0, 64, 64, 0, 0, 64, 128, 0, 0, 64, 160, 0, 0, 64,
         192, 0, 0, 64, 224, 0, 0, 65, 0, 0, 0,
@@ -342,6 +390,8 @@ fn f32() {
 
 #[test]
 fn f64() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 0, 0, 0, 0, 0, 0, 0, 63, 240, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 64, 8, 0, 0, 0,
         0, 0, 0, 64, 16, 0, 0, 0, 0, 0, 0, 64, 20, 0, 0, 0, 0, 0, 0, 64, 24, 0, 0, 0, 0, 0, 0, 64,
@@ -360,6 +410,8 @@ fn f64() {
 
 #[test]
 fn string() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[
         0, 1, b'A', 3, b'F', b'o', b'o', 13, b'H', b'e', b'l', b'l', b'o', b',', b' ', b'W', b'o',
         b'r', b'l', b'd', b'!',
@@ -373,6 +425,8 @@ fn string() {
 
 #[test]
 fn vec_u8() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(&[0, 3, 1, 2, 3, 5, 10, 20, 30, 40, 50, 1, 255]);
 
     assert_eq!(cursor.read::<Vec<u8>>().unwrap(), vec![]);

@@ -2,7 +2,10 @@
 #![allow(dead_code, unused, reason = "WIP")]
 
 use alloc::{string::String, vec::Vec};
-use core::marker::PhantomData;
+use core::{
+    fmt::{self, Display},
+    marker::PhantomData,
+};
 
 use facet::{Def, Facet, HeapValue, Partial, Shape, StructType, Type, UserType};
 use smallvec::SmallVec;
@@ -96,6 +99,34 @@ pub enum PartialValue<'mem, 'facet, const BORROW: bool> {
     Length(&'mem mut Option<usize>),
     /// A [`Partial`] and a [`DeserializeFn`] to use.
     Custom(&'mem mut Partial<'facet, BORROW>, DeserializeFn),
+}
+
+impl<const BORROW: bool> Display for PartialValue<'_, '_, BORROW> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bool(..) => f.write_str("Bool"),
+            Self::U8(..) => f.write_str("U8"),
+            Self::U16(..) => f.write_str("U16"),
+            Self::U32(..) => f.write_str("U32"),
+            Self::U64(..) => f.write_str("U64"),
+            Self::U128(..) => f.write_str("U128"),
+            Self::Usize(..) => f.write_str("Usize"),
+            Self::I8(..) => f.write_str("I8"),
+            Self::I16(..) => f.write_str("I16"),
+            Self::I32(..) => f.write_str("I32"),
+            Self::I64(..) => f.write_str("I64"),
+            Self::I128(..) => f.write_str("I128"),
+            Self::Isize(..) => f.write_str("Isize"),
+            Self::F32(..) => f.write_str("F32"),
+            Self::F64(..) => f.write_str("F64"),
+            Self::Str(..) => f.write_str("Str"),
+            Self::String(..) => f.write_str("String"),
+            Self::Bytes(..) => f.write_str("Bytes"),
+            Self::VecBytes(..) => f.write_str("VecBytes"),
+            Self::Length(..) => f.write_str("Length"),
+            Self::Custom(partial, ..) => write!(f, "Custom ({})", partial.shape().type_name()),
+        }
+    }
 }
 
 /// A lense for a [`Partial`] that allows setting it's value.
@@ -248,7 +279,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
 
     /// Advances the iterator to the next field.
     ///
-    /// Returns itself, and boolean indicating whether the iterator is
+    /// Returns itself and boolean indicating whether the iterator is
     /// complete.
     ///
     /// # Errors
@@ -258,6 +289,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
     /// If the processor is out of data, deserialization can be resumed by
     /// calling `next` again after providing more data to the processor.
     #[allow(clippy::missing_panics_doc, reason = "WIP")]
+    #[expect(clippy::too_many_lines, reason = "WIP")]
     pub fn next<F: FnMut(PartialValue<'_, 'facet, BORROW>) -> Result<(), DeserializeValueError>>(
         mut self,
         mut processor: F,
@@ -303,8 +335,13 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
             let Some(state) = self.stack.last_mut() else {
                 return Ok((self, true));
             };
-            // std::println!("{} @ \"{}\": {state:?}", self.input.type_name(),
-            // self.partial.path());
+            #[cfg(feature = "tracing")]
+            tracing::trace!(
+                target: "facet_minecraft::deserialize",
+                "`{}` @ \"{}\": {state}",
+                self.input.type_name(),
+                self.partial.path()
+            );
 
             match state {
                 ItemState::Value { variable } => {
@@ -383,11 +420,12 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
         }
     }
 
-    /// Returns the final [`Partial`] after deserialization is complete.
+    /// Advances the iterator until completion,
+    /// processing each field with the given processor.
     ///
     /// # Errors
     ///
-    /// Returns an error if the processor fails to process a [`Partial`].
+    /// Returns an error if deserialization fails.
     pub fn complete<
         F: FnMut(PartialValue<'_, 'facet, BORROW>) -> Result<(), DeserializeValueError>,
     >(
@@ -464,5 +502,22 @@ impl ItemState {
     /// Create an [`ItemState::Result`].
     const fn result(state: Option<bool>, variable: bool) -> Self {
         Self::Result { state, variable }
+    }
+}
+
+impl Display for ItemState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Value { .. } => f.write_str("Value"),
+            Self::Fields { .. } => f.write_str("Fields"),
+            Self::Variant { .. } => f.write_str("Variant"),
+            Self::Array { .. } => f.write_str("Array"),
+            Self::List { .. } => f.write_str("List"),
+            Self::Map { .. } => f.write_str("Map"),
+            Self::Set { .. } => f.write_str("Set"),
+            Self::Ptr { .. } => f.write_str("Ptr"),
+            Self::Option { .. } => f.write_str("Option"),
+            Self::Result { .. } => f.write_str("Result"),
+        }
     }
 }

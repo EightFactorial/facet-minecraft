@@ -16,11 +16,21 @@ impl TestCursor {
     }
 }
 
+#[cfg(feature = "tracing")]
+fn trace() -> tracing::subscriber::DefaultGuard {
+    use tracing_subscriber::prelude::*;
+    let subscriber =
+        tracing_subscriber::registry().with(tracing_subscriber::fmt::layer().with_test_writer());
+    tracing::subscriber::set_default(subscriber)
+}
+
 // -------------------------------------------------------------------------------------------------
 
 #[test]
 #[expect(clippy::bool_assert_comparison, reason = "Easier to read")]
 fn bool() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[0, 1, 0, 1, 0, 1, 0, 1, 2]));
 
     assert_eq!(cursor.read::<bool>().unwrap(), false);
@@ -36,6 +46,8 @@ fn bool() {
 
 #[test]
 fn u8() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor =
         TestCursor(Cursor::new(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]));
 
@@ -51,6 +63,8 @@ fn u8() {
 
 #[test]
 fn i8() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor =
         TestCursor(Cursor::new(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]));
 
@@ -66,6 +80,8 @@ fn i8() {
 
 #[test]
 fn u16() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7]));
 
     assert_eq!(cursor.read::<u16>().unwrap(), 0u16);
@@ -80,6 +96,8 @@ fn u16() {
 
 #[test]
 fn i16() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7]));
 
     assert_eq!(cursor.read::<i16>().unwrap(), 0i16);
@@ -94,6 +112,8 @@ fn i16() {
 
 #[test]
 fn u32() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0,
         0, 7,
@@ -111,6 +131,8 @@ fn u32() {
 
 #[test]
 fn i32() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[
         0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0,
         0, 7,
@@ -128,6 +150,8 @@ fn i32() {
 
 #[test]
 fn u64() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
         0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0,
@@ -146,6 +170,8 @@ fn u64() {
 
 #[test]
 fn i64() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
         0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0,
@@ -164,6 +190,8 @@ fn i64() {
 
 #[test]
 fn u128() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -184,6 +212,8 @@ fn u128() {
 
 #[test]
 fn i128() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -204,6 +234,8 @@ fn i128() {
 
 #[test]
 fn f32() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[
         0, 0, 0, 0, 63, 128, 0, 0, 64, 0, 0, 0, 64, 64, 0, 0, 64, 128, 0, 0, 64, 160, 0, 0, 64,
         192, 0, 0, 64, 224, 0, 0, 65, 0, 0, 0,
@@ -221,6 +253,8 @@ fn f32() {
 
 #[test]
 fn f64() {
+    #[cfg(feature = "tracing")]
+    let _guard = trace();
     let mut cursor = TestCursor(Cursor::new(&[
         0, 0, 0, 0, 0, 0, 0, 0, 63, 240, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 64, 8, 0, 0, 0,
         0, 0, 0, 64, 16, 0, 0, 0, 0, 0, 0, 64, 20, 0, 0, 0, 0, 0, 0, 64, 24, 0, 0, 0, 0, 0, 0, 64,

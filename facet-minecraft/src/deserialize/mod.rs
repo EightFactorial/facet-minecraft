@@ -289,63 +289,71 @@ pub fn borrowed_processor<'cursor, 'facet>(
         }};
     }
 
-    move |partial| match partial {
-        PartialValue::Bool(val) => match cursor.take_array::<1>()?[0] {
-            0 => {
-                val.set_value(false);
+    move |partial| {
+        #[cfg(feature = "tracing")]
+        tracing::trace!(
+            target: "facet_minecraft::deserialize",
+            "Reading {partial}"
+        );
+
+        match partial {
+            PartialValue::Bool(val) => match cursor.take_array::<1>()?[0] {
+                0 => {
+                    val.set_value(false);
+                    Ok(())
+                }
+                1 => {
+                    val.set_value(true);
+                    Ok(())
+                }
+                other => Err(DeserializeValueError::Boolean(other)),
+            },
+            PartialValue::U8(val) => take!(val, u8),
+            PartialValue::U16(val, var) => take!(val, var, u16),
+            PartialValue::U32(val, var) => take!(val, var, u32),
+            PartialValue::U64(val, var) => take!(val, var, u64),
+            PartialValue::U128(val, var) => take!(val, var, u128),
+            PartialValue::I8(val) => take!(val, i8),
+            PartialValue::I16(val, var) => take!(val, var, i16),
+            PartialValue::I32(val, var) => take!(val, var, i32),
+            PartialValue::I64(val, var) => take!(val, var, i64),
+            PartialValue::I128(val, var) => take!(val, var, i128),
+            PartialValue::F32(val) => take!(val, f32),
+            PartialValue::F64(val) => take!(val, f64),
+            PartialValue::Usize(val, var) => take!(val, var, u64),
+            PartialValue::Isize(val, var) => take!(val, var, i64),
+            PartialValue::Str(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(str::from_utf8(cursor.take(len as usize)?)?);
                 Ok(())
             }
-            1 => {
-                val.set_value(true);
+            PartialValue::String(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(str::from_utf8(cursor.take(len as usize)?)?.into());
                 Ok(())
             }
-            other => Err(DeserializeValueError::Boolean(other)),
-        },
-        PartialValue::U8(val) => take!(val, u8),
-        PartialValue::U16(val, var) => take!(val, var, u16),
-        PartialValue::U32(val, var) => take!(val, var, u32),
-        PartialValue::U64(val, var) => take!(val, var, u64),
-        PartialValue::U128(val, var) => take!(val, var, u128),
-        PartialValue::I8(val) => take!(val, i8),
-        PartialValue::I16(val, var) => take!(val, var, i16),
-        PartialValue::I32(val, var) => take!(val, var, i32),
-        PartialValue::I64(val, var) => take!(val, var, i64),
-        PartialValue::I128(val, var) => take!(val, var, i128),
-        PartialValue::F32(val) => take!(val, f32),
-        PartialValue::F64(val) => take!(val, f64),
-        PartialValue::Usize(val, var) => take!(val, var, u64),
-        PartialValue::Isize(val, var) => take!(val, var, i64),
-        PartialValue::Str(val) => {
-            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
-            cursor.consume(consumed)?;
-            val.set_value(str::from_utf8(cursor.take(len as usize)?)?);
-            Ok(())
+            PartialValue::Bytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(cursor.take(len as usize)?);
+                Ok(())
+            }
+            PartialValue::VecBytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(cursor.take(len as usize)?.into());
+                Ok(())
+            }
+            PartialValue::Length(length) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                *length = Some(len as usize);
+                Ok(())
+            }
+            PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
         }
-        PartialValue::String(val) => {
-            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
-            cursor.consume(consumed)?;
-            val.set_value(str::from_utf8(cursor.take(len as usize)?)?.into());
-            Ok(())
-        }
-        PartialValue::Bytes(val) => {
-            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
-            cursor.consume(consumed)?;
-            val.set_value(cursor.take(len as usize)?);
-            Ok(())
-        }
-        PartialValue::VecBytes(val) => {
-            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
-            cursor.consume(consumed)?;
-            val.set_value(cursor.take(len as usize)?.into());
-            Ok(())
-        }
-        PartialValue::Length(length) => {
-            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
-            cursor.consume(consumed)?;
-            *length = Some(len as usize);
-            Ok(())
-        }
-        PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
     }
 }
 
@@ -376,7 +384,12 @@ pub fn owned_processor<'cursor>(
     }
 
     move |partial| {
-        // std::println!("Cursor: {:?}", cursor.as_slice());
+        #[cfg(feature = "tracing")]
+        tracing::trace!(
+            target: "facet_minecraft::deserialize",
+            "Reading {partial}"
+        );
+
         match partial {
             PartialValue::Bool(val) => match cursor.take_array::<1>()?[0] {
                 0 => {
@@ -423,7 +436,7 @@ pub fn owned_processor<'cursor>(
                 Ok(())
             }
             PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
-            // Cannot borrow strings or bytes when deserializing owned values
+            // Cannot borrow strings or bytes while deserializing owned values
             PartialValue::Str(_) | PartialValue::Bytes(_) => {
                 Err(DeserializeValueError::StaticBorrow)
             }
