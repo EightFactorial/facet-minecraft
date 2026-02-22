@@ -4,9 +4,10 @@
 use alloc::{string::String, vec::Vec};
 use core::marker::PhantomData;
 
-use facet::{Facet, HeapValue, Partial, ReflectError, Shape};
+use facet::{Facet, HeapValue, Partial, ReflectError, Shape, StructType};
+use smallvec::SmallVec;
 
-use crate::deserialize::error::{DeserializeError, DeserializeIterError};
+use crate::deserialize::error::{DeserializeError, DeserializeIterError, DeserializeValueError};
 
 /// An iterator over the fields of a type.
 ///
@@ -14,6 +15,7 @@ use crate::deserialize::error::{DeserializeError, DeserializeIterError};
 pub struct DeserializeIter<'facet, const BORROW: bool> {
     input: &'static Shape,
     partial: Partial<'facet, BORROW>,
+    stack: SmallVec<[ItemState; 8]>,
 }
 
 impl<'facet> DeserializeIter<'facet, true> {
@@ -23,7 +25,7 @@ impl<'facet> DeserializeIter<'facet, true> {
     ///
     /// Returns an error if the type is unsized.
     pub fn new<T: Facet<'facet>>() -> Result<Self, ReflectError> {
-        Ok(Self { input: T::SHAPE, partial: Partial::alloc::<T>()? })
+        Ok(Self { input: T::SHAPE, partial: Partial::alloc::<T>()?, stack: SmallVec::new_const() })
     }
 }
 
@@ -34,9 +36,20 @@ impl DeserializeIter<'static, false> {
     ///
     /// Returns an error if the type is unsized.
     pub fn new<T: Facet<'static>>() -> Result<Self, ReflectError> {
-        Ok(Self { input: T::SHAPE, partial: Partial::alloc_owned::<T>()? })
+        Ok(Self {
+            input: T::SHAPE,
+            partial: Partial::alloc_owned::<T>()?,
+            stack: SmallVec::new_const(),
+        })
     }
 }
+
+enum ItemState {
+    Fields { data: StructType, field_index: usize },
+    List { length: Option<usize> },
+}
+
+// -------------------------------------------------------------------------------------------------
 
 /// A [`Partial`] value that must be filled in by a deserializer.
 pub enum PartialValue<'mem, 'facet, const BORROW: bool> {
@@ -78,6 +91,8 @@ pub enum PartialValue<'mem, 'facet, const BORROW: bool> {
     Bytes(PartialLense<'mem, 'facet, BORROW, &'facet [u8]>),
     /// A [`Vec<u8>`] value.
     VecBytes(PartialLense<'mem, 'facet, BORROW, Vec<u8>>),
+    /// A variable-length encoded [`usize`] value.
+    Length(&'mem mut Option<usize>),
 }
 
 /// A lense for a [`Partial`] that allows setting it's value.
@@ -110,7 +125,7 @@ impl<'mem, 'facet, const BORROW: bool, T: Facet<'facet>> PartialLense<'mem, 'fac
     /// avoid the extra check, since we should already know that the shape
     /// is correct.
     pub fn set_value(self, value: T) {
-        replace_with::replace_with_or_abort(self.partial, |partial| partial.set(value).unwrap());
+        replace_with::replace_with_or_abort(self.partial, |val| val.set(value).unwrap());
     }
 }
 
@@ -119,21 +134,61 @@ impl<'mem, 'facet, const BORROW: bool, T: Facet<'facet>> PartialLense<'mem, 'fac
 impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
     /// Advances the iterator to the next field.
     ///
-    /// Returns `None` if there are no more fields to process.
+    /// Returns itself, and boolean indicating whether the iterator is
+    /// complete.
     ///
     /// # Errors
     ///
     /// Returns an error if the processor fails to process a [`Partial`].
     ///
-    /// Can be resumed after an error, allowing the processor to fix the error
-    /// and try again.
-    pub fn next<
-        F: FnMut(PartialValue<'_, 'facet, BORROW>) -> Result<(), DeserializeIterError<'facet>>,
-    >(
-        &mut self,
-        _processor: F,
-    ) -> Option<Result<(), DeserializeIterError<'facet>>> {
-        todo!()
+    /// If the processor is out of data, deserialization can be resumed by
+    /// calling `next` again after providing more data to the processor.
+    #[allow(clippy::missing_panics_doc, reason = "WIP")]
+    pub fn next<F: FnMut(PartialValue<'_, 'facet, BORROW>) -> Result<(), DeserializeValueError>>(
+        mut self,
+        mut processor: F,
+    ) -> Result<(Self, bool), DeserializeIterError<'facet, BORROW>> {
+        macro_rules! wrap {
+            (@process $($tt:tt)*) => {
+                if let Err(err) = (processor)($($tt)*) {
+                    return match err {
+                        DeserializeValueError::StaticBorrow => Err(DeserializeIterError::StaticBorrow),
+                        DeserializeValueError::Reflect(err) => Err(DeserializeIterError::Reflect(err)),
+                        DeserializeValueError::Utf8(err) => Err(DeserializeIterError::Utf8(err)),
+                        DeserializeValueError::EndOfInput(error) => Err(DeserializeIterError::EndOfInput { error, iterator: self }),
+                    }
+                }
+            };
+        }
+
+        loop {
+            // Get the current state, or return if we're done.
+            let Some(state) = self.stack.last_mut() else {
+                return Ok((self, true));
+            };
+
+            match state {
+                ItemState::Fields { .. } => todo!(),
+                ItemState::List { length } => {
+                    if length.is_none() {
+                        let mut value = None;
+                        wrap!(@process PartialValue::Length(&mut value));
+                        *length = Some(value.expect("Processor must set the length value"));
+                    }
+
+                    let length = length.as_mut().unwrap();
+                    if *length == 0 {
+                        self.partial = self.partial.end()?;
+                        self.partial = self.partial.end()?;
+                        self.stack.pop();
+                    } else {
+                        *length -= 1;
+                        self.partial = self.partial.end()?;
+                        self.partial = self.partial.begin_list_item()?;
+                    }
+                }
+            }
+        }
     }
 
     /// Returns the final [`Partial`] after deserialization is complete.
@@ -142,16 +197,16 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
     ///
     /// Returns an error if the processor fails to process a [`Partial`].
     pub fn complete<
-        F: FnMut(PartialValue<'_, 'facet, BORROW>) -> Result<(), DeserializeIterError<'facet>>,
+        F: FnMut(PartialValue<'_, 'facet, BORROW>) -> Result<(), DeserializeValueError>,
     >(
         mut self,
         mut processor: F,
     ) -> Result<HeapValue<'facet, BORROW>, DeserializeError<'facet>> {
         loop {
             match self.next(&mut processor) {
-                Some(Ok(())) => {}
-                Some(Err(err)) => return Err(err.into()),
-                None => return self.partial.build().map_err(Into::into),
+                Ok((iter, false)) => self = iter,
+                Ok((iter, true)) => return Ok(iter.partial.build()?),
+                Err(err) => return Err(DeserializeError::from(err)),
             }
         }
     }

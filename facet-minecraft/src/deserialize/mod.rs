@@ -1,4 +1,6 @@
 //! TODO
+#![allow(clippy::elidable_lifetime_names, reason = "WIP")]
+#![expect(clippy::result_large_err, reason = "An error variant contains the iterator")]
 
 #[cfg(feature = "std")]
 use alloc::vec::Vec;
@@ -10,10 +12,10 @@ use facet::HeapValue;
 
 use crate::{
     deserialize::{
-        error::{DeserializeError, DeserializeIterError},
+        error::{DeserializeError, DeserializeValueError, EndOfInput},
         iter::{DeserializeIter, PartialValue},
     },
-    hint::TypeSerializeHint,
+    hint::TypeSizeHint,
 };
 
 pub mod error;
@@ -22,8 +24,8 @@ pub mod iter;
 
 /// A trait for types that can be deserialized.
 pub trait Deserialize<'facet>: Sized {
-    /// The [`TypeSerializeHint`] for this type.
-    const SIZE_HINT: TypeSerializeHint;
+    /// The [`TypeSizeHint`] for this type.
+    const SIZE_HINT: TypeSizeHint;
 
     /// Deserialize a value from a [`slice`](::core::primitive::slice),
     /// borrowing data where possible.
@@ -85,9 +87,11 @@ pub trait Deserialize<'facet>: Sized {
     where
         Self: Facet<'static>,
     {
-        from_coroutine(DeserializeIter::<false>::new::<Self>()?, move |buf: &mut [u8]| {
-            reader.read_exact(buf).map_err(Into::into)
-        })?
+        from_coroutine(
+            DeserializeIter::<false>::new::<Self>()?,
+            move |buf: &mut [u8]| reader.read_exact(buf).map_err(Into::into),
+            Self::SIZE_HINT,
+        )?
         .materialize::<Self>()
         .map_err(Into::into)
     }
@@ -111,6 +115,7 @@ pub trait Deserialize<'facet>: Sized {
             from_async_coroutine(
                 DeserializeIter::<false>::new::<Self>()?,
                 async move |buf: &mut [u8]| reader.read_exact(buf).await.map_err(Into::into),
+                Self::SIZE_HINT,
             )
             .await?
             .materialize::<Self>()
@@ -139,6 +144,7 @@ pub trait Deserialize<'facet>: Sized {
                 async move |buf: &mut [u8]| {
                     reader.read_exact(buf).await.map_or_else(|err| Err(err.into()), |_| Ok(()))
                 },
+                Self::SIZE_HINT,
             )
             .await?
             .materialize::<Self>()
@@ -148,7 +154,7 @@ pub trait Deserialize<'facet>: Sized {
 }
 
 impl<'facet, T: Facet<'facet>> Deserialize<'facet> for T {
-    const SIZE_HINT: TypeSerializeHint = crate::hint::calculate_shape_hint(Self::SHAPE, None);
+    const SIZE_HINT: TypeSizeHint = crate::hint::calculate_shape_hint(Self::SHAPE, None);
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -178,9 +184,9 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     ///
     /// Returns a [`DeserializeIterError`] if there are not enough bytes
     /// remaining in the cursor.
-    pub fn read(&mut self, buf: &mut [u8]) -> Result<(), DeserializeIterError<'facet>> {
+    pub fn read(&mut self, buf: &mut [u8]) -> Result<(), EndOfInput> {
         if self.offset + buf.len() > self.slice.len() {
-            return Err(DeserializeIterError::new());
+            return Err(EndOfInput { had: self.slice.len() - self.offset, expected: buf.len() });
         }
         buf.copy_from_slice(&self.slice[self.offset..self.offset + buf.len()]);
         self.offset += buf.len();
@@ -193,9 +199,9 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     ///
     /// Returns a [`DeserializeIterError`] if there are not enough bytes
     /// remaining in the cursor.
-    pub fn take(&mut self, n: usize) -> Result<&'input [u8], DeserializeIterError<'facet>> {
+    pub fn take(&mut self, n: usize) -> Result<&'input [u8], EndOfInput> {
         if self.offset + n > self.slice.len() {
-            return Err(DeserializeIterError::new());
+            return Err(EndOfInput { had: self.slice.len() - self.offset, expected: n });
         }
         let result = &self.slice[self.offset..self.offset + n];
         self.offset += n;
@@ -208,14 +214,12 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     ///
     /// Returns a [`DeserializeIterError`] if there are not enough bytes
     /// remaining in the cursor.
-    pub fn take_array<const N: usize>(
-        &mut self,
-    ) -> Result<&'input [u8; N], DeserializeIterError<'facet>> {
+    pub fn take_array<const N: usize>(&mut self) -> Result<&'input [u8; N], EndOfInput> {
         if let Some((start, end)) = self.slice.split_first_chunk::<N>() {
             self.slice = end;
             Ok(start)
         } else {
-            Err(DeserializeIterError::new())
+            Err(EndOfInput { had: self.slice.len(), expected: N })
         }
     }
 
@@ -225,9 +229,9 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     ///
     /// Returns a [`DeserializeIterError`] if there are not enough bytes
     /// remaining in the cursor.
-    pub fn consume(&mut self, n: usize) -> Result<(), DeserializeIterError<'facet>> {
+    pub fn consume(&mut self, n: usize) -> Result<(), EndOfInput> {
         if self.offset + n > self.slice.len() {
-            Err(DeserializeIterError::new())
+            Err(EndOfInput { had: self.slice.len() - self.offset, expected: n })
         } else {
             self.offset += n;
             Ok(())
@@ -245,16 +249,14 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
 ///
 /// Returns a [`DeserializeIterError`] if there isn't enough data.
 #[inline]
-fn bytes_to_variable<'facet>(_bytes: &[u8]) -> Result<(usize, u128), DeserializeIterError<'facet>> {
-    todo!()
-}
+fn bytes_to_variable(_bytes: &[u8]) -> Result<(usize, u128), EndOfInput> { todo!() }
 
 #[allow(clippy::cast_possible_truncation, reason = "Macro generated code")]
 #[allow(clippy::cast_possible_wrap, reason = "Macro generated code")]
 #[allow(trivial_numeric_casts, reason = "Macro generated code")]
 fn borrowed_processor<'facet>(
     mut cursor: InputCursor<'facet, 'facet>,
-) -> impl FnMut(PartialValue<'_, 'facet, true>) -> Result<(), DeserializeIterError<'facet>> {
+) -> impl FnMut(PartialValue<'_, 'facet, true>) -> Result<(), DeserializeValueError> {
     macro_rules! take {
         ($val:expr, $ty:ty) => {{
             $val.set_value(<$ty>::from_le_bytes(
@@ -344,6 +346,12 @@ fn borrowed_processor<'facet>(
             val.set_value(cursor.take(len as usize)?.into());
             Ok(())
         }
+        PartialValue::Length(length) => {
+            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+            cursor.consume(consumed)?;
+            *length = Some(len as usize);
+            Ok(())
+        }
     }
 }
 
@@ -352,7 +360,7 @@ fn borrowed_processor<'facet>(
 #[allow(trivial_numeric_casts, reason = "Macro generated code")]
 fn owned_processor(
     mut cursor: InputCursor<'_, 'static>,
-) -> impl FnMut(PartialValue<'_, 'static, false>) -> Result<(), DeserializeIterError<'static>> {
+) -> impl FnMut(PartialValue<'_, 'static, false>) -> Result<(), DeserializeValueError> {
     macro_rules! take {
         ($val:expr, $ty:ty) => {{
             $val.set_value(<$ty>::from_le_bytes(
@@ -430,77 +438,97 @@ fn owned_processor(
             val.set_value(cursor.take(len as usize)?.into());
             Ok(())
         }
+        PartialValue::Length(length) => {
+            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+            cursor.consume(consumed)?;
+            *length = Some(len as usize);
+            Ok(())
+        }
         // Cannot borrow strings or bytes when deserializing owned values
-        PartialValue::Str(_) | PartialValue::Bytes(_) => Err(DeserializeIterError::new()),
+        PartialValue::Str(_) | PartialValue::Bytes(_) => Err(DeserializeValueError::StaticBorrow),
     }
 }
 
-/// A helper function to drive the deserialization process using a synchronous
-/// reader.
+/// A helper function to drive the deserialization process
+/// using a synchronous reader.
 #[cfg(feature = "std")]
 fn from_coroutine<F: FnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
     mut iter: DeserializeIter<'static, false>,
     mut reader: F,
+    hint: TypeSizeHint,
 ) -> Result<HeapValue<'static, false>, DeserializeError<'static>> {
-    let mut buffer = Vec::<u8>::new();
-    let mut processor = owned_processor(InputCursor::new(buffer.as_slice()));
+    let mut buffer = Vec::<u8>::with_capacity(hint.minimum().unwrap_or_default());
+    (reader)(&mut buffer)?;
 
+    let mut processor = owned_processor(InputCursor::new(buffer.as_slice()));
     loop {
         match iter.next(&mut processor) {
-            Some(Ok(())) => {}
-            Some(Err(err)) => {
-                let buffer_too_small = false;
-                let expecting_count = 0usize;
-
-                if buffer_too_small {
-                    // Drop the old processor to release the buffer
-                    drop(processor);
-                    // Resize the buffer and read new data into it
-                    buffer.resize(expecting_count, 0);
-                    (reader)(&mut buffer)?;
-                    // Create a new processor using the refilled buffer
-                    processor = owned_processor(InputCursor::new(buffer.as_slice()));
-                } else {
-                    return Err(err.into());
+            Ok((iterator, false)) => iter = iterator,
+            Ok((iterator, true)) => return Ok(iterator.into_partial().build()?),
+            Err(err) => {
+                match err {
+                    crate::deserialize::error::DeserializeIterError::EndOfInput {
+                        error: crate::deserialize::error::EndOfInput { had, expected },
+                        iterator,
+                    } => {
+                        // Drop the old processor to release the buffer
+                        drop(processor);
+                        // Move the remaining data to the start of the buffer and resize it
+                        let src = buffer.len() - had;
+                        buffer.copy_within(src.., 0);
+                        buffer.resize(had + expected, 0);
+                        // Read new data into the buffer
+                        (reader)(&mut buffer[had..])?;
+                        // Create a new processor using the refilled buffer
+                        processor = owned_processor(InputCursor::new(buffer.as_slice()));
+                        // Replace the old iterator and resume deserialization
+                        iter = iterator;
+                    }
+                    other => return Err(other.into()),
                 }
             }
-            // Completed the iterator, now build the final value
-            None => return iter.into_partial().build().map_err(Into::into),
         }
     }
 }
 
-/// A helper function to drive the deserialization process using an asynchronous
-/// reader.
+/// A helper function to drive the deserialization process
+/// using an asynchronous reader.
 #[cfg(any(feature = "futures-lite", feature = "tokio"))]
 async fn from_async_coroutine<F: AsyncFnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
     mut iter: DeserializeIter<'static, false>,
     mut reader: F,
+    hint: TypeSizeHint,
 ) -> Result<HeapValue<'static, false>, DeserializeError<'static>> {
-    let mut buffer = Vec::<u8>::new();
-    let mut processor = owned_processor(InputCursor::new(buffer.as_slice()));
+    let mut buffer = Vec::<u8>::with_capacity(hint.minimum().unwrap_or_default());
+    (reader)(&mut buffer).await?;
 
+    let mut processor = owned_processor(InputCursor::new(buffer.as_slice()));
     loop {
         match iter.next(&mut processor) {
-            Some(Ok(())) => {}
-            Some(Err(err)) => {
-                let buffer_too_small = false;
-                let expecting_count = 0usize;
-
-                if buffer_too_small {
-                    // Drop the old processor to release the buffer
-                    drop(processor);
-                    // Resize the buffer and read new data into it
-                    buffer.resize(expecting_count, 0);
-                    (reader)(&mut buffer).await?;
-                    // Create a new processor using the refilled buffer
-                    processor = owned_processor(InputCursor::new(buffer.as_slice()));
-                } else {
-                    return Err(err.into());
+            Ok((iterator, false)) => iter = iterator,
+            Ok((iterator, true)) => return Ok(iterator.into_partial().build()?),
+            Err(err) => {
+                match err {
+                    crate::deserialize::error::DeserializeIterError::EndOfInput {
+                        error: crate::deserialize::error::EndOfInput { had, expected },
+                        iterator,
+                    } => {
+                        // Drop the old processor to release the buffer
+                        drop(processor);
+                        // Move the remaining data to the start of the buffer and resize it
+                        let src = buffer.len() - had;
+                        buffer.copy_within(src.., 0);
+                        buffer.resize(had + expected, 0);
+                        // Read new data into the buffer
+                        (reader)(&mut buffer[had..]).await?;
+                        // Create a new processor using the refilled buffer
+                        processor = owned_processor(InputCursor::new(buffer.as_slice()));
+                        // Replace the old iterator and resume deserialization
+                        iter = iterator;
+                    }
+                    other => return Err(other.into()),
                 }
             }
-            // Completed the iterator, now build the final value
-            None => return iter.into_partial().build().map_err(Into::into),
         }
     }
 }

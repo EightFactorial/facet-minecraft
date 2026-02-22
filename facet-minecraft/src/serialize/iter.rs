@@ -15,7 +15,7 @@ use crate::{SerializeFn, serialize::error::SerializeIterError};
 /// Uses [`Peek`]s to provide access to field data.
 pub struct SerializeIter<'mem, 'facet> {
     input: &'static Shape,
-    state: SmallVec<[ItemState<'mem, 'facet>; 8]>,
+    stack: SmallVec<[ItemState<'mem, 'facet>; 8]>,
     next: Option<PeekValue<'mem, 'facet>>,
 }
 
@@ -150,8 +150,8 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
     pub fn new_from_peek(
         peek: Peek<'mem, 'facet>,
     ) -> Result<Self, SerializeIterError<'mem, 'facet>> {
-        let mut iter = Self { input: peek.shape(), state: SmallVec::new_const(), next: None };
-        iter.state.push(Self::create_state(peek, false)?);
+        let mut iter = Self { input: peek.shape(), stack: SmallVec::new_const(), next: None };
+        iter.stack.push(Self::create_state(peek, false)?);
         Ok(iter)
     }
 
@@ -314,7 +314,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
         }
 
         loop {
-            let state = self.state.last_mut()?;
+            let state = self.stack.last_mut()?;
 
             // Write a length prefix if necessary
             if state.write_length {
@@ -325,7 +325,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
             match &mut state.iter {
                 // Pop and return the scalar value.
                 PeekIter::Scalar(_) => {
-                    let state = self.state.pop().unwrap_or_else(|| unreachable!());
+                    let state = self.stack.pop().unwrap_or_else(|| unreachable!());
                     let PeekIter::Scalar(peek) = state.iter else { unreachable!() };
 
                     match wrap!(PeekValue::try_from(peek)) {
@@ -367,35 +367,35 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                 PeekIter::Map(iter) => match iter.next() {
                     Some((key, val)) => {
                         let variable = state.variable;
-                        self.state.push(wrap!(Self::create_state(val, variable)));
-                        self.state.push(wrap!(Self::create_state(key, false)));
+                        self.stack.push(wrap!(Self::create_state(val, variable)));
+                        self.stack.push(wrap!(Self::create_state(key, false)));
                     }
                     None => {
-                        let _ = self.state.pop()?;
+                        let _ = self.stack.pop()?;
                     }
                 },
                 PeekIter::Set(iter) => {
                     if let Some(value) = iter.next() {
                         let variable = state.variable;
-                        self.state.push(wrap!(Self::create_state(value, variable)));
+                        self.stack.push(wrap!(Self::create_state(value, variable)));
                     } else {
-                        let _ = self.state.pop()?;
+                        let _ = self.stack.pop()?;
                     }
                 }
                 PeekIter::List(iter) => {
                     if let Some(value) = iter.next() {
                         let variable = state.variable;
-                        self.state.push(wrap!(Self::create_state(value, variable)));
+                        self.stack.push(wrap!(Self::create_state(value, variable)));
                     } else {
-                        let _ = self.state.pop()?;
+                        let _ = self.stack.pop()?;
                     }
                 }
                 PeekIter::ListLike(iter) => {
                     if let Some(value) = iter.next() {
                         let variable = state.variable;
-                        self.state.push(wrap!(Self::create_state(value, variable)));
+                        self.stack.push(wrap!(Self::create_state(value, variable)));
                     } else {
-                        let _ = self.state.pop()?;
+                        let _ = self.stack.pop()?;
                     }
                 }
                 PeekIter::Fields(iter) => {
@@ -417,26 +417,26 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                             variable = field.has_attr(Some("mc"), "variable");
                         }
 
-                        self.state.push(wrap!(Self::create_state(value, variable)));
+                        self.stack.push(wrap!(Self::create_state(value, variable)));
                     } else {
-                        let _ = self.state.pop()?;
+                        let _ = self.stack.pop()?;
                     }
                 }
                 PeekIter::DynamicValueArray(iter) => {
                     if let Some(value) = iter.next() {
                         let variable = state.variable;
-                        self.state.push(wrap!(Self::create_state(value, variable)));
+                        self.stack.push(wrap!(Self::create_state(value, variable)));
                     } else {
-                        let _ = self.state.pop()?;
+                        let _ = self.stack.pop()?;
                     }
                 }
                 PeekIter::DynamicValueObject(iter) => {
                     if let Some((key, value)) = iter.next() {
                         let variable = state.variable;
-                        self.state.push(wrap!(Self::create_state(value, variable)));
-                        self.state.push(wrap!(Self::create_state(Peek::new(key), false)));
+                        self.stack.push(wrap!(Self::create_state(value, variable)));
+                        self.stack.push(wrap!(Self::create_state(Peek::new(key), false)));
                     } else {
-                        let _ = self.state.pop()?;
+                        let _ = self.stack.pop()?;
                     }
                 }
 
@@ -444,7 +444,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                     if let Some(value) = option.value() {
                         *state = wrap!(Self::create_state(value, state.variable));
                     } else {
-                        let _ = self.state.pop()?;
+                        let _ = self.stack.pop()?;
                     }
                 }
                 PeekIter::Result(result) => {
@@ -474,7 +474,7 @@ impl<'mem, 'facet> Iterator for SerializeIter<'mem, 'facet> {
             None => None,
 
             Some(Err(err)) => {
-                self.state.clear(); // Prevent further iteration after an error
+                self.stack.clear(); // Prevent further iteration after an error
                 Some(Err(err))
             }
         }

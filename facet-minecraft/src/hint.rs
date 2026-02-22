@@ -9,7 +9,7 @@ use facet::{
 /// A hint for the size of a type when serialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[expect(missing_docs, reason = "Fields don't need documentation")]
-pub enum TypeSerializeHint {
+pub enum TypeSizeHint {
     /// An exact size.
     Exact { size: usize },
     /// A size range, inclusive.
@@ -18,14 +18,14 @@ pub enum TypeSerializeHint {
     None,
 }
 
-impl TypeSerializeHint {
+impl TypeSizeHint {
     /// Returns the minimum size hint, if available.
     #[must_use]
     pub const fn minimum(&self) -> Option<usize> {
         match self {
-            TypeSerializeHint::Exact { size } => Some(*size),
-            TypeSerializeHint::Range { min, .. } => Some(*min),
-            TypeSerializeHint::None => None,
+            TypeSizeHint::Exact { size } => Some(*size),
+            TypeSizeHint::Range { min, .. } => Some(*min),
+            TypeSizeHint::None => None,
         }
     }
 
@@ -33,13 +33,13 @@ impl TypeSerializeHint {
     #[must_use]
     pub const fn maximum(&self) -> Option<usize> {
         match self {
-            TypeSerializeHint::Exact { size } => Some(*size),
-            TypeSerializeHint::Range { max, .. } => *max,
-            TypeSerializeHint::None => None,
+            TypeSizeHint::Exact { size } => Some(*size),
+            TypeSizeHint::Range { max, .. } => *max,
+            TypeSizeHint::None => None,
         }
     }
 
-    /// Creates a new [`TypeSerializeHint`] from the given min and max sizes.
+    /// Creates a new [`TypeSizeHint`] from the given min and max sizes.
     ///
     /// Follows the logic:
     ///   - If `min` is greater than `max`, returns `None`.
@@ -49,10 +49,10 @@ impl TypeSerializeHint {
     #[must_use]
     const fn from_min_max(min: Option<usize>, max: Option<usize>) -> Self {
         match (min, max) {
-            (Some(min), Some(max)) if min > max => TypeSerializeHint::None,
-            (Some(min), Some(max)) if min == max => TypeSerializeHint::Exact { size: min },
-            (Some(min), max) => TypeSerializeHint::Range { min, max },
-            _ => TypeSerializeHint::None,
+            (Some(min), Some(max)) if min > max => TypeSizeHint::None,
+            (Some(min), Some(max)) if min == max => TypeSizeHint::Exact { size: min },
+            (Some(min), max) => TypeSizeHint::Range { min, max },
+            _ => TypeSizeHint::None,
         }
     }
 
@@ -62,19 +62,19 @@ impl TypeSerializeHint {
     #[must_use]
     const fn multiply(self, n: usize) -> Self {
         match self {
-            TypeSerializeHint::Exact { size } => TypeSerializeHint::Exact { size: size * n },
-            TypeSerializeHint::Range { min, max } => {
+            TypeSizeHint::Exact { size } => TypeSizeHint::Exact { size: size * n },
+            TypeSizeHint::Range { min, max } => {
                 if let Some(max) = max {
-                    TypeSerializeHint::Range { min: min * n, max: Some(max * n) }
+                    TypeSizeHint::Range { min: min * n, max: Some(max * n) }
                 } else {
-                    TypeSerializeHint::Range { min: min * n, max: None }
+                    TypeSizeHint::Range { min: min * n, max: None }
                 }
             }
-            TypeSerializeHint::None => TypeSerializeHint::None,
+            TypeSizeHint::None => TypeSizeHint::None,
         }
     }
 
-    /// Combines two [`TypeSerializeHint`]s into one,
+    /// Combines two [`TypeSizeHint`]s into one,
     /// returning the overall hint.
     ///
     /// Follows the logic:
@@ -86,23 +86,23 @@ impl TypeSerializeHint {
     const fn add(self, other: Self) -> Self {
         match (self, other) {
             // Exact + Exact = Exact
-            (TypeSerializeHint::Exact { size: a }, TypeSerializeHint::Exact { size: b }) => {
-                TypeSerializeHint::Exact { size: a + b }
+            (TypeSizeHint::Exact { size: a }, TypeSizeHint::Exact { size: b }) => {
+                TypeSizeHint::Exact { size: a + b }
             }
             // Exact + Range = Range
-            (TypeSerializeHint::Exact { size: exact }, TypeSerializeHint::Range { min, max })
-            | (TypeSerializeHint::Range { min, max }, TypeSerializeHint::Exact { size: exact }) => {
+            (TypeSizeHint::Exact { size: exact }, TypeSizeHint::Range { min, max })
+            | (TypeSizeHint::Range { min, max }, TypeSizeHint::Exact { size: exact }) => {
                 if let Some(max) = max {
-                    TypeSerializeHint::Range { min: min + exact, max: Some(max + exact) }
+                    TypeSizeHint::Range { min: min + exact, max: Some(max + exact) }
                 } else {
-                    TypeSerializeHint::Range { min: min + exact, max: None }
+                    TypeSizeHint::Range { min: min + exact, max: None }
                 }
             }
             // Range + Range = Range
             (
-                TypeSerializeHint::Range { min: min_a, max: max_a },
-                TypeSerializeHint::Range { min: min_b, max: max_b },
-            ) => TypeSerializeHint::Range {
+                TypeSizeHint::Range { min: min_a, max: max_a },
+                TypeSizeHint::Range { min: min_b, max: max_b },
+            ) => TypeSizeHint::Range {
                 min: min_a + min_b,
                 max: match (max_a, max_b) {
                     (Some(ma), Some(mb)) => Some(ma + mb),
@@ -110,30 +110,30 @@ impl TypeSerializeHint {
                 },
             },
             // None + Anything = None
-            (TypeSerializeHint::None, _) | (_, TypeSerializeHint::None) => TypeSerializeHint::None,
+            (TypeSizeHint::None, _) | (_, TypeSizeHint::None) => TypeSizeHint::None,
         }
     }
 }
 
 // -------------------------------------------------------------------------------------------------
 
-const VAR_U16_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: Some(3) };
-const VAR_U32_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: Some(5) };
-const VAR_U32_UNBOUNDED_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: None };
-const VAR_U64_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: Some(10) };
-const VAR_U128_HINT: TypeSerializeHint = TypeSerializeHint::Range { min: 1, max: Some(19) };
+const VAR_U16_HINT: TypeSizeHint = TypeSizeHint::Range { min: 1, max: Some(3) };
+const VAR_U32_HINT: TypeSizeHint = TypeSizeHint::Range { min: 1, max: Some(5) };
+const VAR_U32_UNBOUNDED_HINT: TypeSizeHint = TypeSizeHint::Range { min: 1, max: None };
+const VAR_U64_HINT: TypeSizeHint = TypeSizeHint::Range { min: 1, max: Some(10) };
+const VAR_U128_HINT: TypeSizeHint = TypeSizeHint::Range { min: 1, max: Some(19) };
 
-/// A helper function to calculate the [`TypeSerializeHint`] for a [`Shape`].
+/// A helper function to calculate the [`TypeSizeHint`] for a [`Shape`].
 pub(crate) const fn calculate_shape_hint(
     shape: &'static Shape,
     attrs: Option<&'static [FieldAttribute]>,
-) -> TypeSerializeHint {
+) -> TypeSizeHint {
     match shape.def {
         // If key and value are zero-sized use repr hint,
         // otherwise use min length repr + unknown max
         Def::Map(MapDef { k, v, .. }) => {
-            if let TypeSerializeHint::Exact { size: 0 } = calculate_shape_hint(k, attrs)
-                && let TypeSerializeHint::Exact { size: 0 } = calculate_shape_hint(v, attrs)
+            if let TypeSizeHint::Exact { size: 0 } = calculate_shape_hint(k, attrs)
+                && let TypeSizeHint::Exact { size: 0 } = calculate_shape_hint(v, attrs)
             {
                 VAR_U32_HINT
             } else {
@@ -146,7 +146,7 @@ pub(crate) const fn calculate_shape_hint(
         Def::Set(SetDef { t, .. })
         | Def::List(ListDef { t, .. })
         | Def::Slice(SliceDef { t, .. }) => {
-            if let TypeSerializeHint::Exact { size: 0 } = calculate_shape_hint(t, attrs) {
+            if let TypeSizeHint::Exact { size: 0 } = calculate_shape_hint(t, attrs) {
                 VAR_U32_HINT
             } else {
                 VAR_U32_UNBOUNDED_HINT
@@ -160,7 +160,7 @@ pub(crate) const fn calculate_shape_hint(
         Def::Option(def) => {
             let hint = calculate_shape_hint(def.t, attrs);
             if let Some(max) = hint.maximum() {
-                TypeSerializeHint::Range { min: 1, max: Some(1 + max) }
+                TypeSizeHint::Range { min: 1, max: Some(1 + max) }
             } else {
                 VAR_U32_UNBOUNDED_HINT
             }
@@ -201,7 +201,7 @@ pub(crate) const fn calculate_shape_hint(
                 }
             }
 
-            TypeSerializeHint::Exact { size: 1 }.add(TypeSerializeHint::from_min_max(min, max))
+            TypeSizeHint::Exact { size: 1 }.add(TypeSizeHint::from_min_max(min, max))
         }
 
         // Use the pointee `Shape`,
@@ -217,25 +217,25 @@ pub(crate) const fn calculate_shape_hint(
         // Fallback to `Type` hint calculation
         Def::Scalar | Def::Undefined => calculate_ty_hint(shape, attrs),
 
-        _ => TypeSerializeHint::None,
+        _ => TypeSizeHint::None,
     }
 }
 
-/// A helper function to calculate the [`TypeSerializeHint`] using the [`Type`]
+/// A helper function to calculate the [`TypeSizeHint`] using the [`Type`]
 /// of a [`Shape`].
 const fn calculate_ty_hint(
     shape: &'static Shape,
     attrs: Option<&'static [FieldAttribute]>,
-) -> TypeSerializeHint {
+) -> TypeSizeHint {
     match shape.ty {
         Type::Primitive(ty) => match ty {
             // `bool`
-            PrimitiveType::Boolean => TypeSerializeHint::Exact { size: 1 },
+            PrimitiveType::Boolean => TypeSizeHint::Exact { size: 1 },
             // `u8`, `u16`, `u32`, `u64`, `u128`, `f32`, `f64`
             PrimitiveType::Numeric(ty) => {
                 let ShapeLayout::Sized(layout) = shape.layout else {
                     // `Unsized` types have no size hint
-                    return TypeSerializeHint::None;
+                    return TypeSizeHint::None;
                 };
 
                 // Check the field attributes for serialization hints
@@ -256,7 +256,7 @@ const fn calculate_ty_hint(
                                 }
                                 // Custom functions cannot provide a size hint
                                 b"serialize" | b"deserialize" => {
-                                    return TypeSerializeHint::None;
+                                    return TypeSizeHint::None;
                                 }
                                 _ => {}
                             }
@@ -267,30 +267,30 @@ const fn calculate_ty_hint(
                 match (ty, variable_length) {
                     // Standard u8/u16/u32/u64/u128
                     (NumericType::Integer { .. }, false) => {
-                        TypeSerializeHint::Exact { size: layout.size() }
+                        TypeSizeHint::Exact { size: layout.size() }
                     }
                     // Standard f32/f64
-                    (NumericType::Float, false) => TypeSerializeHint::Exact { size: layout.size() },
+                    (NumericType::Float, false) => TypeSizeHint::Exact { size: layout.size() },
                     // Variable-length u16/u32/u64/u128
                     (NumericType::Integer { .. }, true) => match layout.size() {
                         2 => VAR_U16_HINT,
                         4 => VAR_U32_HINT,
                         8 => VAR_U64_HINT,
                         16 => VAR_U128_HINT,
-                        _ => TypeSerializeHint::None,
+                        _ => TypeSizeHint::None,
                     },
                     // Variable-length f32/f64 (not supported)
-                    (NumericType::Float, true) => TypeSerializeHint::None,
+                    (NumericType::Float, true) => TypeSizeHint::None,
                 }
             }
             PrimitiveType::Textual(ty) => match ty {
                 // `str`
                 TextualType::Str => VAR_U32_UNBOUNDED_HINT,
                 // `char` (not supported)
-                TextualType::Char => TypeSerializeHint::None,
+                TextualType::Char => TypeSizeHint::None,
             },
             // `!` (not supported)
-            PrimitiveType::Never => TypeSerializeHint::None,
+            PrimitiveType::Never => TypeSizeHint::None,
         },
 
         Type::Sequence(ty) => match ty {
@@ -343,7 +343,7 @@ const fn calculate_ty_hint(
                 }
 
                 // repr + range min/max
-                repr.add(TypeSerializeHint::from_min_max(min, max))
+                repr.add(TypeSizeHint::from_min_max(min, max))
             }
             // `opaque`
             UserType::Opaque => {
@@ -353,34 +353,34 @@ const fn calculate_ty_hint(
                     // VarInt length repr + unknown max
                     b"String" => VAR_U32_UNBOUNDED_HINT,
                     // `[u8; 16]`
-                    b"Uuid" => TypeSerializeHint::Exact { size: 16 },
-                    _ => TypeSerializeHint::None,
+                    b"Uuid" => TypeSizeHint::Exact { size: 16 },
+                    _ => TypeSizeHint::None,
                 }
             }
             // `union` (not supported)
-            UserType::Union(_) => TypeSerializeHint::None,
+            UserType::Union(_) => TypeSizeHint::None,
         },
 
         Type::Pointer(ty) => match ty {
             // `&T` or `&mut T`
             PointerType::Reference(ty) => calculate_shape_hint(ty.target, attrs),
             // `*const T` or `*mut T` (not supported)
-            PointerType::Raw(_ty) => TypeSerializeHint::None,
+            PointerType::Raw(_ty) => TypeSizeHint::None,
             // `fn(..)` (not supported)
-            PointerType::Function(_) => TypeSerializeHint::None,
+            PointerType::Function(_) => TypeSizeHint::None,
         },
 
         // Undefined types (not supported)
-        Type::Undefined => TypeSerializeHint::None,
+        Type::Undefined => TypeSizeHint::None,
     }
 }
 
-/// A helper function to calculate the [`TypeSerializeHint`] for a list of
+/// A helper function to calculate the [`TypeSizeHint`] for a list of
 /// [`Field`]s.
 ///
 /// TODO: Access `Shape`s in a `const fn` :(
-const fn calculate_field_hint(fields: &[Field]) -> TypeSerializeHint {
-    let mut acc = TypeSerializeHint::Exact { size: 0 };
+const fn calculate_field_hint(fields: &[Field]) -> TypeSizeHint {
+    let mut acc = TypeSizeHint::Exact { size: 0 };
 
     let mut index = 0;
     while index < fields.len() {
@@ -388,7 +388,7 @@ const fn calculate_field_hint(fields: &[Field]) -> TypeSerializeHint {
         index += 1;
 
         // acc = acc.with(calculate_shape_hint(field.shape()));
-        acc = TypeSerializeHint::None;
+        acc = TypeSizeHint::None;
     }
 
     acc

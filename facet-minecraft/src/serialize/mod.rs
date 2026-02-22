@@ -8,7 +8,7 @@ use facet_reflect::Peek;
 use smallvec::SmallVec;
 
 use crate::{
-    hint::TypeSerializeHint,
+    hint::TypeSizeHint,
     serialize::{
         buffer::SerializeBuffer,
         iter::{PeekValue, SerializeIter},
@@ -22,9 +22,8 @@ pub mod iter;
 
 /// A trait for types that can be serialized.
 pub trait Serialize<'facet>: Facet<'facet> {
-    /// The [`TypeSerializeHint`] for this type.
-    const SIZE_HINT: &'static TypeSerializeHint =
-        &crate::hint::calculate_shape_hint(Self::SHAPE, None);
+    /// The [`TypeSizeHint`] for this type.
+    const SIZE_HINT: &'static TypeSizeHint = &crate::hint::calculate_shape_hint(Self::SHAPE, None);
 
     /// Serialize this value into a [`Vec<u8>`].
     ///
