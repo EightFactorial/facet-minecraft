@@ -8,6 +8,7 @@ extern crate std;
 
 pub mod attribute;
 pub mod hint;
+pub use replace_with;
 
 pub mod deserialize;
 pub use deserialize::{Deserialize, fns::*};

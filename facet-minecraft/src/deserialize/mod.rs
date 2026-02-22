@@ -261,7 +261,7 @@ fn borrowed_processor<'facet>(
         ($val:expr, $ty:ty) => {{
             $val.set_value(<$ty>::from_le_bytes(
                 *cursor.take_array::<{ core::mem::size_of::<$ty>() }>()?,
-            ));
+            ) as _);
             Ok(())
         }};
         ($val:expr, $var:expr, $ty:ty) => {{
@@ -294,34 +294,8 @@ fn borrowed_processor<'facet>(
         PartialValue::I128(val, var) => take!(val, var, i128),
         PartialValue::F32(val) => take!(val, f32),
         PartialValue::F64(val) => take!(val, f64),
-        PartialValue::Usize(val, var) => {
-            if var {
-                #[expect(clippy::cast_possible_truncation, reason = "Acceptable")]
-                val.set_value(<u64>::from_le_bytes(
-                    *cursor.take_array::<{ core::mem::size_of::<u64>() }>()?,
-                ) as usize);
-                Ok(())
-            } else {
-                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
-                cursor.consume(consumed)?;
-                val.set_value(value as _);
-                Ok(())
-            }
-        }
-        PartialValue::Isize(val, var) => {
-            if var {
-                #[expect(clippy::cast_possible_truncation, reason = "Acceptable")]
-                val.set_value(<i64>::from_le_bytes(
-                    *cursor.take_array::<{ core::mem::size_of::<i64>() }>()?,
-                ) as isize);
-                Ok(())
-            } else {
-                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
-                cursor.consume(consumed)?;
-                val.set_value(value as _);
-                Ok(())
-            }
-        }
+        PartialValue::Usize(val, var) => take!(val, var, u64),
+        PartialValue::Isize(val, var) => take!(val, var, i64),
         PartialValue::Str(val) => {
             let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
             cursor.consume(consumed)?;
@@ -352,6 +326,9 @@ fn borrowed_processor<'facet>(
             *length = Some(len as usize);
             Ok(())
         }
+        PartialValue::Custom(partial, deserialize) => {
+            deserialize.call_borrowed(partial, &mut cursor)
+        }
     }
 }
 
@@ -365,7 +342,7 @@ fn owned_processor(
         ($val:expr, $ty:ty) => {{
             $val.set_value(<$ty>::from_le_bytes(
                 *cursor.take_array::<{ core::mem::size_of::<$ty>() }>()?,
-            ));
+            ) as _);
             Ok(())
         }};
         ($val:expr, $var:expr, $ty:ty) => {
@@ -398,34 +375,8 @@ fn owned_processor(
         PartialValue::I128(val, var) => take!(val, var, i128),
         PartialValue::F32(val) => take!(val, f32),
         PartialValue::F64(val) => take!(val, f64),
-        PartialValue::Usize(val, var) => {
-            if var {
-                #[expect(clippy::cast_possible_truncation, reason = "Acceptable")]
-                val.set_value(<u64>::from_le_bytes(
-                    *cursor.take_array::<{ core::mem::size_of::<u64>() }>()?,
-                ) as usize);
-                Ok(())
-            } else {
-                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
-                cursor.consume(consumed)?;
-                val.set_value(value as _);
-                Ok(())
-            }
-        }
-        PartialValue::Isize(val, var) => {
-            if var {
-                #[expect(clippy::cast_possible_truncation, reason = "Acceptable")]
-                val.set_value(<i64>::from_le_bytes(
-                    *cursor.take_array::<{ core::mem::size_of::<i64>() }>()?,
-                ) as isize);
-                Ok(())
-            } else {
-                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
-                cursor.consume(consumed)?;
-                val.set_value(value as _);
-                Ok(())
-            }
-        }
+        PartialValue::Usize(val, var) => take!(val, var, u64),
+        PartialValue::Isize(val, var) => take!(val, var, i64),
         PartialValue::String(val) => {
             let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
             cursor.consume(consumed)?;
@@ -438,12 +389,14 @@ fn owned_processor(
             val.set_value(cursor.take(len as usize)?.into());
             Ok(())
         }
+
         PartialValue::Length(length) => {
             let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
             cursor.consume(consumed)?;
             *length = Some(len as usize);
             Ok(())
         }
+        PartialValue::Custom(partial, deserialize) => deserialize.call_owned(partial, &mut cursor),
         // Cannot borrow strings or bytes when deserializing owned values
         PartialValue::Str(_) | PartialValue::Bytes(_) => Err(DeserializeValueError::StaticBorrow),
     }

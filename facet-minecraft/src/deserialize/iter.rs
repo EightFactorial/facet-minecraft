@@ -7,7 +7,10 @@ use core::marker::PhantomData;
 use facet::{Facet, HeapValue, Partial, ReflectError, Shape, StructType};
 use smallvec::SmallVec;
 
-use crate::deserialize::error::{DeserializeError, DeserializeIterError, DeserializeValueError};
+use crate::{
+    DeserializeFn,
+    deserialize::error::{DeserializeError, DeserializeIterError, DeserializeValueError},
+};
 
 /// An iterator over the fields of a type.
 ///
@@ -91,8 +94,11 @@ pub enum PartialValue<'mem, 'facet, const BORROW: bool> {
     Bytes(PartialLense<'mem, 'facet, BORROW, &'facet [u8]>),
     /// A [`Vec<u8>`] value.
     VecBytes(PartialLense<'mem, 'facet, BORROW, Vec<u8>>),
+
     /// A variable-length encoded [`usize`] value.
     Length(&'mem mut Option<usize>),
+    /// A [`Partial`] and a [`DeserializeFn`] to use.
+    Custom(&'mem mut Partial<'facet, BORROW>, DeserializeFn),
 }
 
 /// A lense for a [`Partial`] that allows setting it's value.

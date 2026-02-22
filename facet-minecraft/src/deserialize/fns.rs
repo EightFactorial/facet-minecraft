@@ -3,34 +3,65 @@
 
 use facet::{Facet, Partial};
 
-use crate::{Deserialize, deserialize::error::DeserializeError};
+use crate::{
+    Deserialize,
+    deserialize::{
+        InputCursor,
+        error::{DeserializeError, DeserializeValueError},
+    },
+};
 
-type PtrType = for<'facet> fn(Partial<'facet, false>) -> Result<(), DeserializeError<'facet>>;
+type PtrTypeBorrowed = for<'facet> fn(
+    &mut Partial<'facet, true>,
+    &mut InputCursor<'_, 'facet>,
+) -> Result<(), DeserializeValueError>;
+type PtrTypeOwned = for<'facet> fn(
+    &mut Partial<'facet, false>,
+    &mut InputCursor<'_, 'facet>,
+) -> Result<(), DeserializeValueError>;
 
 /// A custom deserializer function.
 #[derive(Debug, Clone, Copy, Facet)]
 #[facet(opaque)]
 pub struct DeserializeFn {
-    ptr: PtrType,
+    ptr_borrowed: PtrTypeBorrowed,
+    ptr_owned: PtrTypeOwned,
 }
 
 impl DeserializeFn {
     /// Creates a new [`DeserializeFn`].
     #[inline]
     #[must_use]
-    pub const fn new(ptr: PtrType) -> Self { Self { ptr } }
+    pub const fn new(borrowed: PtrTypeBorrowed, owned: PtrTypeOwned) -> Self {
+        Self { ptr_borrowed: borrowed, ptr_owned: owned }
+    }
 
-    /// Call the deserializer function.
+    /// Call the borrowed deserializer function.
     ///
     /// # Errors
     ///
     /// Returns an error if deserialization fails.
     #[inline]
-    pub fn call<'facet>(
+    pub fn call_borrowed<'facet>(
         &self,
-        partial: Partial<'facet, false>,
-    ) -> Result<(), DeserializeError<'facet>> {
-        (self.ptr)(partial)
+        partial: &mut Partial<'facet, true>,
+        cursor: &mut InputCursor<'_, 'facet>,
+    ) -> Result<(), DeserializeValueError> {
+        (self.ptr_borrowed)(partial, cursor)
+    }
+
+    /// Call the owned deserializer function.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if deserialization fails.
+    #[inline]
+    pub fn call_owned<'facet>(
+        &self,
+        partial: &mut Partial<'facet, false>,
+        cursor: &mut InputCursor<'_, 'facet>,
+    ) -> Result<(), DeserializeValueError> {
+        (self.ptr_owned)(partial, cursor)
     }
 }
 
