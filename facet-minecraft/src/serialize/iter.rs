@@ -27,7 +27,7 @@ struct ItemState<'mem, 'facet> {
 }
 
 enum PeekIter<'mem, 'facet> {
-    Scalar(Peek<'mem, 'facet>),
+    Value(Peek<'mem, 'facet>),
     Map(PeekMapIter<'mem, 'facet>),
     Set(PeekSetIter<'mem, 'facet>),
     List(PeekListIter<'mem, 'facet>),
@@ -161,9 +161,24 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
         peek: Peek<'mem, 'facet>,
         variable: bool,
     ) -> Result<ItemState<'mem, 'facet>, SerializeIterError<'mem, 'facet>> {
+        // Look for `#[facet(mc::serialize = my_fn)]` on the type itself
+        if peek
+            .shape()
+            .attributes
+            .iter()
+            .any(|attr| attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "serialize")
+        {
+            return Ok(ItemState {
+                iter: PeekIter::Value(peek),
+                length: 1,
+                write_length: false,
+                variable,
+            });
+        }
+
         match peek.shape().def {
             Def::Scalar => Ok(ItemState {
-                iter: PeekIter::Scalar(peek),
+                iter: PeekIter::Value(peek),
                 length: 1,
                 write_length: false,
                 variable,
@@ -190,7 +205,7 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
                 // Special case `Vec<u8>`, serialize as bytes
                 if peek.shape().is_type::<alloc::vec::Vec<u8>>() {
                     return Ok(ItemState {
-                        iter: PeekIter::Scalar(peek),
+                        iter: PeekIter::Value(peek),
                         length: 1,
                         write_length: false,
                         variable,
@@ -324,9 +339,22 @@ impl<'mem, 'facet> SerializeIter<'mem, 'facet> {
 
             match &mut state.iter {
                 // Pop and return the scalar value.
-                PeekIter::Scalar(_) => {
+                PeekIter::Value(_) => {
                     let state = self.stack.pop().unwrap_or_else(|| unreachable!());
-                    let PeekIter::Scalar(peek) = state.iter else { unreachable!() };
+                    let PeekIter::Value(peek) = state.iter else { unreachable!() };
+
+                    // Look for `#[facet(mc::serialize = my_fn)]`
+                    if let Some(attr) = peek.shape().attributes.iter().find(|attr| {
+                        attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "serialize"
+                    }) {
+                        // Use the custom serialize function
+                        if let Some(crate::attribute::Attr::Serialize(Some(serialize))) =
+                            attr.get_as::<crate::attribute::Attr>()
+                        {
+                            return Some(Ok(PeekValue::Custom(peek, *serialize)));
+                        }
+                        return Some(Err(SerializeIterError::new()));
+                    }
 
                     match wrap!(PeekValue::try_from(peek)) {
                         // Use `Variable` for variable-length integers.

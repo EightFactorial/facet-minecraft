@@ -152,6 +152,24 @@ fn r#struct() {
         c: bool,
     }
 
+    #[derive(Facet)]
+    #[facet(mc::serialize = SerializeFn::new(|_, _| todo!()))]
+    struct CustomExternal {
+        a: u8,
+    }
+
+    #[derive(Facet)]
+    struct InternalExternal {
+        a: u8,
+        b: CustomExternal,
+    }
+
+    #[derive(Facet)]
+    struct OverwriteExternal {
+        #[facet(mc::serialize = SerializeFn::new(|_, _| todo!()))]
+        a: CustomExternal,
+    }
+
     let mut iter = SerializeIter::new(&Unit).unwrap();
     assert!(iter.next().is_none());
 
@@ -194,6 +212,21 @@ fn r#struct() {
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(1))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|v| matches!(v, PeekValue::Custom(_, _)))));
     assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::Bool(false))));
+    assert!(iter.next().is_none());
+
+    let mut iter = SerializeIter::new(&CustomExternal { a: 1 }).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|v| matches!(v, PeekValue::Custom(_, _)))));
+    assert!(iter.next().is_none());
+
+    let input = InternalExternal { a: 1, b: CustomExternal { a: 2 } };
+    let mut iter = SerializeIter::new(&input).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|val| val == PeekValue::U8(1))));
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|v| matches!(v, PeekValue::Custom(_, _)))));
+    assert!(iter.next().is_none());
+
+    let input = OverwriteExternal { a: CustomExternal { a: 1 } };
+    let mut iter = SerializeIter::new(&input).unwrap();
+    assert!(iter.next().is_some_and(|res| res.is_ok_and(|v| matches!(v, PeekValue::Custom(_, _)))));
     assert!(iter.next().is_none());
 }
 
