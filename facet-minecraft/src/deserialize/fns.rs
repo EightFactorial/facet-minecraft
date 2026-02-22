@@ -36,6 +36,26 @@ impl DeserializeFn {
         Self { ptr_borrowed: borrowed, ptr_owned: owned }
     }
 
+    /// Call the deserializer function.
+    ///
+    /// Automatically selects the borrowed or owned deserializer based on the
+    /// `BORROW` const generic parameter.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if deserialization fails.
+    #[inline]
+    pub fn call<'facet, const BORROW: bool>(
+        &self,
+        partial: &mut Partial<'facet, BORROW>,
+        cursor: &mut InputCursor<'_, 'facet>,
+    ) -> Result<(), DeserializeValueError>
+    where
+        Self: sealed::UnifyDeserFn<'facet, BORROW>,
+    {
+        sealed::UnifyDeserFn::call(self, partial, cursor)
+    }
+
     /// Call the borrowed deserializer function.
     ///
     /// # Errors
@@ -62,6 +82,38 @@ impl DeserializeFn {
         cursor: &mut InputCursor<'_, 'facet>,
     ) -> Result<(), DeserializeValueError> {
         (self.ptr_owned)(partial, cursor)
+    }
+}
+
+mod sealed {
+    use super::{DeserializeFn, DeserializeValueError, InputCursor, Partial};
+    pub trait UnifyDeserFn<'facet, const BORROW: bool> {
+        fn call(
+            &self,
+            partial: &mut Partial<'facet, BORROW>,
+            cursor: &mut InputCursor<'_, 'facet>,
+        ) -> Result<(), DeserializeValueError>;
+    }
+
+    impl<'facet> UnifyDeserFn<'facet, true> for DeserializeFn {
+        #[inline]
+        fn call(
+            &self,
+            partial: &mut Partial<'facet, true>,
+            cursor: &mut InputCursor<'_, 'facet>,
+        ) -> Result<(), DeserializeValueError> {
+            self.call_borrowed(partial, cursor)
+        }
+    }
+    impl<'facet> UnifyDeserFn<'facet, false> for DeserializeFn {
+        #[inline]
+        fn call(
+            &self,
+            partial: &mut Partial<'facet, false>,
+            cursor: &mut InputCursor<'_, 'facet>,
+        ) -> Result<(), DeserializeValueError> {
+            self.call_owned(partial, cursor)
+        }
     }
 }
 

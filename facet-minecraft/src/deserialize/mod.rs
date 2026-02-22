@@ -40,8 +40,9 @@ pub trait Deserialize<'facet>: Sized {
     where
         Self: Facet<'facet>,
     {
+        let mut cursor = InputCursor::new(slice);
         DeserializeIter::<true>::new::<Self>()?
-            .complete(borrowed_processor(InputCursor::new(slice)))?
+            .complete(borrowed_processor(&mut cursor))?
             .materialize()
             .map_err(Into::into)
     }
@@ -69,11 +70,11 @@ pub trait Deserialize<'facet>: Sized {
     where
         Self: Facet<'static>,
     {
-        let _value = DeserializeIter::<false>::new::<Self>()?
-            .complete(owned_processor(InputCursor::new(slice)))?
+        let mut cursor = InputCursor::new(slice);
+        let value = DeserializeIter::<false>::new::<Self>()?
+            .complete(owned_processor(&mut cursor))?
             .materialize::<Self>()?;
-
-        todo!()
+        Ok((value, cursor.as_slice()))
     }
 
     /// Deserialize a value from a reader.
@@ -162,16 +163,13 @@ impl<'facet, T: Facet<'facet>> Deserialize<'facet> for T {
 /// A `no_std`-compatible cursor for deserialization.
 pub struct InputCursor<'input, 'facet> {
     slice: &'input [u8],
-    offset: usize,
     _invariant: core::marker::PhantomData<fn(&'facet ()) -> &'facet ()>,
 }
 
 impl<'input, 'facet> InputCursor<'input, 'facet> {
     /// Create a new [`InputCursor`] from a byte slice.
     #[must_use]
-    pub const fn new(slice: &'input [u8]) -> Self {
-        Self { slice, offset: 0, _invariant: PhantomData }
-    }
+    pub const fn new(slice: &'input [u8]) -> Self { Self { slice, _invariant: PhantomData } }
 
     /// Get the remaining bytes in the cursor as a slice.
     #[inline]
@@ -185,11 +183,11 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     /// Returns a [`DeserializeIterError`] if there are not enough bytes
     /// remaining in the cursor.
     pub fn read(&mut self, buf: &mut [u8]) -> Result<(), EndOfInput> {
-        if self.offset + buf.len() > self.slice.len() {
-            return Err(EndOfInput { had: self.slice.len() - self.offset, expected: buf.len() });
+        if buf.len() > self.slice.len() {
+            return Err(EndOfInput { had: self.slice.len(), expected: buf.len() });
         }
-        buf.copy_from_slice(&self.slice[self.offset..self.offset + buf.len()]);
-        self.offset += buf.len();
+        buf.copy_from_slice(&self.slice[..buf.len()]);
+        self.slice = &self.slice[buf.len()..];
         Ok(())
     }
 
@@ -200,11 +198,11 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     /// Returns a [`DeserializeIterError`] if there are not enough bytes
     /// remaining in the cursor.
     pub fn take(&mut self, n: usize) -> Result<&'input [u8], EndOfInput> {
-        if self.offset + n > self.slice.len() {
-            return Err(EndOfInput { had: self.slice.len() - self.offset, expected: n });
+        if n > self.slice.len() {
+            return Err(EndOfInput { had: self.slice.len(), expected: n });
         }
-        let result = &self.slice[self.offset..self.offset + n];
-        self.offset += n;
+        let result = &self.slice[..n];
+        self.slice = &self.slice[n..];
         Ok(result)
     }
 
@@ -230,12 +228,11 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     /// Returns a [`DeserializeIterError`] if there are not enough bytes
     /// remaining in the cursor.
     pub fn consume(&mut self, n: usize) -> Result<(), EndOfInput> {
-        if self.offset + n > self.slice.len() {
-            Err(EndOfInput { had: self.slice.len() - self.offset, expected: n })
-        } else {
-            self.offset += n;
-            Ok(())
+        if n > self.slice.len() {
+            return Err(EndOfInput { had: self.slice.len(), expected: n });
         }
+        self.slice = &self.slice[n..];
+        Ok(())
     }
 }
 
@@ -249,39 +246,61 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
 ///
 /// Returns a [`DeserializeIterError`] if there isn't enough data.
 #[inline]
-fn bytes_to_variable(_bytes: &[u8]) -> Result<(usize, u128), EndOfInput> { todo!() }
+fn bytes_to_variable(bytes: &[u8]) -> Result<(usize, u128), EndOfInput> {
+    let mut byte: u8;
+    let mut index: usize = 0;
+    let mut number: u128 = 0;
 
+    while index < 19 {
+        byte = *bytes.get(index).ok_or(EndOfInput { had: index, expected: 1 })?;
+        number |= u128::from(byte & 0b0111_1111) << (7 * index);
+        index += 1;
+        if byte & 0b1000_0000 == 0 {
+            break;
+        }
+    }
+
+    Ok((index, number))
+}
+
+/// A processor function for deserialization that borrows data where possible.
 #[allow(clippy::cast_possible_truncation, reason = "Macro generated code")]
 #[allow(clippy::cast_possible_wrap, reason = "Macro generated code")]
 #[allow(trivial_numeric_casts, reason = "Macro generated code")]
-fn borrowed_processor<'facet>(
-    mut cursor: InputCursor<'facet, 'facet>,
-) -> impl FnMut(PartialValue<'_, 'facet, true>) -> Result<(), DeserializeValueError> {
+pub fn borrowed_processor<'cursor, 'facet>(
+    cursor: &'cursor mut InputCursor<'facet, 'facet>,
+) -> impl FnMut(PartialValue<'_, 'facet, true>) -> Result<(), DeserializeValueError> + 'cursor {
     macro_rules! take {
         ($val:expr, $ty:ty) => {{
-            $val.set_value(<$ty>::from_le_bytes(
+            $val.set_value(<$ty>::from_be_bytes(
                 *cursor.take_array::<{ core::mem::size_of::<$ty>() }>()?,
             ) as _);
             Ok(())
         }};
         ($val:expr, $var:expr, $ty:ty) => {{
             if $var {
-                take!($val, $ty)
-            } else {
                 let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
                 cursor.consume(consumed)?;
                 $val.set_value(value as _);
                 Ok(())
+            } else {
+                take!($val, $ty)
             }
         }};
     }
 
     move |partial| match partial {
-        // TODO: Add a dedicated boolean error
-        PartialValue::Bool(val) => {
-            val.set_value(cursor.take_array::<1>()?[0].try_into().unwrap());
-            Ok(())
-        }
+        PartialValue::Bool(val) => match cursor.take_array::<1>()?[0] {
+            0 => {
+                val.set_value(false);
+                Ok(())
+            }
+            1 => {
+                val.set_value(true);
+                Ok(())
+            }
+            other => Err(DeserializeValueError::Boolean(other)),
+        },
         PartialValue::U8(val) => take!(val, u8),
         PartialValue::U16(val, var) => take!(val, var, u16),
         PartialValue::U32(val, var) => take!(val, var, u32),
@@ -326,86 +345,100 @@ fn borrowed_processor<'facet>(
             *length = Some(len as usize);
             Ok(())
         }
-        PartialValue::Custom(partial, deserialize) => {
-            deserialize.call_borrowed(partial, &mut cursor)
-        }
+        PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
     }
 }
 
+/// A processor function for deserialization that owns all data.
 #[allow(clippy::cast_possible_truncation, reason = "Macro generated code")]
 #[allow(clippy::cast_possible_wrap, reason = "Macro generated code")]
 #[allow(trivial_numeric_casts, reason = "Macro generated code")]
-fn owned_processor(
-    mut cursor: InputCursor<'_, 'static>,
-) -> impl FnMut(PartialValue<'_, 'static, false>) -> Result<(), DeserializeValueError> {
+pub fn owned_processor<'cursor>(
+    cursor: &'cursor mut InputCursor<'_, 'static>,
+) -> impl FnMut(PartialValue<'_, 'static, false>) -> Result<(), DeserializeValueError> + 'cursor {
     macro_rules! take {
         ($val:expr, $ty:ty) => {{
-            $val.set_value(<$ty>::from_le_bytes(
+            $val.set_value(<$ty>::from_be_bytes(
                 *cursor.take_array::<{ core::mem::size_of::<$ty>() }>()?,
             ) as _);
             Ok(())
         }};
         ($val:expr, $var:expr, $ty:ty) => {
             if $var {
-                take!($val, $ty)
-            } else {
                 let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
                 cursor.consume(consumed)?;
                 $val.set_value(value as _);
                 Ok(())
+            } else {
+                take!($val, $ty)
             }
         };
     }
 
-    move |partial| match partial {
-        PartialValue::Bool(val) => {
-            // TODO: Add a dedicated boolean error
-            val.set_value(cursor.take_array::<1>()?[0].try_into().unwrap());
-            Ok(())
-        }
-        PartialValue::U8(val) => take!(val, u8),
-        PartialValue::U16(val, var) => take!(val, var, u16),
-        PartialValue::U32(val, var) => take!(val, var, u32),
-        PartialValue::U64(val, var) => take!(val, var, u64),
-        PartialValue::U128(val, var) => take!(val, var, u128),
-        PartialValue::I8(val) => take!(val, i8),
-        PartialValue::I16(val, var) => take!(val, var, i16),
-        PartialValue::I32(val, var) => take!(val, var, i32),
-        PartialValue::I64(val, var) => take!(val, var, i64),
-        PartialValue::I128(val, var) => take!(val, var, i128),
-        PartialValue::F32(val) => take!(val, f32),
-        PartialValue::F64(val) => take!(val, f64),
-        PartialValue::Usize(val, var) => take!(val, var, u64),
-        PartialValue::Isize(val, var) => take!(val, var, i64),
-        PartialValue::String(val) => {
-            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
-            cursor.consume(consumed)?;
-            val.set_value(str::from_utf8(cursor.take(len as usize)?)?.into());
-            Ok(())
-        }
-        PartialValue::VecBytes(val) => {
-            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
-            cursor.consume(consumed)?;
-            val.set_value(cursor.take(len as usize)?.into());
-            Ok(())
-        }
+    move |partial| {
+        // std::println!("Cursor: {:?}", cursor.as_slice());
+        match partial {
+            PartialValue::Bool(val) => match cursor.take_array::<1>()?[0] {
+                0 => {
+                    val.set_value(false);
+                    Ok(())
+                }
+                1 => {
+                    val.set_value(true);
+                    Ok(())
+                }
+                other => Err(DeserializeValueError::Boolean(other)),
+            },
+            PartialValue::U8(val) => take!(val, u8),
+            PartialValue::U16(val, var) => take!(val, var, u16),
+            PartialValue::U32(val, var) => take!(val, var, u32),
+            PartialValue::U64(val, var) => take!(val, var, u64),
+            PartialValue::U128(val, var) => take!(val, var, u128),
+            PartialValue::I8(val) => take!(val, i8),
+            PartialValue::I16(val, var) => take!(val, var, i16),
+            PartialValue::I32(val, var) => take!(val, var, i32),
+            PartialValue::I64(val, var) => take!(val, var, i64),
+            PartialValue::I128(val, var) => take!(val, var, i128),
+            PartialValue::F32(val) => take!(val, f32),
+            PartialValue::F64(val) => take!(val, f64),
+            PartialValue::Usize(val, var) => take!(val, var, u64),
+            PartialValue::Isize(val, var) => take!(val, var, i64),
+            PartialValue::String(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(str::from_utf8(cursor.take(len as usize)?)?.into());
+                Ok(())
+            }
+            PartialValue::VecBytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(cursor.take(len as usize)?.into());
+                Ok(())
+            }
 
-        PartialValue::Length(length) => {
-            let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
-            cursor.consume(consumed)?;
-            *length = Some(len as usize);
-            Ok(())
+            PartialValue::Length(length) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                *length = Some(len as usize);
+                Ok(())
+            }
+            PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
+            // Cannot borrow strings or bytes when deserializing owned values
+            PartialValue::Str(_) | PartialValue::Bytes(_) => {
+                Err(DeserializeValueError::StaticBorrow)
+            }
         }
-        PartialValue::Custom(partial, deserialize) => deserialize.call_owned(partial, &mut cursor),
-        // Cannot borrow strings or bytes when deserializing owned values
-        PartialValue::Str(_) | PartialValue::Bytes(_) => Err(DeserializeValueError::StaticBorrow),
     }
 }
 
-/// A helper function to drive the deserialization process
-/// using a synchronous reader.
+/// A helper function to drive a [`DeserialerIter`] using a reader function that
+/// fills a buffer.
+///
+/// # Errors
+///
+/// Returns a [`DeserializeError`] if deserialization fails.
 #[cfg(feature = "std")]
-fn from_coroutine<F: FnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
+pub fn from_coroutine<F: FnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
     mut iter: DeserializeIter<'static, false>,
     mut reader: F,
     hint: TypeSizeHint,
@@ -413,7 +446,8 @@ fn from_coroutine<F: FnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
     let mut buffer = Vec::<u8>::with_capacity(hint.minimum().unwrap_or_default());
     (reader)(&mut buffer)?;
 
-    let mut processor = owned_processor(InputCursor::new(buffer.as_slice()));
+    let mut cursor = InputCursor::new(buffer.as_slice());
+    let mut processor = owned_processor(&mut cursor);
     loop {
         match iter.next(&mut processor) {
             Ok((iterator, false)) => iter = iterator,
@@ -432,8 +466,9 @@ fn from_coroutine<F: FnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
                         buffer.resize(had + expected, 0);
                         // Read new data into the buffer
                         (reader)(&mut buffer[had..])?;
-                        // Create a new processor using the refilled buffer
-                        processor = owned_processor(InputCursor::new(buffer.as_slice()));
+                        // Create a new cursor and processor
+                        cursor = InputCursor::new(buffer.as_slice());
+                        processor = owned_processor(&mut cursor);
                         // Replace the old iterator and resume deserialization
                         iter = iterator;
                     }
@@ -444,10 +479,16 @@ fn from_coroutine<F: FnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
     }
 }
 
-/// A helper function to drive the deserialization process
-/// using an asynchronous reader.
+/// A helper function to drive a [`DeserialerIter`] using an async reader
+/// function that fills a buffer.
+///
+/// # Errors
+///
+/// Returns a [`DeserializeError`] if deserialization fails.
 #[cfg(any(feature = "futures-lite", feature = "tokio"))]
-async fn from_async_coroutine<F: AsyncFnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
+pub async fn from_async_coroutine<
+    F: AsyncFnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>,
+>(
     mut iter: DeserializeIter<'static, false>,
     mut reader: F,
     hint: TypeSizeHint,
@@ -455,7 +496,8 @@ async fn from_async_coroutine<F: AsyncFnMut(&mut [u8]) -> Result<(), Deserialize
     let mut buffer = Vec::<u8>::with_capacity(hint.minimum().unwrap_or_default());
     (reader)(&mut buffer).await?;
 
-    let mut processor = owned_processor(InputCursor::new(buffer.as_slice()));
+    let mut cursor = InputCursor::new(buffer.as_slice());
+    let mut processor = owned_processor(&mut cursor);
     loop {
         match iter.next(&mut processor) {
             Ok((iterator, false)) => iter = iterator,
@@ -474,8 +516,9 @@ async fn from_async_coroutine<F: AsyncFnMut(&mut [u8]) -> Result<(), Deserialize
                         buffer.resize(had + expected, 0);
                         // Read new data into the buffer
                         (reader)(&mut buffer[had..]).await?;
-                        // Create a new processor using the refilled buffer
-                        processor = owned_processor(InputCursor::new(buffer.as_slice()));
+                        // Create a new cursor and processor
+                        cursor = InputCursor::new(buffer.as_slice());
+                        processor = owned_processor(&mut cursor);
                         // Replace the old iterator and resume deserialization
                         iter = iterator;
                     }

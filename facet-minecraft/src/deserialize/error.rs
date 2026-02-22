@@ -50,6 +50,8 @@ impl<'facet> From<std::io::Error> for DeserializeError<'facet> {
 /// An error that can occur during deserialization.
 #[expect(clippy::large_enum_variant, reason = "May contain iterator")]
 pub enum DeserializeIterError<'facet, const BORROW: bool> {
+    /// Attempted to create a boolean from a non-boolean value.
+    Boolean(u8),
     /// Attempted to borrow data with a static lifetime.
     StaticBorrow,
     /// An error from the facet reflection system.
@@ -91,6 +93,8 @@ impl<'facet, const BORROW: bool> From<DeserializeIterError<'facet, BORROW>>
 /// An error that can occur during deserialization of a value.
 #[derive(Debug, Clone)]
 pub enum DeserializeValueError {
+    /// Attempted to create a boolean from a non-boolean value.
+    Boolean(u8),
     /// Attempted to borrow data with a static lifetime.
     StaticBorrow,
     /// An error from the facet reflection system.
@@ -109,6 +113,10 @@ impl From<Utf8Error> for DeserializeValueError {
 }
 impl From<EndOfInput> for DeserializeValueError {
     fn from(value: EndOfInput) -> Self { Self::EndOfInput(value) }
+}
+
+impl From<DeserializeValueError> for DeserializeError<'_> {
+    fn from(_: DeserializeValueError) -> Self { Self { _phantom: core::marker::PhantomData } }
 }
 
 /// An error indicating that the end of the input was reached unexpectedly.

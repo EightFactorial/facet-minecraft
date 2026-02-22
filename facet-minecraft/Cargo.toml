@@ -19,7 +19,7 @@ workspace = true
 # --- Tests ---
 
 [[test]]
-name = "deserialize_reader"
+name = "reader_deserialize"
 required-features = ["std"]
 
 # --- Dependencies ---

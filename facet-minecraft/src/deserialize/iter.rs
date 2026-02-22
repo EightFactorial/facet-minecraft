@@ -1,10 +1,10 @@
 //! [`DeserializeIter`] and related types.
-#![allow(dead_code, reason = "WIP")]
+#![allow(dead_code, unused, reason = "WIP")]
 
 use alloc::{string::String, vec::Vec};
 use core::marker::PhantomData;
 
-use facet::{Facet, HeapValue, Partial, ReflectError, Shape, StructType};
+use facet::{Def, Facet, HeapValue, Partial, Shape, StructType, Type, UserType};
 use smallvec::SmallVec;
 
 use crate::{
@@ -27,8 +27,11 @@ impl<'facet> DeserializeIter<'facet, true> {
     /// # Errors
     ///
     /// Returns an error if the type is unsized.
-    pub fn new<T: Facet<'facet>>() -> Result<Self, ReflectError> {
-        Ok(Self { input: T::SHAPE, partial: Partial::alloc::<T>()?, stack: SmallVec::new_const() })
+    pub fn new<T: Facet<'facet>>() -> Result<Self, DeserializeError<'facet>> {
+        let mut stack = SmallVec::new_const();
+        let partial = Partial::alloc::<T>()?;
+        Self::push_partial(&mut stack, &partial, false)?;
+        Ok(Self { input: T::SHAPE, partial, stack })
     }
 }
 
@@ -38,18 +41,12 @@ impl DeserializeIter<'static, false> {
     /// # Errors
     ///
     /// Returns an error if the type is unsized.
-    pub fn new<T: Facet<'static>>() -> Result<Self, ReflectError> {
-        Ok(Self {
-            input: T::SHAPE,
-            partial: Partial::alloc_owned::<T>()?,
-            stack: SmallVec::new_const(),
-        })
+    pub fn new<T: Facet<'static>>() -> Result<Self, DeserializeError<'static>> {
+        let mut stack = SmallVec::new_const();
+        let partial = Partial::alloc_owned::<T>()?;
+        Self::push_partial(&mut stack, &partial, false)?;
+        Ok(Self { input: T::SHAPE, partial, stack })
     }
-}
-
-enum ItemState {
-    Fields { data: StructType, field_index: usize },
-    List { length: Option<usize> },
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -138,6 +135,117 @@ impl<'mem, 'facet, const BORROW: bool, T: Facet<'facet>> PartialLense<'mem, 'fac
 // -------------------------------------------------------------------------------------------------
 
 impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
+    fn push_partial(
+        stack: &mut SmallVec<[ItemState; 8]>,
+        partial: &Partial<'facet, BORROW>,
+        variable: bool,
+    ) -> Result<(), DeserializeValueError> {
+        match partial.shape().def {
+            Def::Scalar => {
+                stack.push(ItemState::value(variable));
+                Ok(())
+            }
+            Def::Map(def) => {
+                stack.push(ItemState::map(None, variable));
+                Ok(())
+            }
+            Def::Set(def) => {
+                stack.push(ItemState::set(None, variable));
+                Ok(())
+            }
+            Def::List(def) => {
+                // Special case `Vec<u8>`, deserialize as bytes
+                if partial.shape().is_type::<alloc::vec::Vec<u8>>() {
+                    stack.push(ItemState::value(variable));
+                    return Ok(());
+                }
+
+                stack.push(ItemState::list(None, variable));
+                Ok(())
+            }
+            Def::Array(def) => {
+                stack.push(ItemState::array(def.n, variable));
+                Ok(())
+            }
+            Def::NdArray(def) => todo!(),
+            Def::Slice(def) => todo!(),
+            Def::Option(def) => {
+                stack.push(ItemState::option(None, variable));
+                Ok(())
+            }
+            Def::Result(def) => {
+                stack.push(ItemState::result(None, variable));
+                Ok(())
+            }
+            Def::Pointer(def) => {
+                stack.push(ItemState::ptr(variable));
+                Ok(())
+            }
+            Def::DynamicValue(def) => todo!(),
+
+            _ if matches!(partial.shape().ty, Type::User(UserType::Struct(_))) => {
+                let Type::User(UserType::Struct(data)) = partial.shape().ty else { unreachable!() };
+                stack.push(ItemState::fields(data));
+                Ok(())
+            }
+            _ if matches!(partial.shape().ty, Type::User(UserType::Enum(_))) => {
+                stack.push(ItemState::variant());
+                Ok(())
+            }
+
+            _ => todo!(),
+        }
+    }
+
+    fn create_value<'mem>(
+        partial: &'mem mut Partial<'facet, BORROW>,
+        variable: bool,
+    ) -> Result<PartialValue<'mem, 'facet, BORROW>, DeserializeValueError> {
+        // std::println!("`create_value` for \"{}\"", partial.shape().type_name());
+
+        if partial.shape().is_type::<bool>() {
+            Ok(PartialValue::Bool(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<u8>() {
+            Ok(PartialValue::U8(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<u16>() {
+            Ok(PartialValue::U16(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<u32>() {
+            Ok(PartialValue::U32(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<u64>() {
+            Ok(PartialValue::U64(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<u128>() {
+            Ok(PartialValue::U128(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<usize>() {
+            Ok(PartialValue::Usize(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<i8>() {
+            Ok(PartialValue::I8(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<i16>() {
+            Ok(PartialValue::I16(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<i32>() {
+            Ok(PartialValue::I32(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<i64>() {
+            Ok(PartialValue::I64(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<i128>() {
+            Ok(PartialValue::I128(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<isize>() {
+            Ok(PartialValue::Isize(PartialLense::new(partial), variable))
+        } else if partial.shape().is_type::<f32>() {
+            Ok(PartialValue::F32(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<f64>() {
+            Ok(PartialValue::F64(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<&'static str>() {
+            Ok(PartialValue::Str(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<String>() {
+            Ok(PartialValue::String(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<&'static [u8]>() {
+            Ok(PartialValue::Bytes(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<Vec<u8>>() {
+            Ok(PartialValue::VecBytes(PartialLense::new(partial)))
+        } else {
+            todo!()
+        }
+    }
+
     /// Advances the iterator to the next field.
     ///
     /// Returns itself, and boolean indicating whether the iterator is
@@ -155,15 +263,38 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
         mut processor: F,
     ) -> Result<(Self, bool), DeserializeIterError<'facet, BORROW>> {
         macro_rules! wrap {
-            (@process $($tt:tt)*) => {
-                if let Err(err) = (processor)($($tt)*) {
-                    return match err {
-                        DeserializeValueError::StaticBorrow => Err(DeserializeIterError::StaticBorrow),
-                        DeserializeValueError::Reflect(err) => Err(DeserializeIterError::Reflect(err)),
-                        DeserializeValueError::Utf8(err) => Err(DeserializeIterError::Utf8(err)),
-                        DeserializeValueError::EndOfInput(error) => Err(DeserializeIterError::EndOfInput { error, iterator: self }),
+            (@error $($tt:tt)*) => {
+                match $($tt)* {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return match err {
+                            DeserializeValueError::Boolean(value) => Err(DeserializeIterError::Boolean(value)),
+                            DeserializeValueError::StaticBorrow => Err(DeserializeIterError::StaticBorrow),
+                            DeserializeValueError::Reflect(err) => Err(DeserializeIterError::Reflect(err)),
+                            DeserializeValueError::Utf8(err) => Err(DeserializeIterError::Utf8(err)),
+                            DeserializeValueError::EndOfInput(_) => unreachable!(),
+                        }
                     }
                 }
+
+            };
+            (@erroriter $($tt:tt)*) => {
+                match $($tt)* {
+                    Ok(value) => value,
+                    Err(err) => {
+                        return match err {
+                            DeserializeValueError::Boolean(value) => Err(DeserializeIterError::Boolean(value)),
+                            DeserializeValueError::StaticBorrow => Err(DeserializeIterError::StaticBorrow),
+                            DeserializeValueError::Reflect(err) => Err(DeserializeIterError::Reflect(err)),
+                            DeserializeValueError::Utf8(err) => Err(DeserializeIterError::Utf8(err)),
+                            DeserializeValueError::EndOfInput(error) => Err(DeserializeIterError::EndOfInput { error, iterator: self }),
+                        }
+                    }
+                }
+
+            };
+            (@process $($tt:tt)*) => {
+                wrap!(@erroriter (processor)($($tt)*));
             };
         }
 
@@ -172,27 +303,82 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
             let Some(state) = self.stack.last_mut() else {
                 return Ok((self, true));
             };
+            // std::println!("{} @ \"{}\": {state:?}", self.input.type_name(),
+            // self.partial.path());
 
             match state {
-                ItemState::Fields { .. } => todo!(),
-                ItemState::List { length } => {
-                    if length.is_none() {
-                        let mut value = None;
-                        wrap!(@process PartialValue::Length(&mut value));
-                        *length = Some(value.expect("Processor must set the length value"));
+                ItemState::Value { variable } => {
+                    // Look for `#[facet(mc::deserialize = my_fn)]`
+                    if let Some(attr) = self.partial.shape().attributes.iter().find(|attr| {
+                        attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "deserialize"
+                    }) {
+                        // Use the custom deserialize function
+                        if let Some(crate::attribute::Attr::Deserialize(Some(deserialize))) =
+                            attr.get_as::<crate::attribute::Attr>()
+                        {
+                            wrap!(@process PartialValue::Custom(&mut self.partial, *deserialize));
+                            let _ = self.stack.pop();
+                            if !self.stack.is_empty() {
+                                self.partial = self.partial.end()?;
+                            }
+                            continue;
+                        }
+
+                        return Err(DeserializeIterError::new());
                     }
 
-                    let length = length.as_mut().unwrap();
-                    if *length == 0 {
+                    wrap!(@process wrap!(@error Self::create_value(&mut self.partial, *variable)));
+                    let _ = self.stack.pop();
+                    if !self.stack.is_empty() {
                         self.partial = self.partial.end()?;
-                        self.partial = self.partial.end()?;
-                        self.stack.pop();
-                    } else {
-                        *length -= 1;
-                        self.partial = self.partial.end()?;
-                        self.partial = self.partial.begin_list_item()?;
                     }
                 }
+
+                ItemState::Fields { data, field_index } => {
+                    if let Some(field) = data.fields.get(*field_index) {
+                        self.partial = self.partial.begin_nth_field(*field_index)?;
+                        *field_index += 1;
+
+                        // Look for `#[facet(mc::deserialize = my_fn)]`
+                        if let Some(attr) = field.attributes.iter().find(|attr| {
+                            attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "deserialize"
+                        }) {
+                            // Use the custom deserialize function
+                            if let Some(crate::attribute::Attr::Deserialize(Some(deserialize))) =
+                                attr.get_as::<crate::attribute::Attr>()
+                            {
+                                wrap!(@process PartialValue::Custom(&mut self.partial, *deserialize));
+                                let _ = self.stack.pop();
+                                if !self.stack.is_empty() {
+                                    self.partial = self.partial.end()?;
+                                }
+                                continue;
+                            }
+
+                            return Err(DeserializeIterError::new());
+                        }
+
+                        // Look for `#[facet(mc::variable)]`
+                        let variable = field.attributes.iter().any(|attr| {
+                            attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "variable"
+                        });
+
+                        wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                    } else {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
+                        }
+                    }
+                }
+                ItemState::Variant { discriminant } => todo!(),
+                ItemState::Array { remaining, variable } => todo!(),
+                ItemState::List { remaining, variable } => todo!(),
+                ItemState::Map { remaining, variable } => todo!(),
+                ItemState::Set { remaining, variable } => todo!(),
+                ItemState::Ptr { started, variable } => todo!(),
+                ItemState::Option { state, variable } => todo!(),
+                ItemState::Result { state, variable } => todo!(),
             }
         }
     }
@@ -223,4 +409,60 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
     /// and the final [`Partial`] is ready to be built.
     #[must_use]
     pub fn into_partial(self) -> Partial<'facet, BORROW> { self.partial }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ItemState {
+    Value { variable: bool },
+    Fields { data: StructType, field_index: usize },
+    Variant { discriminant: Option<i64> },
+    Array { remaining: usize, variable: bool },
+    List { remaining: Option<usize>, variable: bool },
+    Map { remaining: Option<usize>, variable: bool },
+    Set { remaining: Option<usize>, variable: bool },
+    Ptr { started: bool, variable: bool },
+    Option { state: Option<bool>, variable: bool },
+    Result { state: Option<bool>, variable: bool },
+}
+
+impl ItemState {
+    /// Create an [`ItemState::Value`].
+    const fn value(variable: bool) -> Self { Self::Value { variable } }
+
+    /// Create an [`ItemState::Fields`].
+    const fn fields(data: StructType) -> Self { Self::Fields { data, field_index: 0 } }
+
+    /// Create an [`ItemState::Variant`].
+    const fn variant() -> Self { Self::Variant { discriminant: None } }
+
+    /// Create an [`ItemState::Array`].
+    const fn array(len: usize, variable: bool) -> Self { Self::Array { remaining: len, variable } }
+
+    /// Create an [`ItemState::List`].
+    const fn list(len: Option<usize>, variable: bool) -> Self {
+        Self::List { remaining: len, variable }
+    }
+
+    /// Create an [`ItemState::Map`].
+    const fn map(len: Option<usize>, variable: bool) -> Self {
+        Self::Map { remaining: len, variable }
+    }
+
+    /// Create an [`ItemState::Set`].
+    const fn set(len: Option<usize>, variable: bool) -> Self {
+        Self::Set { remaining: len, variable }
+    }
+
+    /// Create an [`ItemState::Ptr`].
+    const fn ptr(variable: bool) -> Self { Self::Ptr { started: false, variable } }
+
+    /// Create an [`ItemState::Option`].
+    const fn option(state: Option<bool>, variable: bool) -> Self {
+        Self::Option { state, variable }
+    }
+
+    /// Create an [`ItemState::Result`].
+    const fn result(state: Option<bool>, variable: bool) -> Self {
+        Self::Result { state, variable }
+    }
 }
