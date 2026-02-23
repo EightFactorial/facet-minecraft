@@ -1,7 +1,6 @@
 //! TODO
 
 use core::fmt::Display;
-use std::io::Cursor;
 
 use facet::Facet;
 use facet_minecraft::{self as mc};
@@ -34,7 +33,7 @@ macro_rules! test {
         fn $ident() {
             #[cfg(feature = "tracing")]
             let _guard = trace();
-            let mut cursor = Cursor::new($data);
+            let mut cursor = std::io::Cursor::new($data);
 
             $(
                 let val = facet_minecraft::from_reader::<bool, _>(&mut cursor).unwrap();
@@ -43,13 +42,47 @@ macro_rules! test {
 
             assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
         }
+
+        #[cfg(feature = "futures-lite")]
+        pastey::paste! {
+            #[test]
+            fn [<async_ $ident>] () {
+                #[cfg(feature = "tracing")]
+                let _guard = trace();
+                let mut cursor = futures_lite::io::Cursor::new($data);
+
+                $(
+                    let val = futures_lite::future::block_on(facet_minecraft::from_async_reader::<bool, _>(&mut cursor)).unwrap();
+                    assert_eq!(val, $vals, "Expected {}, got {val}", $vals);
+                )*
+
+                assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
+            }
+        }
+
+        #[cfg(feature = "tokio")]
+        pastey::paste! {
+            #[tokio::test]
+            async fn [<tokio_ $ident>] () {
+                #[cfg(feature = "tracing")]
+                let _guard = trace();
+                let mut cursor = std::io::Cursor::new($data);
+
+                $(
+                    let val = facet_minecraft::from_tokio_reader::<bool, _>(&mut cursor).await.unwrap();
+                    assert_eq!(val, $vals, "Expected {}, got {val}", $vals);
+                )*
+
+                assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
+            }
+        }
     };
     ($ident:ident, Var<$ty:ty> => $($vals:expr),* => $data:expr) => {
         #[test]
         fn $ident() {
             #[cfg(feature = "tracing")]
             let _guard = trace();
-            let mut cursor = Cursor::new($data);
+            let mut cursor = std::io::Cursor::new($data);
 
             $(
                 let val = facet_minecraft::from_reader::<Var::<$ty>, _>(&mut cursor).unwrap();
@@ -58,13 +91,47 @@ macro_rules! test {
 
             assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
         }
+
+        #[cfg(feature = "futures-lite")]
+        pastey::paste! {
+            #[test]
+            fn [<async_ $ident>] () {
+                #[cfg(feature = "tracing")]
+                let _guard = trace();
+                let mut cursor = futures_lite::io::Cursor::new($data);
+
+                $(
+                    let val = futures_lite::future::block_on(facet_minecraft::from_async_reader::<Var::<$ty>, _>(&mut cursor)).unwrap();
+                    assert_eq!(val, $vals, "Expected {}, got {val}", $vals);
+                )*
+
+                assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
+            }
+        }
+
+        #[cfg(feature = "tokio")]
+        pastey::paste! {
+            #[tokio::test]
+            async fn [<tokio_ $ident>] () {
+                #[cfg(feature = "tracing")]
+                let _guard = trace();
+                let mut cursor = std::io::Cursor::new($data);
+
+                $(
+                    let val = facet_minecraft::from_tokio_reader::<Var::<$ty>, _>(&mut cursor).await.unwrap();
+                    assert_eq!(val, $vals, "Expected {}, got {val}", $vals);
+                )*
+
+                assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
+            }
+        }
     };
     ($ident:ident, $ty:ty => $($vals:expr),* => $data:expr) => {
         #[test]
         fn $ident() {
             #[cfg(feature = "tracing")]
             let _guard = trace();
-            let mut cursor = Cursor::new($data);
+            let mut cursor = std::io::Cursor::new($data);
 
             $(
                 let val = facet_minecraft::from_reader::<$ty, _>(&mut cursor).unwrap();
@@ -72,6 +139,40 @@ macro_rules! test {
             )*
 
             assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
+        }
+
+        #[cfg(feature = "futures-lite")]
+        pastey::paste! {
+            #[test]
+            fn [<async_ $ident>] () {
+                #[cfg(feature = "tracing")]
+                let _guard = trace();
+                let mut cursor = futures_lite::io::Cursor::new($data);
+
+                $(
+                    let val = futures_lite::future::block_on(facet_minecraft::from_async_reader::<$ty, _>(&mut cursor)).unwrap();
+                    assert_eq!(val, $vals, "Expected {} ({:02x?}), got {val} ({:02x?})", $vals, <$ty>::to_be_bytes($vals), <$ty>::to_be_bytes(val));
+                )*
+
+                assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
+            }
+        }
+
+        #[cfg(feature = "tokio")]
+        pastey::paste! {
+            #[tokio::test]
+            async fn [<tokio_ $ident>] () {
+                #[cfg(feature = "tracing")]
+                let _guard = trace();
+                let mut cursor = std::io::Cursor::new($data);
+
+                $(
+                    let val = facet_minecraft::from_tokio_reader::<$ty, _>(&mut cursor).await.unwrap();
+                    assert_eq!(val, $vals, "Expected {} ({:02x?}), got {val} ({:02x?})", $vals, <$ty>::to_be_bytes($vals), <$ty>::to_be_bytes(val));
+                )*
+
+                assert!(cursor.position() == cursor.get_ref().len() as u64, "Expected to real all data, but {} bytes remain", cursor.get_ref().len() as u64 - cursor.position());
+            }
         }
     };
 }

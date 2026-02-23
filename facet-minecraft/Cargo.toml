@@ -21,13 +21,18 @@ workspace = true
 [[test]]
 name = "reader_deserialize"
 required-features = ["std"]
+[[test]]
+name = "writer_serialize"
+required-features = ["std"]
 
 # --- Dependencies ---
 
 [dev-dependencies]
+pastey = { workspace = true }
 pretty_assertions = { workspace = true }
 proptest = { workspace = true }
 tracing-subscriber = { features = ["alloc"], workspace = true }
+tokio = { features = ["macros", "rt"], workspace = true }
 
 [dependencies]
 facet = { features = ["alloc", "reflect", "uuid"],  workspace = true }

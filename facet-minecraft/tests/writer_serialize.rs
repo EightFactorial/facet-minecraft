@@ -1,5 +1,4 @@
 //! TODO
-#![no_std]
 
 use core::fmt::Display;
 
@@ -36,9 +35,40 @@ macro_rules! test {
             let _guard = trace();
 
             $(
-                let val = facet_minecraft::to_vec::<$ty>(&$val).unwrap();
-                assert_eq!(val, $data, "From {} expected {:02x?}, got {val:02x?}", $val, $data);
+                let mut cursor = std::io::Cursor::new(Vec::new());
+                facet_minecraft::to_writer::<$ty, _>(&$val, &mut cursor).unwrap();
+                assert_eq!(cursor.get_ref(), $data, "From {} expected {:02x?}, got {:02x?}", $val, $data, cursor.get_ref());
             )*
+        }
+
+        #[cfg(feature = "futures-lite")]
+        pastey::paste! {
+            #[test]
+            fn [<async_ $ident>]() {
+                #[cfg(feature = "tracing")]
+                let _guard = trace();
+
+                $(
+                    let mut cursor = futures_lite::io::Cursor::new(Vec::new());
+                    futures_lite::future::block_on(facet_minecraft::to_async_writer::<$ty, _>(&$val, &mut cursor)).unwrap();
+                    assert_eq!(cursor.get_ref(), $data, "From {} expected {:02x?}, got {:02x?}", $val, $data, cursor.get_ref());
+                )*
+            }
+        }
+
+        #[cfg(feature = "tokio")]
+        pastey::paste! {
+            #[tokio::test]
+            async fn [<tokio_ $ident>]() {
+                #[cfg(feature = "tracing")]
+                let _guard = trace();
+
+                $(
+                    let mut cursor = std::io::Cursor::new(Vec::new());
+                    facet_minecraft::to_tokio_writer::<$ty, _>(&$val, &mut cursor).await.unwrap();
+                    assert_eq!(cursor.get_ref(), $data, "From {} expected {:02x?}, got {:02x?}", $val, $data, cursor.get_ref());
+                )*
+            }
         }
     };
 }
