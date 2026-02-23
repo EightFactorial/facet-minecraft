@@ -1,15 +1,10 @@
 //! TODO
 #![no_std]
 
-extern crate alloc;
-
-use alloc::{string::String, vec, vec::Vec};
+use core::fmt::Display;
 
 use facet::Facet;
-use facet_minecraft::{
-    self as mc,
-    deserialize::{Deserialize, error::DeserializeError},
-};
+use facet_minecraft::{self as mc, Deserialize, deserialize::error::DeserializeError};
 
 #[repr(transparent)]
 struct TestCursor(&'static [u8]);
@@ -24,8 +19,17 @@ impl TestCursor {
     }
 }
 
-#[derive(Facet)]
+#[derive(Debug, Facet)]
 struct Var<T>(#[facet(mc::variable)] pub T);
+
+impl<T: Display> Display for Var<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+impl<T: PartialEq> PartialEq for Var<T> {
+    fn eq(&self, other: &Self) -> bool { self.0 == other.0 }
+}
 
 #[cfg(feature = "tracing")]
 fn trace() -> tracing::subscriber::DefaultGuard {
@@ -37,400 +41,81 @@ fn trace() -> tracing::subscriber::DefaultGuard {
 
 // -------------------------------------------------------------------------------------------------
 
-#[test]
-#[expect(clippy::bool_assert_comparison, reason = "Easier to read")]
-fn bool() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 0, 1, 0, 1, 0, 1, 2]);
+macro_rules! test {
+    ($ident:ident, bool => $($vals:expr),* => $data:expr) => {
+        #[test]
+        fn $ident() {
+            #[cfg(feature = "tracing")]
+            let _guard = trace();
+            let mut cursor = TestCursor($data);
 
-    assert_eq!(cursor.read::<bool>().unwrap(), false);
-    assert_eq!(cursor.read::<bool>().unwrap(), true);
-    assert_eq!(cursor.read::<bool>().unwrap(), false);
-    assert_eq!(cursor.read::<bool>().unwrap(), true);
-    assert_eq!(cursor.read::<bool>().unwrap(), false);
-    assert_eq!(cursor.read::<bool>().unwrap(), true);
-    assert_eq!(cursor.read::<bool>().unwrap(), false);
-    assert_eq!(cursor.read::<bool>().unwrap(), true);
-    assert!(cursor.read::<bool>().is_err());
+            $(
+                let val = cursor.read::<bool>().unwrap();
+                assert_eq!(val, $vals, "Expected {}, got {val}", $vals);
+            )*
+
+            assert!(cursor.0.is_empty(), "Expected to real all data, but {} bytes remain", cursor.0.len());
+        }
+    };
+    ($ident:ident, Var<$ty:ty> => $($vals:expr),* => $data:expr) => {
+        #[test]
+        fn $ident() {
+            #[cfg(feature = "tracing")]
+            let _guard = trace();
+            let mut cursor = TestCursor($data);
+
+            $(
+                let val = cursor.read::<Var<$ty>>().unwrap();
+                assert_eq!(val, $vals, "Expected {}, got {val}", $vals);
+            )*
+
+            assert!(cursor.0.is_empty(), "Expected to real all data, but {} bytes remain", cursor.0.len());
+        }
+    };
+    ($ident:ident, $ty:ty => $($vals:expr),* => $data:expr) => {
+        #[test]
+        fn $ident() {
+            #[cfg(feature = "tracing")]
+            let _guard = trace();
+            let mut cursor = TestCursor($data);
+
+            $(
+                let val = cursor.read::<$ty>().unwrap();
+                assert_eq!(val, $vals, "Expected {} ({:02x?}), got {val} ({:02x?})", $vals, <$ty>::to_be_bytes($vals), <$ty>::to_be_bytes(val));
+            )*
+
+            assert!(cursor.0.is_empty(), "Expected to real all data, but {} bytes remain", cursor.0.len());
+        }
+    };
 }
 
-#[test]
-fn u8() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+test!(bool, bool => true, false, true, false => &[0x01, 0x00, 0x01, 0x00]);
+test!(u8, u8 => 0, 1, 2, 254, 255 => &[0x00, 0x01, 0x02, 0xfe, 0xff]);
+test!(i8, i8 => -128, -1, 0, 1, 127 => &[0x80, 0xff, 0x00, 0x01, 0x7f]);
+test!(u16, u16 => 0, 1, 2, 65534, 65535 => &[0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0xff, 0xfe, 0xff, 0xff]);
+test!(i16, i16 => -32768, -1, 0, 1, 32767 => &[0x80, 0x00, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01, 0x7f, 0xff]);
+test!(u32, u32 => 0, 1, 2, 4294967294u32, 4294967295u32 => &[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff]);
+test!(i32, i32 => -2147483648i32, -1, 0, 1, 2147483647i32 => &[0x80, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x7f, 0xff, 0xff, 0xff]);
+test!(u64, u64 => 0, 1, 2, 18446744073709551614u64, 18446744073709551615u64 => &[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+test!(i64, i64 => -9223372036854775808i64, -1, 0, 1, 9223372036854775807i64 => &[0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
+test!(u128, u128 => 0, 1, 2, 340282366920938463463374607431768211454u128, 340282366920938463463374607431768211455u128 => &[
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+]);
+test!(i128, i128 => -170141183460469231731687303715884105728i128, -1, 0, 1, 170141183460469231731687303715884105727i128 => &[
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+]);
 
-    assert_eq!(cursor.read::<u8>().unwrap(), 0u8);
-    assert_eq!(cursor.read::<u8>().unwrap(), 1u8);
-    assert_eq!(cursor.read::<u8>().unwrap(), 2u8);
-    assert_eq!(cursor.read::<u8>().unwrap(), 3u8);
-    assert_eq!(cursor.read::<u8>().unwrap(), 4u8);
-    assert_eq!(cursor.read::<u8>().unwrap(), 5u8);
-    assert_eq!(cursor.read::<u8>().unwrap(), 6u8);
-    assert_eq!(cursor.read::<u8>().unwrap(), 7u8);
-}
-
-#[test]
-fn i8() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
-
-    assert_eq!(cursor.read::<i8>().unwrap(), 0i8);
-    assert_eq!(cursor.read::<i8>().unwrap(), 1i8);
-    assert_eq!(cursor.read::<i8>().unwrap(), 2i8);
-    assert_eq!(cursor.read::<i8>().unwrap(), 3i8);
-    assert_eq!(cursor.read::<i8>().unwrap(), 4i8);
-    assert_eq!(cursor.read::<i8>().unwrap(), 5i8);
-    assert_eq!(cursor.read::<i8>().unwrap(), 6i8);
-    assert_eq!(cursor.read::<i8>().unwrap(), 7i8);
-}
-
-#[test]
-fn u16() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7]);
-
-    assert_eq!(cursor.read::<u16>().unwrap(), 0u16);
-    assert_eq!(cursor.read::<u16>().unwrap(), 1u16);
-    assert_eq!(cursor.read::<u16>().unwrap(), 2u16);
-    assert_eq!(cursor.read::<u16>().unwrap(), 3u16);
-    assert_eq!(cursor.read::<u16>().unwrap(), 4u16);
-    assert_eq!(cursor.read::<u16>().unwrap(), 5u16);
-    assert_eq!(cursor.read::<u16>().unwrap(), 6u16);
-    assert_eq!(cursor.read::<u16>().unwrap(), 7u16);
-}
-
-#[test]
-fn var_u16() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
-
-    assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 0u16);
-    assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 1u16);
-    assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 2u16);
-    assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 3u16);
-    assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 4u16);
-    assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 5u16);
-    assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 6u16);
-    assert_eq!(cursor.read::<Var<u16>>().unwrap().0, 7u16);
-}
-
-#[test]
-fn i16() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7]);
-
-    assert_eq!(cursor.read::<i16>().unwrap(), 0i16);
-    assert_eq!(cursor.read::<i16>().unwrap(), 1i16);
-    assert_eq!(cursor.read::<i16>().unwrap(), 2i16);
-    assert_eq!(cursor.read::<i16>().unwrap(), 3i16);
-    assert_eq!(cursor.read::<i16>().unwrap(), 4i16);
-    assert_eq!(cursor.read::<i16>().unwrap(), 5i16);
-    assert_eq!(cursor.read::<i16>().unwrap(), 6i16);
-    assert_eq!(cursor.read::<i16>().unwrap(), 7i16);
-}
-
-#[test]
-fn var_i16() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
-
-    assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 0i16);
-    assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 1i16);
-    assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 2i16);
-    assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 3i16);
-    assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 4i16);
-    assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 5i16);
-    assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 6i16);
-    assert_eq!(cursor.read::<Var<i16>>().unwrap().0, 7i16);
-}
-
-#[test]
-fn u32() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0,
-        0, 7,
-    ]);
-
-    assert_eq!(cursor.read::<u32>().unwrap(), 0u32);
-    assert_eq!(cursor.read::<u32>().unwrap(), 1u32);
-    assert_eq!(cursor.read::<u32>().unwrap(), 2u32);
-    assert_eq!(cursor.read::<u32>().unwrap(), 3u32);
-    assert_eq!(cursor.read::<u32>().unwrap(), 4u32);
-    assert_eq!(cursor.read::<u32>().unwrap(), 5u32);
-    assert_eq!(cursor.read::<u32>().unwrap(), 6u32);
-    assert_eq!(cursor.read::<u32>().unwrap(), 7u32);
-}
-
-#[test]
-fn var_u32() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
-
-    assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 0u32);
-    assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 1u32);
-    assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 2u32);
-    assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 3u32);
-    assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 4u32);
-    assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 5u32);
-    assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 6u32);
-    assert_eq!(cursor.read::<Var<u32>>().unwrap().0, 7u32);
-}
-
-#[test]
-fn i32() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0,
-        0, 7,
-    ]);
-
-    assert_eq!(cursor.read::<i32>().unwrap(), 0i32);
-    assert_eq!(cursor.read::<i32>().unwrap(), 1i32);
-    assert_eq!(cursor.read::<i32>().unwrap(), 2i32);
-    assert_eq!(cursor.read::<i32>().unwrap(), 3i32);
-    assert_eq!(cursor.read::<i32>().unwrap(), 4i32);
-    assert_eq!(cursor.read::<i32>().unwrap(), 5i32);
-    assert_eq!(cursor.read::<i32>().unwrap(), 6i32);
-    assert_eq!(cursor.read::<i32>().unwrap(), 7i32);
-}
-
-#[test]
-fn var_i32() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
-
-    assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 0i32);
-    assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 1i32);
-    assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 2i32);
-    assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 3i32);
-    assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 4i32);
-    assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 5i32);
-    assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 6i32);
-    assert_eq!(cursor.read::<Var<i32>>().unwrap().0, 7i32);
-}
-
-#[test]
-fn u64() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
-        0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0,
-        0, 0, 0, 7,
-    ]);
-
-    assert_eq!(cursor.read::<u64>().unwrap(), 0u64);
-    assert_eq!(cursor.read::<u64>().unwrap(), 1u64);
-    assert_eq!(cursor.read::<u64>().unwrap(), 2u64);
-    assert_eq!(cursor.read::<u64>().unwrap(), 3u64);
-    assert_eq!(cursor.read::<u64>().unwrap(), 4u64);
-    assert_eq!(cursor.read::<u64>().unwrap(), 5u64);
-    assert_eq!(cursor.read::<u64>().unwrap(), 6u64);
-    assert_eq!(cursor.read::<u64>().unwrap(), 7u64);
-}
-
-#[test]
-fn var_u64() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
-
-    assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 0u64);
-    assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 1u64);
-    assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 2u64);
-    assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 3u64);
-    assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 4u64);
-    assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 5u64);
-    assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 6u64);
-    assert_eq!(cursor.read::<Var<u64>>().unwrap().0, 7u64);
-}
-
-#[test]
-fn i64() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0,
-        0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0,
-        0, 0, 0, 7,
-    ]);
-
-    assert_eq!(cursor.read::<i64>().unwrap(), 0i64);
-    assert_eq!(cursor.read::<i64>().unwrap(), 1i64);
-    assert_eq!(cursor.read::<i64>().unwrap(), 2i64);
-    assert_eq!(cursor.read::<i64>().unwrap(), 3i64);
-    assert_eq!(cursor.read::<i64>().unwrap(), 4i64);
-    assert_eq!(cursor.read::<i64>().unwrap(), 5i64);
-    assert_eq!(cursor.read::<i64>().unwrap(), 6i64);
-    assert_eq!(cursor.read::<i64>().unwrap(), 7i64);
-}
-
-#[test]
-fn var_i64() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
-
-    assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 0i64);
-    assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 1i64);
-    assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 2i64);
-    assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 3i64);
-    assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 4i64);
-    assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 5i64);
-    assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 6i64);
-    assert_eq!(cursor.read::<Var<i64>>().unwrap().0, 7i64);
-}
-
-#[test]
-fn u128() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 7,
-    ]);
-
-    assert_eq!(cursor.read::<u128>().unwrap(), 0u128);
-    assert_eq!(cursor.read::<u128>().unwrap(), 1u128);
-    assert_eq!(cursor.read::<u128>().unwrap(), 2u128);
-    assert_eq!(cursor.read::<u128>().unwrap(), 3u128);
-    assert_eq!(cursor.read::<u128>().unwrap(), 4u128);
-    assert_eq!(cursor.read::<u128>().unwrap(), 5u128);
-    assert_eq!(cursor.read::<u128>().unwrap(), 6u128);
-    assert_eq!(cursor.read::<u128>().unwrap(), 7u128);
-}
-
-#[test]
-fn var_u128() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
-
-    assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 0u128);
-    assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 1u128);
-    assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 2u128);
-    assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 3u128);
-    assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 4u128);
-    assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 5u128);
-    assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 6u128);
-    assert_eq!(cursor.read::<Var<u128>>().unwrap().0, 7u128);
-}
-
-#[test]
-fn i128() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 7,
-    ]);
-
-    assert_eq!(cursor.read::<i128>().unwrap(), 0i128);
-    assert_eq!(cursor.read::<i128>().unwrap(), 1i128);
-    assert_eq!(cursor.read::<i128>().unwrap(), 2i128);
-    assert_eq!(cursor.read::<i128>().unwrap(), 3i128);
-    assert_eq!(cursor.read::<i128>().unwrap(), 4i128);
-    assert_eq!(cursor.read::<i128>().unwrap(), 5i128);
-    assert_eq!(cursor.read::<i128>().unwrap(), 6i128);
-    assert_eq!(cursor.read::<i128>().unwrap(), 7i128);
-}
-
-#[test]
-fn var_i128() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 1, 2, 3, 4, 5, 6, 7]);
-
-    assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 0i128);
-    assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 1i128);
-    assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 2i128);
-    assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 3i128);
-    assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 4i128);
-    assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 5i128);
-    assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 6i128);
-    assert_eq!(cursor.read::<Var<i128>>().unwrap().0, 7i128);
-}
-
-#[test]
-fn f32() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 0, 0, 0, 63, 128, 0, 0, 64, 0, 0, 0, 64, 64, 0, 0, 64, 128, 0, 0, 64, 160, 0, 0, 64,
-        192, 0, 0, 64, 224, 0, 0, 65, 0, 0, 0,
-    ]);
-
-    assert!((cursor.read::<f32>().unwrap() - 0.0f32).abs() < f32::EPSILON);
-    assert!((cursor.read::<f32>().unwrap() - 1.0f32).abs() < f32::EPSILON);
-    assert!((cursor.read::<f32>().unwrap() - 2.0f32).abs() < f32::EPSILON);
-    assert!((cursor.read::<f32>().unwrap() - 3.0f32).abs() < f32::EPSILON);
-    assert!((cursor.read::<f32>().unwrap() - 4.0f32).abs() < f32::EPSILON);
-    assert!((cursor.read::<f32>().unwrap() - 5.0f32).abs() < f32::EPSILON);
-    assert!((cursor.read::<f32>().unwrap() - 6.0f32).abs() < f32::EPSILON);
-    assert!((cursor.read::<f32>().unwrap() - 7.0f32).abs() < f32::EPSILON);
-}
-
-#[test]
-fn f64() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 0, 0, 0, 0, 0, 0, 0, 63, 240, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 64, 8, 0, 0, 0,
-        0, 0, 0, 64, 16, 0, 0, 0, 0, 0, 0, 64, 20, 0, 0, 0, 0, 0, 0, 64, 24, 0, 0, 0, 0, 0, 0, 64,
-        28, 0, 0, 0, 0, 0, 0, 64, 32, 0, 0,
-    ]);
-
-    assert!((cursor.read::<f64>().unwrap() - 0.0f64).abs() < f64::EPSILON);
-    assert!((cursor.read::<f64>().unwrap() - 1.0f64).abs() < f64::EPSILON);
-    assert!((cursor.read::<f64>().unwrap() - 2.0f64).abs() < f64::EPSILON);
-    assert!((cursor.read::<f64>().unwrap() - 3.0f64).abs() < f64::EPSILON);
-    assert!((cursor.read::<f64>().unwrap() - 4.0f64).abs() < f64::EPSILON);
-    assert!((cursor.read::<f64>().unwrap() - 5.0f64).abs() < f64::EPSILON);
-    assert!((cursor.read::<f64>().unwrap() - 6.0f64).abs() < f64::EPSILON);
-    assert!((cursor.read::<f64>().unwrap() - 7.0f64).abs() < f64::EPSILON);
-}
-
-#[test]
-fn string() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[
-        0, 1, b'A', 3, b'F', b'o', b'o', 13, b'H', b'e', b'l', b'l', b'o', b',', b' ', b'W', b'o',
-        b'r', b'l', b'd', b'!',
-    ]);
-
-    assert_eq!(cursor.read::<String>().unwrap(), "");
-    assert_eq!(cursor.read::<String>().unwrap(), "A");
-    assert_eq!(cursor.read::<String>().unwrap(), "Foo");
-    assert_eq!(cursor.read::<String>().unwrap(), "Hello, World!");
-}
-
-#[test]
-fn vec_u8() {
-    #[cfg(feature = "tracing")]
-    let _guard = trace();
-    let mut cursor = TestCursor(&[0, 3, 1, 2, 3, 5, 10, 20, 30, 40, 50, 1, 255]);
-
-    assert_eq!(cursor.read::<Vec<u8>>().unwrap(), vec![]);
-    assert_eq!(cursor.read::<Vec<u8>>().unwrap(), vec![1, 2, 3]);
-    assert_eq!(cursor.read::<Vec<u8>>().unwrap(), vec![10, 20, 30, 40, 50]);
-    assert_eq!(cursor.read::<Vec<u8>>().unwrap(), vec![255]);
-}
+test!(var_u16, Var<u16> => Var(0), Var(1), Var(2), Var(65534), Var(65535) => &[0x00, 0x01, 0x02, 0xfe, 0xff, 0x03, 0xff, 0xff, 0x03]);
+test!(var_i16, Var<i16> => Var(-32768), Var(-1), Var(0), Var(1), Var(32767) => &[0x80, 0x80, 0x7e, 0xff, 0xff, 0x03, 0x00, 0x01, 0xff, 0xff, 0x01]);
+test!(var_u32, Var<u32> => Var(0), Var(1), Var(2), Var(4294967294u32), Var(4294967295u32) => &[0x00, 0x01, 0x02, 0xfe, 0xff, 0xff, 0xff, 0x0f, 0xff, 0xff, 0xff, 0xff, 0x0f]);
+test!(var_i32, Var<i32> => Var(-2147483648i32), Var(-1), Var(0), Var(1), Var(2147483647i32) => &[0x80, 0x80, 0x80, 0x80, 0x78, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x00, 0x01, 0xff, 0xff, 0xff, 0xff, 0x07]);
+test!(var_u64, Var<u64> => Var(0), Var(1), Var(2), Var(18446744073709551614u64), Var(18446744073709551615u64) => &[0x00, 0x01, 0x02, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01]);
+test!(var_i64, Var<i64> => Var(-9223372036854775808i64), Var(-1), Var(0), Var(1), Var(9223372036854775807i64) => &[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01, 0x00, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f]);
+test!(var_u128, Var<u128> => Var(0), Var(1), Var(2), Var(340282366920938463463374607431768211454u128), Var(340282366920938463463374607431768211455u128) => &[
+    0x00, 0x01, 0x02, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03
+]);
+test!(var_i128, Var<i128> => Var(-170141183460469231731687303715884105728i128), Var(-1), Var(0), Var(1), Var(170141183460469231731687303715884105727i128) => &[
+    0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7e, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01
+]);
