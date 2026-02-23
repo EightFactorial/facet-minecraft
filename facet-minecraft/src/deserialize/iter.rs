@@ -90,7 +90,7 @@ pub enum PartialValue<'mem, 'facet, const BORROW: bool> {
     Str(PartialLense<'mem, 'facet, BORROW, &'facet str>),
     /// A [`String`] value.
     String(PartialLense<'mem, 'facet, BORROW, String>),
-    /// A [`&[u8]`](::core::primitive::slice) value.
+    /// A `&[u8]` value.
     Bytes(PartialLense<'mem, 'facet, BORROW, &'facet [u8]>),
     /// A [`Vec<u8>`] value.
     VecBytes(PartialLense<'mem, 'facet, BORROW, Vec<u8>>),

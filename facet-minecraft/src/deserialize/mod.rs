@@ -27,7 +27,7 @@ pub trait Deserialize<'facet>: Sized {
     /// The [`TypeSizeHint`] for this type.
     const SIZE_HINT: TypeSizeHint;
 
-    /// Deserialize a value from a [`slice`](::core::primitive::slice),
+    /// Deserialize a value from a `&[u8]` slice,
     /// borrowing data where possible.
     ///
     /// If the type will outlive the input data, use
@@ -47,7 +47,7 @@ pub trait Deserialize<'facet>: Sized {
             .map_err(Into::into)
     }
 
-    /// Deserialize a value from a [`slice`](::core::primitive::slice).
+    /// Deserialize a value from a `&[u8]` slice.
     ///
     /// # Errors
     ///
@@ -60,7 +60,7 @@ pub trait Deserialize<'facet>: Sized {
         Self::from_slice_remainder(slice).map(|(value, _)| value)
     }
 
-    /// Deserialize a value from a [`slice`](::core::primitive::slice),
+    /// Deserialize a value from a `&[u8]` slice,
     /// returning any remaining data.
     ///
     /// # Errors
@@ -180,7 +180,7 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     ///
     /// # Errors
     ///
-    /// Returns a [`DeserializeIterError`] if there are not enough bytes
+    /// Returns an [`EndOfInput`] if there are not enough bytes
     /// remaining in the cursor.
     pub fn read(&mut self, buf: &mut [u8]) -> Result<(), EndOfInput> {
         if buf.len() > self.slice.len() {
@@ -195,7 +195,7 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     ///
     /// # Errors
     ///
-    /// Returns a [`DeserializeIterError`] if there are not enough bytes
+    /// Returns an [`EndOfInput`] if there are not enough bytes
     /// remaining in the cursor.
     pub fn take(&mut self, n: usize) -> Result<&'input [u8], EndOfInput> {
         if n > self.slice.len() {
@@ -210,7 +210,7 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     ///
     /// # Errors
     ///
-    /// Returns a [`DeserializeIterError`] if there are not enough bytes
+    /// Returns an [`EndOfInput`] if there are not enough bytes
     /// remaining in the cursor.
     pub fn take_array<const N: usize>(&mut self) -> Result<&'input [u8; N], EndOfInput> {
         if let Some((start, end)) = self.slice.split_first_chunk::<N>() {
@@ -225,7 +225,7 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
     ///
     /// # Errors
     ///
-    /// Returns a [`DeserializeIterError`] if there are not enough bytes
+    /// Returns an [`EndOfInput`] if there are not enough bytes
     /// remaining in the cursor.
     pub fn consume(&mut self, n: usize) -> Result<(), EndOfInput> {
         if n > self.slice.len() {
@@ -444,8 +444,8 @@ pub fn owned_processor<'cursor>(
     }
 }
 
-/// A helper function to drive a [`DeserialerIter`] using a reader function that
-/// fills a buffer.
+/// A helper function to drive a [`DeserializeIter`] using a reader function
+/// that fills a buffer.
 ///
 /// # Errors
 ///

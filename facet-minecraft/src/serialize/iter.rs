@@ -47,7 +47,7 @@ enum PeekIter<'mem, 'facet> {
 /// and treats all variable-length values as [`u128`]s for simplicity.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PeekValue<'mem, 'facet> {
-    /// A [`unit`](::core::primitive::unit) value.
+    /// A `unit` value.
     Unit(()),
     /// A [`bool`] value.
     Bool(bool),
@@ -67,7 +67,7 @@ pub enum PeekValue<'mem, 'facet> {
     F32(f32),
     /// An [`f64`] value.
     F64(f64),
-    /// A [`&[u8]`](::core::primitive::slice) value.
+    /// A `&[u8]` value.
     Bytes(&'mem [u8]),
     /// A [`Peek`] and [`SerializeFn`] to use.
     Custom(Peek<'mem, 'facet>, SerializeFn),

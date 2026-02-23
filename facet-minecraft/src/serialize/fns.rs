@@ -46,7 +46,7 @@ impl SerializeFn {
 
 // -------------------------------------------------------------------------------------------------
 
-/// Serialize a value into a [`Vec`].
+/// Serialize a value into a [`Vec`](alloc::vec::Vec).
 ///
 /// # Errors
 ///

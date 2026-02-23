@@ -1,4 +1,4 @@
-//! Custom [`facet`](::facet) attributes for supporting the Minecraft protocol.
+//! Custom [`facet`] attributes for supporting the Minecraft protocol.
 //!
 //! TODO: Make `Serialize` and `Deserialize` *require* a function pointer.
 //!
