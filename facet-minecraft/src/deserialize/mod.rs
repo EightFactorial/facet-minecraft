@@ -9,6 +9,7 @@ use core::marker::PhantomData;
 use facet::Facet;
 #[cfg(feature = "std")]
 use facet::HeapValue;
+use uuid::Uuid;
 
 use crate::{
     deserialize::{
@@ -346,6 +347,11 @@ pub fn borrowed_processor<'cursor, 'facet>(
                 val.set_value(cursor.take(len as usize)?.into());
                 Ok(())
             }
+            PartialValue::Uuid(val) => {
+                val.set_value(Uuid::from_bytes(*cursor.take_array::<16>()?));
+                Ok(())
+            }
+
             PartialValue::Length(length) => {
                 let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
                 cursor.consume(consumed)?;
@@ -426,6 +432,10 @@ pub fn owned_processor<'cursor>(
                 let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
                 cursor.consume(consumed)?;
                 val.set_value(cursor.take(len as usize)?.into());
+                Ok(())
+            }
+            PartialValue::Uuid(val) => {
+                val.set_value(Uuid::from_bytes(*cursor.take_array::<16>()?));
                 Ok(())
             }
 

@@ -9,6 +9,7 @@ use core::{
 
 use facet::{Def, Facet, HeapValue, Partial, Shape, StructType, Type, UserType};
 use smallvec::SmallVec;
+use uuid::Uuid;
 
 use crate::{
     DeserializeFn,
@@ -94,6 +95,8 @@ pub enum PartialValue<'mem, 'facet, const BORROW: bool> {
     Bytes(PartialLense<'mem, 'facet, BORROW, &'facet [u8]>),
     /// A [`Vec<u8>`] value.
     VecBytes(PartialLense<'mem, 'facet, BORROW, Vec<u8>>),
+    /// A [`Uuid`] value.
+    Uuid(PartialLense<'mem, 'facet, BORROW, Uuid>),
 
     /// A variable-length encoded [`usize`] value.
     Length(&'mem mut Option<usize>),
@@ -123,6 +126,7 @@ impl<const BORROW: bool> Display for PartialValue<'_, '_, BORROW> {
             Self::String(..) => f.write_str("String"),
             Self::Bytes(..) => f.write_str("Bytes"),
             Self::VecBytes(..) => f.write_str("VecBytes"),
+            Self::Uuid(..) => f.write_str("Uuid"),
             Self::Length(..) => f.write_str("Length"),
             Self::Custom(partial, ..) => write!(f, "Custom ({})", partial.shape().type_name()),
         }
@@ -243,8 +247,6 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
         partial: &'mem mut Partial<'facet, BORROW>,
         variable: bool,
     ) -> Result<PartialValue<'mem, 'facet, BORROW>, DeserializeValueError> {
-        // std::println!("`create_value` for \"{}\"", partial.shape().type_name());
-
         if partial.shape().is_type::<bool>() {
             Ok(PartialValue::Bool(PartialLense::new(partial)))
         } else if partial.shape().is_type::<u8>() {
@@ -283,6 +285,8 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
             Ok(PartialValue::Bytes(PartialLense::new(partial)))
         } else if partial.shape().is_type::<Vec<u8>>() {
             Ok(PartialValue::VecBytes(PartialLense::new(partial)))
+        } else if partial.shape().is_type::<Uuid>() {
+            Ok(PartialValue::Uuid(PartialLense::new(partial)))
         } else {
             todo!()
         }
@@ -414,11 +418,131 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                         }
                     }
                 }
-                ItemState::Variant { discriminant } => todo!(),
-                ItemState::Array { remaining, variable } => todo!(),
-                ItemState::List { remaining, variable } => todo!(),
-                ItemState::Map { remaining, variable } => todo!(),
-                ItemState::Set { remaining, variable } => todo!(),
+
+                ItemState::Variant { discriminant } => {
+                    #[expect(clippy::cast_possible_wrap, reason = "Desired behavior")]
+                    if discriminant.is_none() {
+                        // Read the discriminant
+                        let mut disc = None;
+                        wrap!(@process PartialValue::Length(&mut disc));
+                        *discriminant = disc.map(|d| d as i64);
+                    }
+
+                    // Select the variant
+                    self.partial = self.partial.select_variant(discriminant.unwrap())?;
+
+                    if let Type::User(UserType::Enum(ty)) = self.partial.shape().ty
+                        && let Some(variant) =
+                            ty.variants.iter().find(|v| v.discriminant == *discriminant)
+                    {
+                        // Replace this stack item with the fields of the variant
+                        *self.stack.last_mut().unwrap() = ItemState::fields(variant.data);
+                    } else {
+                        return Err(DeserializeIterError::new());
+                    }
+                }
+                ItemState::Array { remaining, state, variable } => {
+                    if !*state {
+                        *state = true;
+
+                        // Initialize the array
+                        self.partial = self.partial.init_array()?;
+                    }
+
+                    if *remaining > 0 {
+                        *remaining -= 1;
+
+                        // Read the next value
+                        let variable = *variable;
+                        self.partial = self.partial.begin_list_item()?;
+                        wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                    } else {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
+                        }
+                    }
+                }
+                ItemState::List { remaining, variable } => {
+                    if remaining.is_none() {
+                        // Read the length
+                        let mut len = None;
+                        wrap!(@process PartialValue::Length(&mut len));
+                        *remaining = len;
+
+                        // Initialize the list
+                        self.partial = self.partial.init_list()?;
+                    }
+
+                    if remaining.unwrap() > 0 {
+                        *remaining = remaining.map(|r| r - 1);
+                        // Read the next value
+                        let variable = *variable;
+                        self.partial = self.partial.begin_value()?;
+                        wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                    } else {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
+                        }
+                    }
+                }
+                ItemState::Map { remaining, state, variable } => {
+                    if remaining.is_none() {
+                        // Read the length
+                        let mut len = None;
+                        wrap!(@process PartialValue::Length(&mut len));
+                        *remaining = len;
+
+                        // Initialize the map
+                        self.partial = self.partial.init_map()?;
+                    }
+
+                    if remaining.unwrap() > 0 {
+                        // Note: `state` defaults to `false`
+                        if *state {
+                            *remaining = remaining.map(|r| r - 1);
+
+                            // Read the next value
+                            let variable = *variable;
+                            self.partial = self.partial.begin_value()?;
+                            wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                        } else {
+                            // Read the next key
+                            self.partial = self.partial.begin_key()?;
+                            wrap!(@error Self::push_partial(&mut self.stack, &self.partial, false));
+                        }
+                    } else {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
+                        }
+                    }
+                }
+                ItemState::Set { remaining, variable } => {
+                    if remaining.is_none() {
+                        // Read the length
+                        let mut len = None;
+                        wrap!(@process PartialValue::Length(&mut len));
+                        *remaining = len;
+
+                        // Initialize the set
+                        self.partial = self.partial.init_set()?;
+                    }
+
+                    if remaining.unwrap() > 0 {
+                        *remaining = remaining.map(|r| r - 1);
+                        // Read the next value
+                        let variable = *variable;
+                        self.partial = self.partial.begin_value()?;
+                        wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                    } else {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
+                        }
+                    }
+                }
                 ItemState::Ptr { started, variable } => todo!(),
                 ItemState::Option { state, variable } => {
                     if state.is_none() {
@@ -448,7 +572,6 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                         if !self.stack.is_empty() {
                             self.partial = self.partial.end()?;
                         }
-                        continue;
                     }
                 }
                 ItemState::Result { state, variable } => {
@@ -481,7 +604,6 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                         if !self.stack.is_empty() {
                             self.partial = self.partial.end()?;
                         }
-                        continue;
                     }
                 }
             }
@@ -522,9 +644,9 @@ enum ItemState {
     Value { variable: bool },
     Fields { data: StructType, field_index: usize },
     Variant { discriminant: Option<i64> },
-    Array { remaining: usize, variable: bool },
+    Array { remaining: usize, state: bool, variable: bool },
     List { remaining: Option<usize>, variable: bool },
-    Map { remaining: Option<usize>, variable: bool },
+    Map { remaining: Option<usize>, state: bool, variable: bool },
     Set { remaining: Option<usize>, variable: bool },
     Ptr { started: bool, variable: bool },
     Option { state: Option<bool>, variable: bool },
@@ -542,7 +664,9 @@ impl ItemState {
     const fn variant() -> Self { Self::Variant { discriminant: None } }
 
     /// Create an [`ItemState::Array`].
-    const fn array(len: usize, variable: bool) -> Self { Self::Array { remaining: len, variable } }
+    const fn array(len: usize, variable: bool) -> Self {
+        Self::Array { remaining: len, state: false, variable }
+    }
 
     /// Create an [`ItemState::List`].
     const fn list(len: Option<usize>, variable: bool) -> Self {
@@ -551,7 +675,7 @@ impl ItemState {
 
     /// Create an [`ItemState::Map`].
     const fn map(len: Option<usize>, variable: bool) -> Self {
-        Self::Map { remaining: len, variable }
+        Self::Map { remaining: len, state: false, variable }
     }
 
     /// Create an [`ItemState::Set`].
