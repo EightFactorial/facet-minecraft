@@ -29,7 +29,8 @@ pub struct DeserializeFn {
 }
 
 impl DeserializeFn {
-    /// Creates a new [`DeserializeFn`].
+    /// Creates a new [`DeserializeFn`] from separate borrowed and owned
+    /// deserializer functions.
     #[inline]
     #[must_use]
     pub const fn new(borrowed: PtrTypeBorrowed, owned: PtrTypeOwned) -> Self {

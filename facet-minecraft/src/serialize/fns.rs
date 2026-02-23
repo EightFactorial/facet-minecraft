@@ -7,13 +7,13 @@ use facet_reflect::Peek;
 use crate::serialize::{
     Serialize,
     buffer::{SerializeBuffer, SerializeWriter},
-    error::SerializeError,
+    error::{SerializeError, SerializeIterError},
 };
 
 type PtrType = for<'mem, 'facet, 'writer> fn(
     Peek<'mem, 'facet>,
     &'writer mut (dyn SerializeWriter + 'writer),
-) -> Result<(), SerializeError<'mem, 'facet>>;
+) -> Result<(), SerializeIterError<'mem, 'facet>>;
 
 /// A custom serializer function.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Facet)]
@@ -32,14 +32,14 @@ impl SerializeFn {
     ///
     /// # Errors
     ///
-    /// Returns a [`SerializeError`] if serialization fails or
+    /// Returns a [`SerializeIterError`] if serialization fails or
     /// if writing to the buffer fails.
     #[inline]
     pub fn call<'mem, 'facet, 'writer>(
         &self,
         peek: Peek<'mem, 'facet>,
         buffer: &'writer mut (dyn SerializeWriter + 'writer),
-    ) -> Result<(), SerializeError<'mem, 'facet>> {
+    ) -> Result<(), SerializeIterError<'mem, 'facet>> {
         (self.ptr)(peek, buffer)
     }
 }

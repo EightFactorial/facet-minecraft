@@ -205,9 +205,9 @@ fn to_writer_inner<W: std::io::Write>(
                 let length = variable_to_bytes(val, &mut variable);
                 writer.write_all(&variable[..length])?;
             }
-            PeekValue::Custom(peek, serialize) => {
-                serialize.call(peek, writer).map_err(std::io::Error::other)?;
-            }
+            PeekValue::Custom(peek, serialize) => serialize
+                .call(peek, writer)
+                .map_err(|err| std::io::Error::other(SerializeError::from(err)))?,
         }
     }
 
@@ -243,7 +243,7 @@ async fn to_async_writer_inner<W: futures_lite::AsyncWrite + Unpin>(
             }
             PeekValue::Custom(peek, serialize) => serialize
                 .call(peek, &mut crate::serialize::buffer::FuturesLite(&mut *writer))
-                .map_err(std::io::Error::other)?,
+                .map_err(|err| std::io::Error::other(SerializeError::from(err)))?,
         }
     }
 
@@ -279,7 +279,7 @@ async fn to_tokio_writer_inner<W: tokio::io::AsyncWrite + Unpin>(
             }
             PeekValue::Custom(peek, serialize) => serialize
                 .call(peek, &mut crate::serialize::buffer::Tokio(&mut *writer))
-                .map_err(std::io::Error::other)?,
+                .map_err(|err| std::io::Error::other(SerializeError::from(err)))?,
         }
     }
 

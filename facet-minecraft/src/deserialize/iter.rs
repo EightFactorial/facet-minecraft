@@ -171,6 +171,17 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
         partial: &Partial<'facet, BORROW>,
         variable: bool,
     ) -> Result<(), DeserializeValueError> {
+        // Look for `#[facet(mc::deserialize = my_fn)]`
+        if partial
+            .shape()
+            .attributes
+            .iter()
+            .any(|attr| attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "deserialize")
+        {
+            stack.push(ItemState::value(variable));
+            return Ok(());
+        }
+
         match partial.shape().def {
             Def::Scalar => {
                 stack.push(ItemState::value(variable));
@@ -295,6 +306,24 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
         mut processor: F,
     ) -> Result<(Self, bool), DeserializeIterError<'facet, BORROW>> {
         macro_rules! wrap {
+            (@custom, $attr:expr) => {{
+                // Look for `#[facet(mc::deserialize = my_fn)]`
+                if let Some(attr) = $attr.find(|attr| {
+                    attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "deserialize"
+                }) {
+                    // Use the custom deserialize function
+                    if let Some(crate::attribute::Attr::Deserialize(Some(deserialize))) =
+                        attr.get_as::<crate::attribute::Attr>()
+                    {
+                        wrap!(@process PartialValue::Custom(&mut self.partial, *deserialize));
+                        true
+                    } else {
+                        return Err(DeserializeIterError::new());
+                    }
+                } else {
+                    false
+                }
+            }};
             (@error $($tt:tt)*) => {
                 match $($tt)* {
                     Ok(value) => value,
@@ -345,23 +374,13 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
 
             match state {
                 ItemState::Value { variable } => {
-                    // Look for `#[facet(mc::deserialize = my_fn)]`
-                    if let Some(attr) = self.partial.shape().attributes.iter().find(|attr| {
-                        attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "deserialize"
-                    }) {
-                        // Use the custom deserialize function
-                        if let Some(crate::attribute::Attr::Deserialize(Some(deserialize))) =
-                            attr.get_as::<crate::attribute::Attr>()
-                        {
-                            wrap!(@process PartialValue::Custom(&mut self.partial, *deserialize));
-                            let _ = self.stack.pop();
-                            if !self.stack.is_empty() {
-                                self.partial = self.partial.end()?;
-                            }
-                            continue;
+                    // Look for `#[facet(mc::deserialize = my_fn)]` on the type
+                    if wrap!(@custom, self.partial.shape().attributes.iter()) {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
                         }
-
-                        return Err(DeserializeIterError::new());
+                        continue;
                     }
 
                     wrap!(@process wrap!(@error Self::create_value(&mut self.partial, *variable)));
@@ -376,23 +395,10 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                         self.partial = self.partial.begin_nth_field(*field_index)?;
                         *field_index += 1;
 
-                        // Look for `#[facet(mc::deserialize = my_fn)]`
-                        if let Some(attr) = field.attributes.iter().find(|attr| {
-                            attr.ns.is_some_and(|ns| ns == "mc") && attr.key == "deserialize"
-                        }) {
-                            // Use the custom deserialize function
-                            if let Some(crate::attribute::Attr::Deserialize(Some(deserialize))) =
-                                attr.get_as::<crate::attribute::Attr>()
-                            {
-                                wrap!(@process PartialValue::Custom(&mut self.partial, *deserialize));
-                                let _ = self.stack.pop();
-                                if !self.stack.is_empty() {
-                                    self.partial = self.partial.end()?;
-                                }
-                                continue;
-                            }
-
-                            return Err(DeserializeIterError::new());
+                        // Look for `#[facet(mc::deserialize = my_fn)]` on the field
+                        if wrap!(@custom, field.attributes.iter()) {
+                            self.partial = self.partial.end()?;
+                            continue;
                         }
 
                         // Look for `#[facet(mc::variable)]`
@@ -414,8 +420,70 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                 ItemState::Map { remaining, variable } => todo!(),
                 ItemState::Set { remaining, variable } => todo!(),
                 ItemState::Ptr { started, variable } => todo!(),
-                ItemState::Option { state, variable } => todo!(),
-                ItemState::Result { state, variable } => todo!(),
+                ItemState::Option { state, variable } => {
+                    if state.is_none() {
+                        // Read the discriminant
+                        let mut discriminant = None;
+                        wrap!(@process PartialValue::Length(&mut discriminant));
+                        match discriminant {
+                            Some(0) => *state = Some(false),
+                            Some(1) => *state = Some(true),
+                            Some(other) => {
+                                return Err(DeserializeIterError::Boolean(other.to_be_bytes()[0]));
+                            }
+                            None => return Err(DeserializeIterError::new()),
+                        }
+
+                        if state.unwrap() {
+                            // `Some`
+                            let variable = *variable;
+                            self.partial = self.partial.begin_some()?;
+                            wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                        } else {
+                            // `None`
+                            self.partial = self.partial.set_default()?;
+                        }
+                    } else {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
+                        }
+                        continue;
+                    }
+                }
+                ItemState::Result { state, variable } => {
+                    if state.is_none() {
+                        // Read the discriminant
+                        let mut discriminant = None;
+                        wrap!(@process PartialValue::Length(&mut discriminant));
+                        match discriminant {
+                            Some(0) => *state = Some(false),
+                            Some(1) => *state = Some(true),
+                            Some(other) => {
+                                return Err(DeserializeIterError::Boolean(other.to_be_bytes()[0]));
+                            }
+                            None => return Err(DeserializeIterError::new()),
+                        }
+
+                        if state.unwrap() {
+                            // `Ok`
+                            let variable = *variable;
+                            self.partial = self.partial.begin_ok()?;
+                            wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                        } else {
+                            // `Err`
+                            let variable = *variable;
+                            self.partial = self.partial.begin_err()?;
+                            wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                        }
+                    } else {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
+                        }
+                        continue;
+                    }
+                }
             }
         }
     }
