@@ -105,7 +105,7 @@ pub enum PartialValue<'mem, 'facet, const BORROW: bool> {
     Uuid(PartialLense<'mem, 'facet, BORROW, Uuid>),
 
     /// A variable-length encoded [`usize`] value.
-    Length(&'mem mut Option<usize>),
+    VarInt(&'mem mut Option<usize>),
     /// A [`Partial`] and a [`DeserializeFn`] to use.
     Custom(&'mem mut Partial<'facet, BORROW>, DeserializeFn),
 }
@@ -135,7 +135,7 @@ impl<const BORROW: bool> Display for PartialValue<'_, '_, BORROW> {
             Self::VecBytes(..) => f.write_str("VecBytes"),
             Self::CowBytes(..) => f.write_str("CowBytes"),
             Self::Uuid(..) => f.write_str("Uuid"),
-            Self::Length(..) => f.write_str("Length"),
+            Self::VarInt(..) => f.write_str("VarInt"),
             Self::Custom(partial, ..) => write!(f, "Custom ({})", partial.shape().type_name()),
         }
     }
@@ -432,7 +432,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                     if discriminant.is_none() {
                         // Read the discriminant
                         let mut disc = None;
-                        wrap!(@process PartialValue::Length(&mut disc));
+                        wrap!(@process PartialValue::VarInt(&mut disc));
                         *discriminant = disc.map(|d| d as i64);
                     }
 
@@ -475,7 +475,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                     if remaining.is_none() {
                         // Read the length
                         let mut len = None;
-                        wrap!(@process PartialValue::Length(&mut len));
+                        wrap!(@process PartialValue::VarInt(&mut len));
                         *remaining = len;
 
                         // Initialize the list
@@ -499,7 +499,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                     if remaining.is_none() {
                         // Read the length
                         let mut len = None;
-                        wrap!(@process PartialValue::Length(&mut len));
+                        wrap!(@process PartialValue::VarInt(&mut len));
                         *remaining = len;
 
                         // Initialize the map
@@ -531,7 +531,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                     if remaining.is_none() {
                         // Read the length
                         let mut len = None;
-                        wrap!(@process PartialValue::Length(&mut len));
+                        wrap!(@process PartialValue::VarInt(&mut len));
                         *remaining = len;
 
                         // Initialize the set
@@ -597,7 +597,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                     if state.is_none() {
                         // Read the discriminant
                         let mut discriminant = None;
-                        wrap!(@process PartialValue::Length(&mut discriminant));
+                        wrap!(@process PartialValue::VarInt(&mut discriminant));
                         match discriminant {
                             Some(0) => *state = Some(false),
                             Some(1) => *state = Some(true),
@@ -627,7 +627,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                     if state.is_none() {
                         // Read the discriminant
                         let mut discriminant = None;
-                        wrap!(@process PartialValue::Length(&mut discriminant));
+                        wrap!(@process PartialValue::VarInt(&mut discriminant));
                         match discriminant {
                             Some(0) => *state = Some(false),
                             Some(1) => *state = Some(true),

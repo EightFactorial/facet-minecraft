@@ -10,6 +10,7 @@
 use core::{
     error::Error,
     fmt::{self, Debug, Display},
+    marker::PhantomData,
     str::Utf8Error,
 };
 
@@ -19,30 +20,50 @@ use crate::deserialize::iter::DeserializeIter;
 
 /// An error that can occur during deserialization.
 pub struct DeserializeError<'facet> {
-    _phantom: core::marker::PhantomData<&'facet ()>,
+    kind: DeserializeErrorKind,
+    _phantom: PhantomData<&'facet ()>,
 }
 
 impl<'facet> DeserializeError<'facet> {
     /// Create a new [`DeserializeError`].
     #[must_use]
-    pub fn new() -> Self { Self { _phantom: core::marker::PhantomData } }
+    pub const fn new(kind: DeserializeErrorKind) -> Self { Self { kind, _phantom: PhantomData } }
+}
+
+/// An error kind that can occur during deserialization.
+#[derive(Debug)]
+pub enum DeserializeErrorKind {
+    /// Attempted to create a boolean from a non-boolean value.
+    Boolean(u8),
+    /// Attempted to borrow data with a static lifetime.
+    StaticBorrow,
+    /// An error from the facet reflection system.
+    Reflect(ReflectError),
+    /// An error from UTF-8 decoding.
+    Utf8(Utf8Error),
+    /// An error from the deserializer running out of data.
+    EndOfInput(EndOfInput),
+
+    /// An IO error occurred.
+    #[cfg(feature = "std")]
+    IO(std::io::Error),
 }
 
 impl<'facet> Error for DeserializeError<'facet> {}
 impl<'facet> Display for DeserializeError<'facet> {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { Debug::fmt(&self.kind, f) }
 }
 
 impl<'facet> Debug for DeserializeError<'facet> {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { Debug::fmt(&self.kind, f) }
 }
 
 impl<'facet> From<ReflectError> for DeserializeError<'facet> {
-    fn from(_: ReflectError) -> Self { todo!() }
+    fn from(value: ReflectError) -> Self { Self::new(DeserializeErrorKind::Reflect(value)) }
 }
 #[cfg(feature = "std")]
 impl<'facet> From<std::io::Error> for DeserializeError<'facet> {
-    fn from(_: std::io::Error) -> Self { todo!() }
+    fn from(value: std::io::Error) -> Self { Self::new(DeserializeErrorKind::IO(value)) }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -83,8 +104,16 @@ impl<'facet, const BORROW: bool> From<Utf8Error> for DeserializeIterError<'facet
 impl<'facet, const BORROW: bool> From<DeserializeIterError<'facet, BORROW>>
     for DeserializeError<'facet>
 {
-    fn from(_: DeserializeIterError<'facet, BORROW>) -> Self {
-        Self { _phantom: core::marker::PhantomData }
+    fn from(value: DeserializeIterError<'facet, BORROW>) -> Self {
+        match value {
+            DeserializeIterError::Boolean(val) => Self::new(DeserializeErrorKind::Boolean(val)),
+            DeserializeIterError::StaticBorrow => Self::new(DeserializeErrorKind::StaticBorrow),
+            DeserializeIterError::Reflect(val) => Self::new(DeserializeErrorKind::Reflect(val)),
+            DeserializeIterError::Utf8(val) => Self::new(DeserializeErrorKind::Utf8(val)),
+            DeserializeIterError::EndOfInput { error, .. } => {
+                Self::new(DeserializeErrorKind::EndOfInput(error))
+            }
+        }
     }
 }
 
@@ -116,7 +145,17 @@ impl From<EndOfInput> for DeserializeValueError {
 }
 
 impl From<DeserializeValueError> for DeserializeError<'_> {
-    fn from(_: DeserializeValueError) -> Self { Self { _phantom: core::marker::PhantomData } }
+    fn from(value: DeserializeValueError) -> Self {
+        match value {
+            DeserializeValueError::Boolean(val) => Self::new(DeserializeErrorKind::Boolean(val)),
+            DeserializeValueError::StaticBorrow => Self::new(DeserializeErrorKind::StaticBorrow),
+            DeserializeValueError::Reflect(val) => Self::new(DeserializeErrorKind::Reflect(val)),
+            DeserializeValueError::Utf8(val) => Self::new(DeserializeErrorKind::Utf8(val)),
+            DeserializeValueError::EndOfInput(val) => {
+                Self::new(DeserializeErrorKind::EndOfInput(val))
+            }
+        }
+    }
 }
 
 /// An error indicating that the end of the input was reached unexpectedly.

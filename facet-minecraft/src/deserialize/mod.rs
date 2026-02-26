@@ -295,7 +295,7 @@ pub fn borrowed_processor<'cursor, 'facet>(
         #[cfg(feature = "tracing")]
         tracing::trace!(
             target: "facet_minecraft::deserialize",
-            "Reading {partial}"
+            "Reading borrowed `{partial}`"
         );
 
         match partial {
@@ -365,10 +365,15 @@ pub fn borrowed_processor<'cursor, 'facet>(
                 Ok(())
             }
 
-            PartialValue::Length(length) => {
-                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+            PartialValue::VarInt(val) => {
+                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
+                #[cfg(feature = "tracing")]
+                tracing::trace!(
+                    target: "facet_minecraft::deserialize",
+                    "Read variable-length integer: {value} ({consumed} bytes)",
+                );
                 cursor.consume(consumed)?;
-                *length = Some(len as usize);
+                *val = Some(value as usize);
                 Ok(())
             }
             PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
@@ -406,7 +411,7 @@ pub fn owned_processor<'cursor>(
         #[cfg(feature = "tracing")]
         tracing::trace!(
             target: "facet_minecraft::deserialize",
-            "Reading {partial}"
+            "Reading owned `{partial}`"
         );
 
         match partial {
@@ -463,11 +468,15 @@ pub fn owned_processor<'cursor>(
                 val.set_value(Uuid::from_bytes(*cursor.take_array::<16>()?));
                 Ok(())
             }
-
-            PartialValue::Length(length) => {
-                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+            PartialValue::VarInt(val) => {
+                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
+                #[cfg(feature = "tracing")]
+                tracing::trace!(
+                    target: "facet_minecraft::deserialize",
+                    "Read variable-length integer: {value} ({consumed} bytes)",
+                );
                 cursor.consume(consumed)?;
-                *length = Some(len as usize);
+                *val = Some(value as usize);
                 Ok(())
             }
             PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
