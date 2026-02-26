@@ -2,6 +2,7 @@
 #![allow(clippy::elidable_lifetime_names, reason = "WIP")]
 #![expect(clippy::result_large_err, reason = "An error variant contains the iterator")]
 
+use alloc::borrow::Cow;
 #[cfg(feature = "std")]
 use alloc::vec::Vec;
 use core::marker::PhantomData;
@@ -335,6 +336,12 @@ pub fn borrowed_processor<'cursor, 'facet>(
                 val.set_value(str::from_utf8(cursor.take(len as usize)?)?.into());
                 Ok(())
             }
+            PartialValue::CowStr(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(Cow::Borrowed(str::from_utf8(cursor.take(len as usize)?)?));
+                Ok(())
+            }
             PartialValue::Bytes(val) => {
                 let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
                 cursor.consume(consumed)?;
@@ -345,6 +352,12 @@ pub fn borrowed_processor<'cursor, 'facet>(
                 let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
                 cursor.consume(consumed)?;
                 val.set_value(cursor.take(len as usize)?.into());
+                Ok(())
+            }
+            PartialValue::CowBytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(Cow::Borrowed(cursor.take(len as usize)?));
                 Ok(())
             }
             PartialValue::Uuid(val) => {
@@ -428,10 +441,22 @@ pub fn owned_processor<'cursor>(
                 val.set_value(str::from_utf8(cursor.take(len as usize)?)?.into());
                 Ok(())
             }
+            PartialValue::CowStr(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(Cow::Owned(str::from_utf8(cursor.take(len as usize)?)?.into()));
+                Ok(())
+            }
             PartialValue::VecBytes(val) => {
                 let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
                 cursor.consume(consumed)?;
                 val.set_value(cursor.take(len as usize)?.into());
+                Ok(())
+            }
+            PartialValue::CowBytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(Cow::Owned(cursor.take(len as usize)?.to_vec()));
                 Ok(())
             }
             PartialValue::Uuid(val) => {

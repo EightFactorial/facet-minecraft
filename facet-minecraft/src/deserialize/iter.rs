@@ -1,13 +1,15 @@
 //! [`DeserializeIter`] and related types.
 #![allow(dead_code, unused, reason = "WIP")]
 
-use alloc::{string::String, vec::Vec};
+use alloc::{borrow::Cow, string::String, vec::Vec};
 use core::{
     fmt::{self, Display},
     marker::PhantomData,
 };
 
-use facet::{Def, Facet, HeapValue, Partial, Shape, StructType, Type, UserType};
+use facet::{
+    Def, Facet, HeapValue, KnownPointer, Partial, ReflectError, Shape, StructType, Type, UserType,
+};
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -91,10 +93,14 @@ pub enum PartialValue<'mem, 'facet, const BORROW: bool> {
     Str(PartialLense<'mem, 'facet, BORROW, &'facet str>),
     /// A [`String`] value.
     String(PartialLense<'mem, 'facet, BORROW, String>),
+    /// A [`Cow<'_, str>`] value.
+    CowStr(PartialLense<'mem, 'facet, BORROW, Cow<'facet, str>>),
     /// A `&[u8]` value.
     Bytes(PartialLense<'mem, 'facet, BORROW, &'facet [u8]>),
     /// A [`Vec<u8>`] value.
     VecBytes(PartialLense<'mem, 'facet, BORROW, Vec<u8>>),
+    /// A [`Cow<'_, [u8]>`] value.
+    CowBytes(PartialLense<'mem, 'facet, BORROW, Cow<'facet, [u8]>>),
     /// A [`Uuid`] value.
     Uuid(PartialLense<'mem, 'facet, BORROW, Uuid>),
 
@@ -124,8 +130,10 @@ impl<const BORROW: bool> Display for PartialValue<'_, '_, BORROW> {
             Self::F64(..) => f.write_str("F64"),
             Self::Str(..) => f.write_str("Str"),
             Self::String(..) => f.write_str("String"),
+            Self::CowStr(..) => f.write_str("CowStr"),
             Self::Bytes(..) => f.write_str("Bytes"),
             Self::VecBytes(..) => f.write_str("VecBytes"),
+            Self::CowBytes(..) => f.write_str("CowBytes"),
             Self::Uuid(..) => f.write_str("Uuid"),
             Self::Length(..) => f.write_str("Length"),
             Self::Custom(partial, ..) => write!(f, "Custom ({})", partial.shape().type_name()),
@@ -478,7 +486,7 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                         *remaining = remaining.map(|r| r - 1);
                         // Read the next value
                         let variable = *variable;
-                        self.partial = self.partial.begin_value()?;
+                        self.partial = self.partial.begin_list_item()?;
                         wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
                     } else {
                         let _ = self.stack.pop();
@@ -543,7 +551,48 @@ impl<'facet, const BORROW: bool> DeserializeIter<'facet, BORROW> {
                         }
                     }
                 }
-                ItemState::Ptr { started, variable } => todo!(),
+                ItemState::Ptr { started, variable } => {
+                    if *started {
+                        let _ = self.stack.pop();
+                        if !self.stack.is_empty() {
+                            self.partial = self.partial.end()?;
+                        }
+                    } else {
+                        let Def::Pointer(def) = self.partial.shape().def else { unreachable!() };
+                        let is_cow = matches!(def.known, Some(KnownPointer::Cow));
+
+                        *started = true;
+
+                        // Special case `Cow<'_, str>`
+                        if is_cow
+                            && let Some(pointee) = def.pointee()
+                            && *pointee == *str::SHAPE
+                        {
+                            wrap!(@process PartialValue::CowStr(PartialLense::new(&mut self.partial)));
+                            continue;
+                        }
+                        // Special case `Cow<'_, [u8]>`
+                        if is_cow
+                            && let Some(pointee) = def.pointee()
+                            && let Def::Slice(slice_def) = pointee.def
+                            && *slice_def.t == *u8::SHAPE
+                        {
+                            wrap!(@process PartialValue::CowBytes(PartialLense::new(&mut self.partial)));
+                            continue;
+                        }
+
+                        // Other `Cow` types
+                        if is_cow {
+                            let variable = *variable;
+                            self.partial = self.partial.begin_inner()?;
+                            wrap!(@error Self::push_partial(&mut self.stack, &self.partial, variable));
+                            continue;
+                        }
+
+                        todo!()
+                    }
+                }
+
                 ItemState::Option { state, variable } => {
                     if state.is_none() {
                         // Read the discriminant
