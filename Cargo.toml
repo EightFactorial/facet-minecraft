@@ -13,7 +13,6 @@ facet-error = { default-features = false, version = "0.43" }
 facet-reflect = { default-features = false, version = "0.43" }
 
 # Other Dependencies
-corosensei = { default-features = false, version = "0.3" }
 foldhash = { default-features = false, version = "0.2" }
 futures-lite = { default-features = false, version = "2.0" }
 indexmap = { default-features = false, version = "2.12" }
