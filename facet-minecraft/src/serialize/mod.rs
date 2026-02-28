@@ -1,459 +1,287 @@
 //! TODO
 
-use alloc::{borrow::Cow, vec::Vec};
+use alloc::vec::Vec;
 
-use facet::{Facet, Shape, ShapeLayout, Variant};
-use facet_format::{
-    DynamicValueEncoding, DynamicValueTag, EnumVariantEncoding, FieldOrdering, FormatSerializer,
-    MapEncoding, ScalarValue, SerializeError as FSError, StructFieldMode,
+use error::SerializeError;
+use facet::Facet;
+use facet_reflect::Peek;
+use smallvec::SmallVec;
+
+use crate::{
+    hint::TypeSizeHint,
+    serialize::{
+        buffer::SerializeBuffer,
+        iter::{PeekValue, SerializeIter},
+    },
 };
-use facet_reflect::{FieldItem, Peek};
-use uuid::Uuid;
 
-mod buffer;
-pub use buffer::SerializeBuffer;
+pub mod buffer;
+pub mod error;
+pub mod fns;
+pub mod iter;
 
-mod error;
-pub use error::{SerializeError, SerializeErrorKind};
+/// A trait for types that can be serialized.
+pub trait Serialize<'facet>: Facet<'facet> {
+    /// The [`TypeSizeHint`] for this type.
+    const SIZE_HINT: &'static TypeSizeHint = &crate::hint::calculate_shape_hint(Self::SHAPE, None);
 
-pub(crate) mod r#trait;
-pub use r#trait::Serializable;
-
-/// A function pointer to a serialization function.
-#[derive(Debug, Clone, Copy, Facet)]
-#[facet(opaque)]
-pub struct SerializeFn {
-    ptr: for<'buffer> fn(
-        &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
-    ) -> Result<(), SerializeError>,
-}
-
-impl SerializeFn {
-    /// Create a new [`SerializeFn`].
-    #[inline]
-    #[must_use]
-    pub const fn new(
-        ptr: for<'buffer> fn(
-            &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
-        ) -> Result<(), SerializeError>,
-    ) -> Self {
-        Self { ptr }
-    }
-
-    /// Call the serialization function.
+    /// Serialize this value into a [`Vec<u8>`].
     ///
     /// # Errors
     ///
-    /// This function will return an error if serialization fails.
+    /// Returns a [`SerializeError`] if serialization fails.
     #[inline]
-    pub fn call<'buffer>(
+    fn to_vec(&self) -> Result<Vec<u8>, SerializeError<'_, 'facet>> {
+        let capacity = Self::SIZE_HINT.maximum().or(Self::SIZE_HINT.minimum()).unwrap_or_default();
+        let mut buffer = Vec::with_capacity(capacity);
+        to_buffer_inner(Peek::new(self), &mut buffer)?;
+        Ok(buffer)
+    }
+
+    /// Serialize this value into a buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`SerializeError`] if serialization fails or
+    /// if writing to the buffer fails.
+    #[inline]
+    fn to_buffer<B: SerializeBuffer>(
         &self,
-        serializer: &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
-    ) -> Result<(), SerializeError> {
-        (self.ptr)(serializer)
-    }
-}
-
-impl
-    From<
-        for<'buffer> fn(
-            &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
-        ) -> Result<(), SerializeError>,
-    > for SerializeFn
-{
-    #[inline]
-    fn from(
-        ptr: for<'buffer> fn(
-            &mut McSerializer<'buffer, dyn SerializeBuffer + 'buffer>,
-        ) -> Result<(), SerializeError>,
-    ) -> Self {
-        Self::new(ptr)
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// A serializer that implements [`FormatSerializer`].
-pub struct McSerializer<'buffer, B: SerializeBuffer + ?Sized> {
-    buffer: &'buffer mut B,
-    variable_length: bool,
-    value_size: usize,
-}
-
-impl<'buffer, B: SerializeBuffer + ?Sized> McSerializer<'buffer, B> {
-    /// Create a new [`McSerializer`].
-    #[inline]
-    #[must_use]
-    pub const fn new(buffer: &'buffer mut B) -> Self {
-        Self { buffer, variable_length: false, value_size: 0 }
+        buffer: &mut B,
+    ) -> Result<(), SerializeError<'_, 'facet>> {
+        to_buffer_inner(Peek::new(self), buffer)
     }
 
-    /// Reborrow the serializer with a shorter lifetime.
+    /// Serialize this value into a writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`SerializeError`] if serialization fails or if writing fails.
     #[inline]
-    #[must_use]
-    pub const fn reborrow<'a>(&'a mut self) -> McSerializer<'a, B> {
-        McSerializer {
-            buffer: self.buffer,
-            variable_length: self.variable_length,
-            value_size: self.value_size,
-        }
+    #[cfg(feature = "std")]
+    fn to_writer<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+        to_writer_inner(Peek::new(self), writer)
     }
 
-    /// Reborrow the serializer over a dynamic buffer.
+    /// Serialize this value into an [`futures_lite`] writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`SerializeError`] if serialization fails or if writing fails.
     #[inline]
-    #[must_use]
-    pub const fn as_dyn<'a>(&'a mut self) -> McSerializer<'a, dyn SerializeBuffer + 'a>
+    #[cfg(feature = "futures-lite")]
+    fn to_async_writer<'a, W: futures_lite::AsyncWrite + Unpin>(
+        &'a self,
+        writer: &'a mut W,
+    ) -> impl Future<Output = Result<(), std::io::Error>> + 'a
     where
-        B: Sized + 'a,
+        'facet: 'a,
     {
-        McSerializer {
-            buffer: self.buffer,
-            variable_length: self.variable_length,
-            value_size: self.value_size,
-        }
+        to_async_writer_inner(Peek::new(self), writer)
     }
 
-    /// Consume the serializer and return the buffer reference.
+    /// Serialize this value into a [`tokio`] writer.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`SerializeError`] if serialization fails or if writing fails.
     #[inline]
-    #[must_use]
-    pub const fn into_inner(self) -> &'buffer mut B { self.buffer }
-}
-
-impl<B: SerializeBuffer> FormatSerializer for McSerializer<'_, B> {
-    type Error = SerializeError;
-
-    fn struct_metadata(&mut self, shape: &Shape) -> Result<(), Self::Error> {
-        if self.variable_length && !shape.is_transparent() {
-            Err(SerializeError::variable_length(shape))
-        } else {
-            Ok(())
-        }
-    }
-
-    fn begin_struct(&mut self) -> Result<(), Self::Error> { Ok(()) }
-
-    fn end_struct(&mut self) -> Result<(), Self::Error> { Ok(()) }
-
-    fn variant_metadata(&mut self, variant: &'static Variant) -> Result<(), Self::Error> {
-        if let Some(disciminant) = variant.discriminant {
-            self.scalar_variable(ScalarValue::I64(disciminant), true)
-        } else {
-            Err(SerializeError::new(SerializeErrorKind::DiscriminantMissing))
-        }
-    }
-
-    fn field_metadata_with_value(
-        &mut self,
-        field: &FieldItem,
-        _value: Peek<'_, '_>,
-    ) -> Result<bool, Self::Error> {
-        if let Some(field) = field.field.as_ref()
-            && let Some(attr) = field.get_attr(Some("mc"), "serialize")
-            && let Some(serialize) = attr.get_as::<SerializeFn>()
-        {
-            serialize.call(&mut self.as_dyn()).map(|()| true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn field_metadata(&mut self, field: &FieldItem) -> Result<(), Self::Error> {
-        if let Some(field) = field.field.as_ref() {
-            if field.has_attr(Some("mc"), "variable") {
-                self.variable_length = true;
-            }
-
-            if let ShapeLayout::Sized(layout) = field.shape().layout {
-                self.value_size = layout.size();
-            }
-        }
-
-        Ok(())
-    }
-
-    fn field_key(&mut self, _: &str) -> Result<(), Self::Error> { Ok(()) }
-
-    fn scalar(&mut self, val: ScalarValue<'_>) -> Result<(), Self::Error> {
-        let variable_length = core::mem::take(&mut self.variable_length);
-        self.scalar_variable(val, variable_length)
-    }
-
-    fn is_self_describing(&self) -> bool { false }
-
-    fn serialize_opaque_scalar(
-        &mut self,
-        shape: &'static Shape,
-        value: Peek<'_, '_>,
-    ) -> Result<bool, Self::Error> {
-        if shape.is_type::<Uuid>() {
-            self.scalar_variable(ScalarValue::U128(value.get::<Uuid>().unwrap().as_u128()), false)?;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    fn serialize_byte_sequence(&mut self, bytes: &[u8]) -> Result<bool, Self::Error> {
-        self.scalar_variable(ScalarValue::Bytes(Cow::Borrowed(bytes)), false)?;
-        Ok(true)
-    }
-
-    fn serialize_byte_array(&mut self, bytes: &[u8]) -> Result<bool, Self::Error> {
-        if self.buffer.extend_buffer(bytes) {
-            Ok(true)
-        } else {
-            Err(SerializeError::new(SerializeErrorKind::BufferError))
-        }
-    }
-
-    fn begin_seq_with_len(&mut self, len: usize) -> Result<(), Self::Error> {
-        self.scalar_variable(ScalarValue::U64(len as u64), true)
-    }
-
-    fn begin_seq(&mut self) -> Result<(), Self::Error> { Ok(()) }
-
-    fn end_seq(&mut self) -> Result<(), Self::Error> { Ok(()) }
-
-    fn begin_map_with_len(&mut self, len: usize) -> Result<(), Self::Error> {
-        self.scalar_variable(ScalarValue::U64(len as u64), true)
-    }
-
-    fn end_map(&mut self) -> Result<(), Self::Error> { Ok(()) }
-
-    fn begin_option_some(&mut self) -> Result<(), Self::Error> {
-        self.scalar_variable(ScalarValue::Bool(true), false)
-    }
-
-    fn serialize_none(&mut self) -> Result<(), Self::Error> {
-        self.scalar_variable(ScalarValue::Bool(false), false)
-    }
-
-    // ---------------------------------------------------------------------------------------------
-
-    fn preferred_field_order(&self) -> FieldOrdering { FieldOrdering::Declaration }
-
-    fn struct_field_mode(&self) -> StructFieldMode { StructFieldMode::Unnamed }
-
-    fn enum_variant_encoding(&self) -> EnumVariantEncoding { EnumVariantEncoding::Index }
-
-    fn map_encoding(&self) -> MapEncoding { MapEncoding::Pairs }
-
-    fn dynamic_value_encoding(&self) -> DynamicValueEncoding { DynamicValueEncoding::Tagged }
-
-    fn dynamic_value_tag(&mut self, _tag: DynamicValueTag) -> Result<(), Self::Error> { Ok(()) }
-}
-
-impl<B: SerializeBuffer + ?Sized> McSerializer<'_, B> {
-    fn scalar_variable(&mut self, val: ScalarValue, variable: bool) -> Result<(), SerializeError> {
-        if match (val, variable) {
-            (ScalarValue::Unit | ScalarValue::Null, false) => true,
-            (ScalarValue::Bool(v), false) => {
-                let byte = v as u8;
-                self.buffer.extend_buffer(&[byte])
-            }
-
-            (ScalarValue::I64(v), false) => {
-                let bytes = v.to_le_bytes();
-                self.buffer.extend_buffer(&bytes[..self.value_size])
-            }
-            (ScalarValue::U64(v), false) => {
-                let bytes = v.to_le_bytes();
-                self.buffer.extend_buffer(&bytes[..self.value_size])
-            }
-            (ScalarValue::I64(v), true) => {
-                let mut buffer = [0; _];
-                let len = Self::var_u64(v as u64, &mut buffer);
-                self.buffer.extend_buffer(&buffer[..len])
-            }
-            (ScalarValue::U64(v), true) => {
-                let mut buffer = [0; _];
-                let len = Self::var_u64(v, &mut buffer);
-                self.buffer.extend_buffer(&buffer[..len])
-            }
-
-            (ScalarValue::I128(v), false) => {
-                let bytes = v.to_le_bytes();
-                self.buffer.extend_buffer(&bytes[..self.value_size])
-            }
-            (ScalarValue::U128(v), false) => {
-                let bytes = v.to_le_bytes();
-                self.buffer.extend_buffer(&bytes[..self.value_size])
-            }
-            (ScalarValue::I128(v), true) => {
-                let mut buffer = [0; _];
-                let len = Self::var_u128(v as u128, &mut buffer);
-                self.buffer.extend_buffer(&buffer[..len])
-            }
-            (ScalarValue::U128(v), true) => {
-                let mut buffer = [0; _];
-                let len = Self::var_u128(v, &mut buffer);
-                self.buffer.extend_buffer(&buffer[..len])
-            }
-
-            (ScalarValue::F64(v), false) => {
-                let bytes = v.to_le_bytes();
-                self.buffer.extend_buffer(&bytes[..self.value_size])
-            }
-            (ScalarValue::Str(v), false) => {
-                let mut buffer = [0; _];
-                let len = Self::var_u64(v.len() as u64, &mut buffer);
-                self.buffer.extend_buffer(&buffer[..len]) && self.buffer.extend_buffer(v.as_bytes())
-            }
-            (ScalarValue::Bytes(v), false) => {
-                let mut buffer = [0; _];
-                let len = Self::var_u64(v.len() as u64, &mut buffer);
-                self.buffer.extend_buffer(&buffer[..len]) && self.buffer.extend_buffer(v.as_ref())
-            }
-
-            // Unsupported
-            (ScalarValue::Char(_), _) => {
-                return Err(SerializeError::unsupported_type::<char>());
-            }
-            (val, true) => {
-                return Err(SerializeError::variable_length_scalar(&val));
-            }
-        } {
-            Ok(())
-        } else {
-            Err(SerializeError::new(SerializeErrorKind::BufferError))
-        }
-    }
-
-    fn var_u64(mut v: u64, buf: &mut [u8; 10]) -> usize {
-        let mut byte;
-        let mut count = 0;
-        while (v != 0 || count == 0) && count < 10 {
-            byte = (v & 0b0111_1111) as u8;
-            v = (v >> 7) & (u64::MAX >> 6);
-            if v != 0 {
-                byte |= 0b1000_0000;
-            }
-            buf[count] = byte;
-            count += 1;
-        }
-        count
-    }
-
-    fn var_u128(mut v: u128, buf: &mut [u8; 19]) -> usize {
-        let mut byte;
-        let mut count = 0;
-        while (v != 0 || count == 0) && count < 19 {
-            byte = (v & 0b0111_1111) as u8;
-            v = (v >> 7) & (u128::MAX >> 6);
-            if v != 0 {
-                byte |= 0b1000_0000;
-            }
-            buf[count] = byte;
-            count += 1;
-        }
-        count
+    #[cfg(feature = "tokio")]
+    fn to_tokio_writer<'a, W: tokio::io::AsyncWrite + Unpin>(
+        &'a self,
+        writer: &'a mut W,
+    ) -> impl Future<Output = Result<(), std::io::Error>> + 'a
+    where
+        'facet: 'a,
+    {
+        to_tokio_writer_inner(Peek::new(self), writer)
     }
 }
+
+impl<'facet, T: Facet<'facet> + ?Sized> Serialize<'facet> for T {}
 
 // -------------------------------------------------------------------------------------------------
 
-/// Serialize a value of type `T` into a byte vector.
-///
-/// # Errors
-///
-/// This function will return an error if serialization fails.
-pub fn to_vec<'facet, T: Serializable<'facet> + ?Sized>(
-    value: &T,
-) -> Result<Vec<u8>, FSError<SerializeError>> {
-    // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
-    // };
+/// Collect the values from a [`Peek`] into a [`SmallVec`].
+#[inline]
+fn parse_peek<'mem, 'facet>(
+    peek: Peek<'mem, 'facet>,
+) -> Result<SmallVec<[PeekValue<'mem, 'facet>; 8]>, SerializeError<'mem, 'facet>> {
+    let mut values = SmallVec::<[_; 8]>::new_const();
+    let mut iter = SerializeIter::new_from_peek(peek)?;
 
-    let mut buffer = T::SERIALIZE_HINT
-        .maximum()
-        .or(T::SERIALIZE_HINT.minimum())
-        .map_or_else(Vec::new, Vec::with_capacity);
-    to_buffer::<T, Vec<u8>>(value, &mut buffer)?;
-    Ok(buffer)
+    loop {
+        match iter.next() {
+            Some(Ok(instruction)) => values.push(instruction),
+            Some(Err(err)) => return Err(SerializeError::from(err)),
+            None => break,
+        }
+    }
+
+    Ok(values)
 }
 
-/// Serialize a value of type `T` into a buffer,
-/// returning a slice containing the serialized data.
+/// Write a variable-length integer to a buffer.
 ///
-/// # Errors
-///
-/// This function will return an error if serialization fails,
-/// or if the buffer cannot be written to.
-pub fn to_buffer<'output, 'facet, T: Serializable<'facet> + ?Sized, B: SerializeBuffer>(
-    value: &T,
-    buffer: &'output mut B,
-) -> Result<&'output [u8], FSError<SerializeError>> {
-    // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
-    // };
-
-    let mut format = McSerializer::new(buffer);
-    facet_format::serialize_root(&mut format, Peek::new(value))?;
-    Ok(buffer.get_content())
+/// Returns the length of the written data.
+#[inline]
+pub fn variable_to_bytes(mut val: u128, buffer: &mut [u8; 19]) -> usize {
+    let mut byte;
+    let mut index = 0;
+    while (val != 0 || index == 0) && index < 19 {
+        byte = (val & 0b0111_1111) as u8;
+        val = (val >> 7) & (u128::MAX >> 6);
+        if val != 0 {
+            byte |= 0b1000_0000;
+        }
+        buffer[index] = byte;
+        index += 1;
+    }
+    index
 }
 
-// -------------------------------------------------------------------------------------------------
+/// To prevent code duplication,
+/// this function actually performs the serialization.
+fn to_buffer_inner<'mem, 'facet, B: SerializeBuffer>(
+    peek: Peek<'mem, 'facet>,
+    buffer: &mut B,
+) -> Result<(), SerializeError<'mem, 'facet>> {
+    macro_rules! wrap {
+        ($expr:expr) => {
+            $expr.then_some(()).ok_or_else(SerializeError::new)?
+        };
+    }
 
-/// Serialize a value of type `T` into a [`Writer`](std::io::Write).
-///
-/// # Errors
-///
-/// This function will return an error if serialization fails,
-/// or the writer encounters an I/O error.
-#[cfg(feature = "streaming")]
-pub fn to_writer<'facet, T: Serializable<'facet> + ?Sized, W: std::io::Write>(
-    value: &T,
+    let mut variable = [0u8; _];
+    let values = parse_peek(peek)?;
+    for val in values {
+        match val {
+            PeekValue::Unit(()) => {}
+            PeekValue::Bool(val) => wrap!(buffer.write_data(&[u8::from(val)])),
+            PeekValue::U8(val) => wrap!(buffer.write_data(&[val])),
+            PeekValue::U16(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
+            PeekValue::U32(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
+            PeekValue::U64(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
+            PeekValue::U128(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
+            PeekValue::F32(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
+            PeekValue::F64(val) => wrap!(buffer.write_data(&val.to_be_bytes())),
+            PeekValue::Bytes(items) => wrap!(buffer.write_data(items.as_ref())),
+            PeekValue::Variable(val) => {
+                let length = variable_to_bytes(val, &mut variable);
+                wrap!(buffer.write_data(&variable[..length]));
+            }
+            PeekValue::Custom(peek, serialize) => serialize.call(peek, buffer)?,
+        }
+    }
+
+    Ok(())
+}
+
+/// To prevent code duplication,
+/// this function actually performs the serialization.
+#[cfg(feature = "std")]
+fn to_writer_inner<W: std::io::Write>(
+    peek: Peek<'_, '_>,
     writer: &mut W,
-) -> Result<(), FSError<SerializeError>> {
-    // const { assert!(T::SERIALIZABLE.possible(), "This type is not
-    // serializable!") };
+) -> Result<(), std::io::Error> {
+    #[allow(unused_imports, reason = "Required")]
+    use std::io::Write;
 
-    std::io::Write::write_all(writer, to_vec::<T>(value)?.as_slice())
-        .map_err(|err| FSError::Backend(SerializeError::from(err)))
+    let mut variable = [0u8; _];
+    let values = parse_peek(peek).map_err(std::io::Error::other)?;
+    for val in values {
+        match val {
+            PeekValue::Unit(()) => {}
+            PeekValue::Bool(val) => writer.write_all(&[u8::from(val)])?,
+            PeekValue::U8(val) => writer.write_all(&[val])?,
+            PeekValue::U16(val) => writer.write_all(&val.to_be_bytes())?,
+            PeekValue::U32(val) => writer.write_all(&val.to_be_bytes())?,
+            PeekValue::U64(val) => writer.write_all(&val.to_be_bytes())?,
+            PeekValue::U128(val) => writer.write_all(&val.to_be_bytes())?,
+            PeekValue::F32(val) => writer.write_all(&val.to_be_bytes())?,
+            PeekValue::F64(val) => writer.write_all(&val.to_be_bytes())?,
+            PeekValue::Bytes(items) => writer.write_all(items.as_ref())?,
+            PeekValue::Variable(val) => {
+                let length = variable_to_bytes(val, &mut variable);
+                writer.write_all(&variable[..length])?;
+            }
+            PeekValue::Custom(peek, serialize) => serialize
+                .call(peek, writer)
+                .map_err(|err| std::io::Error::other(SerializeError::from(err)))?,
+        }
+    }
+
+    Ok(())
 }
 
-/// Serialize a value of type `T` into an asynchronous
-/// [`AsyncWrite`](futures_lite::AsyncWrite).
-///
-/// # Errors
-///
-/// This function will return an error if serialization fails,
-/// or the writer encounters an I/O error.
+/// To prevent code duplication,
+/// this function actually performs the serialization.
 #[cfg(feature = "futures-lite")]
-pub async fn to_async_writer<
-    'facet,
-    T: Serializable<'facet> + ?Sized,
-    W: futures_lite::AsyncWrite + Unpin,
->(
-    value: &T,
+async fn to_async_writer_inner<W: futures_lite::AsyncWrite + Unpin>(
+    peek: Peek<'_, '_>,
     writer: &mut W,
-) -> Result<(), FSError<SerializeError>> {
-    // const { assert!(T::SERIALIZABLE.possible(), "This type is not
-    // serializable!") };
+) -> Result<(), std::io::Error> {
+    use futures_lite::AsyncWriteExt;
 
-    futures_lite::AsyncWriteExt::write_all(writer, to_vec::<T>(value)?.as_slice())
-        .await
-        .map_err(|err| FSError::Backend(SerializeError::from(err)))
+    let mut variable = [0u8; _];
+    let values = parse_peek(peek).map_err(std::io::Error::other)?;
+    for val in values {
+        match val {
+            PeekValue::Unit(()) => {}
+            PeekValue::Bool(val) => writer.write_all(&[u8::from(val)]).await?,
+            PeekValue::U8(val) => writer.write_all(&[val]).await?,
+            PeekValue::U16(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::U32(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::U64(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::U128(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::F32(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::F64(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::Bytes(items) => writer.write_all(items.as_ref()).await?,
+            PeekValue::Variable(val) => {
+                let length = variable_to_bytes(val, &mut variable);
+                writer.write_all(&variable[..length]).await?;
+            }
+            PeekValue::Custom(peek, serialize) => serialize
+                .call(peek, &mut crate::serialize::buffer::FuturesLite(&mut *writer))
+                .map_err(|err| std::io::Error::other(SerializeError::from(err)))?,
+        }
+    }
+
+    Ok(())
 }
 
-/// Serialize a value of type `T` into an asynchronous
-/// [`AsyncWrite`](tokio::io::AsyncWrite).
-///
-/// # Errors
-///
-/// This function will return an error if serialization fails,
-/// or the writer encounters an I/O error.
+/// To prevent code duplication,
+/// this function actually performs the serialization.
 #[cfg(feature = "tokio")]
-pub async fn to_tokio_writer<
-    'facet,
-    T: Serializable<'facet> + ?Sized,
-    W: tokio::io::AsyncWrite + Unpin,
->(
-    value: &T,
+async fn to_tokio_writer_inner<W: tokio::io::AsyncWrite + Unpin>(
+    peek: Peek<'_, '_>,
     writer: &mut W,
-) -> Result<(), FSError<SerializeError>> {
-    // const { assert!(T::SERIALIZABLE.possible(), "This type is not serializable!")
-    // };
+) -> Result<(), std::io::Error> {
+    use tokio::io::AsyncWriteExt;
 
-    tokio::io::AsyncWriteExt::write_all(writer, to_vec::<T>(value)?.as_slice())
-        .await
-        .map_err(|err| FSError::Backend(SerializeError::from(err)))
+    let mut variable = [0u8; _];
+    let values = parse_peek(peek).map_err(std::io::Error::other)?;
+    for val in values {
+        match val {
+            PeekValue::Unit(()) => {}
+            PeekValue::Bool(val) => writer.write_all(&[u8::from(val)]).await?,
+            PeekValue::U8(val) => writer.write_all(&[val]).await?,
+            PeekValue::U16(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::U32(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::U64(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::U128(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::F32(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::F64(val) => writer.write_all(&val.to_be_bytes()).await?,
+            PeekValue::Bytes(items) => writer.write_all(items.as_ref()).await?,
+            PeekValue::Variable(val) => {
+                let length = variable_to_bytes(val, &mut variable);
+                writer.write_all(&variable[..length]).await?;
+            }
+            PeekValue::Custom(peek, serialize) => serialize
+                .call(peek, &mut crate::serialize::buffer::Tokio(&mut *writer))
+                .map_err(|err| std::io::Error::other(SerializeError::from(err)))?,
+        }
+    }
+
+    Ok(())
 }

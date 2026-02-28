@@ -19,47 +19,49 @@ workspace = true
 # --- Tests ---
 
 [[test]]
-name = "deserialize_stream"
-required-features = ["streaming"]
+name = "reader_deserialize"
+required-features = ["std"]
+[[test]]
+name = "writer_serialize"
+required-features = ["std"]
 
 # --- Dependencies ---
 
 [dev-dependencies]
+pastey = { workspace = true }
 pretty_assertions = { workspace = true }
 proptest = { workspace = true }
+tracing-subscriber = { features = ["alloc"], workspace = true }
+tokio = { features = ["macros", "rt"], workspace = true }
 
 [dependencies]
-facet = { features = ["alloc", "uuid"],  workspace = true }
-facet-format = { workspace = true }
-facet-reflect = { workspace = true }
+facet = { features = ["alloc", "reflect", "uuid"],  workspace = true }
+facet-error = { workspace = true }
+facet-reflect = { features = ["alloc"], workspace = true }
 miette = { workspace = true }
+replace_with = { workspace = true }
+smallvec = { features = ["const_generics", "const_new", "union"], workspace = true }
 uuid = { workspace = true }
 
 # Optional dependencies
-corosensei = { features = ["default-stack", "unwind"], workspace = true, optional = true }
 futures-lite = { workspace = true, optional = true }
-tokio = { features = ["io-util"], workspace = true, optional = true }
+tokio = { features = ["io-util", "rt"], workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 
 # --- Features ---
 
 [features]
-default = ["std", "streaming"]
+default = ["std"]
 
-# Enable streaming support
-streaming = ["dep:corosensei", "std"]
 # Enable futures-lite support
-futures-lite = ["dep:futures-lite", "streaming"]
+futures-lite = ["dep:futures-lite", "std"]
 # Enable tokio support
-tokio = ["dep:tokio", "streaming"]
-
-# Enable JIT compilation support
-jit = ["facet-format/jit", "std"]
+tokio = ["dep:tokio", "std"]
 
 # Enable tracing messages
 tracing = ["dep:tracing"]
 
 # Enable support for the standard library
-std = ["facet/std", "futures-lite?/std", "tracing?/std", "uuid/std"]
+std = ["facet/std", "futures-lite?/std", "replace_with/std", "tracing?/std", "smallvec/write", "uuid/std"]
 # Enable features using the nightly toolchain
-nightly = ["corosensei?/asm-unwind"]
+nightly = ["replace_with/nightly", "smallvec/specialization"]

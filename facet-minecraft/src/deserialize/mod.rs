@@ -1,450 +1,588 @@
 //! TODO
+#![allow(clippy::elidable_lifetime_names, reason = "WIP")]
+#![expect(clippy::result_large_err, reason = "An error variant contains the iterator")]
 
 use alloc::borrow::Cow;
+#[cfg(feature = "std")]
+use alloc::vec::Vec;
+use core::marker::PhantomData;
 
-use facet::{Facet, Field, Shape};
-use facet_format::{
-    ContainerKind, DeserializeError as FDError, EnumVariantHint, FieldEvidence, FieldKey,
-    FieldLocationHint, FormatDeserializer, FormatParser, ParseEvent, ProbeStream, ScalarTypeHint,
-    ScalarValue,
-};
-use facet_reflect::Span;
+use facet::Facet;
+#[cfg(feature = "std")]
+use facet::HeapValue;
 use uuid::Uuid;
 
-mod error;
-pub use error::{DeserializeError, DeserializeErrorKind};
+use crate::{
+    deserialize::{
+        error::{DeserializeError, DeserializeValueError, EndOfInput},
+        iter::{DeserializeIter, PartialValue},
+    },
+    hint::TypeSizeHint,
+};
 
-#[cfg(feature = "jit")]
-mod jit;
-#[cfg(feature = "jit")]
-pub use jit::McJitFormat;
+pub mod error;
+pub mod fns;
+pub mod iter;
 
-mod parse;
+/// A trait for types that can be deserialized.
+pub trait Deserialize<'facet>: Sized {
+    /// The [`TypeSizeHint`] for this type.
+    const SIZE_HINT: TypeSizeHint;
 
-mod stack;
-use stack::{DeserializerStack, StackEntry};
-
-#[cfg(feature = "streaming")]
-pub(crate) mod stream;
-#[cfg(feature = "streaming")]
-pub use stream::*;
-
-pub(crate) mod r#trait;
-pub use r#trait::Deserializable;
-
-/// A function pointer to a deserialization function.
-#[derive(Debug, Clone, Copy, Facet)]
-#[facet(opaque)]
-pub struct DeserializeFn {
-    ptr: for<'de> fn(
-        &mut McDeserializer<'de>,
-        &'de Field,
-    ) -> Result<ParseEvent<'de>, DeserializeError>,
-}
-
-impl DeserializeFn {
-    /// Create a new [`DeserializeFn`].
-    #[inline]
-    #[must_use]
-    pub const fn new(
-        ptr: for<'de> fn(
-            &mut McDeserializer<'de>,
-            &'de Field,
-        ) -> Result<ParseEvent<'de>, DeserializeError>,
-    ) -> Self {
-        Self { ptr }
+    /// Deserialize a value from a `&[u8]` slice,
+    /// borrowing data where possible.
+    ///
+    /// If the type will outlive the input data, use
+    /// [`Deserialize::from_slice_owned`] instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DeserializeError`] if deserialization fails.
+    fn from_slice(slice: &'facet [u8]) -> Result<Self, DeserializeError<'facet>>
+    where
+        Self: Facet<'facet>,
+    {
+        let mut cursor = InputCursor::new(slice);
+        DeserializeIter::<true>::new::<Self>()?
+            .complete(borrowed_processor(&mut cursor))?
+            .materialize()
+            .map_err(Into::into)
     }
 
-    /// Call the deserialization function.
+    /// Deserialize a value from a `&[u8]` slice.
     ///
     /// # Errors
     ///
     /// Returns a [`DeserializeError`] if deserialization fails.
     #[inline]
-    pub fn call<'de>(
-        &self,
-        deserializer: &mut McDeserializer<'de>,
-        field: &'de Field,
-    ) -> Result<ParseEvent<'de>, DeserializeError> {
-        (self.ptr)(deserializer, field)
-    }
-}
-
-impl
-    From<
-        for<'de> fn(
-            &mut McDeserializer<'de>,
-            &'de Field,
-        ) -> Result<ParseEvent<'de>, DeserializeError>,
-    > for DeserializeFn
-{
-    #[inline]
-    fn from(
-        ptr: for<'de> fn(
-            &mut McDeserializer<'de>,
-            &'de Field,
-        ) -> Result<ParseEvent<'de>, DeserializeError>,
-    ) -> Self {
-        Self::new(ptr)
-    }
-}
-
-// -------------------------------------------------------------------------------------------------
-
-/// A deserializer that implements [`FormatParser`].
-pub struct McDeserializer<'de> {
-    #[allow(dead_code, reason = "WIP")]
-    input: &'de [u8],
-    counter: usize,
-
-    stack: DeserializerStack,
-    peek: Option<ParseEvent<'de>>,
-}
-
-impl<'de> McDeserializer<'de> {
-    /// Create a new [`McDeserializer`] using the given counter.
-    #[must_use]
-    pub const fn new(input: &'de [u8]) -> Self {
-        Self { input, counter: 0, stack: DeserializerStack::new(), peek: None }
-    }
-
-    /// Returns the number of bytes consumed so far.
-    #[inline]
-    #[must_use]
-    pub const fn consumed(&self) -> usize { self.counter }
-
-    /// Parse the next event from the input.
-    fn parse_next(&mut self) -> Result<Option<ParseEvent<'de>>, DeserializeError> {
-        /// A helper macro to parse a scalar value.
-        macro_rules! parse_scalar {
-            ($hint:expr, $var:expr) => {{
-                match self.input.get(self.counter..) {
-                    Some(input) => {
-                        parse::parse_scalar(input, $hint, $var).map(|(value, consumed)| {
-                            self.counter += consumed;
-                            value
-                        })
-                    }
-                    None => {
-                        Err(DeserializeError::new(DeserializeErrorKind::UnexpectedEndOfInput {
-                            expected: self.counter,
-                            found: self.input.len(),
-                        }))
-                    }
-                }
-            }};
-        }
-
-        let Some(entry) = self.stack.next_mut() else { return Ok(None) };
-
-        match entry {
-            StackEntry::Struct { remaining } => {
-                if *remaining == 0 {
-                    let _ = self.stack.pop();
-                    Ok(Some(ParseEvent::StructEnd))
-                } else {
-                    *remaining -= 1;
-                    Ok(Some(ParseEvent::OrderedField))
-                }
-            }
-            StackEntry::Enum { variants, variant, remaining } => {
-                // Determine the remaining fields in the variant
-                if remaining.is_none() {
-                    // Determine the enum variant
-                    if variant.is_none() {
-                        match parse_scalar!(ScalarTypeHint::Usize, true)? {
-                            #[expect(clippy::cast_possible_truncation, reason = "")]
-                            ScalarValue::U64(len) => *variant = Some(len as usize),
-                            ScalarValue::U128(len) => *variant = Some(len as usize),
-                            _ => unreachable!(),
-                        }
-                    }
-
-                    let variant = variant.unwrap();
-                    if let Some(hint) = variants.get(variant) {
-                        *remaining = Some(hint.field_count);
-
-                        Ok(Some(ParseEvent::StructStart(ContainerKind::Object)))
-                    } else {
-                        Err(DeserializeError::new(DeserializeErrorKind::InvalidVariant(variant)))
-                    }
-                } else {
-                    let Some(hint) = variant.and_then(|i| variants.get(i)) else { unreachable!() };
-                    let remaining = remaining.as_mut().unwrap();
-
-                    if *remaining == 0 {
-                        let _ = self.stack.pop();
-                        Ok(Some(ParseEvent::StructEnd))
-                    } else {
-                        *remaining -= 1;
-                        self.peek = Some(ParseEvent::StructStart(ContainerKind::Object));
-                        Ok(Some(ParseEvent::FieldKey(FieldKey::new(
-                            Cow::Borrowed(hint.name),
-                            FieldLocationHint::KeyValue,
-                        ))))
-                    }
-                }
-            }
-
-            StackEntry::Sequence { remaining } => {
-                // Determine the size of the sequence
-                if remaining.is_none() {
-                    match parse_scalar!(ScalarTypeHint::Usize, true)? {
-                        #[expect(clippy::cast_possible_truncation, reason = "")]
-                        ScalarValue::U64(len) => *remaining = Some(len as usize),
-                        ScalarValue::U128(len) => *remaining = Some(len as usize),
-                        _ => unreachable!(),
-                    }
-                }
-
-                todo!()
-            }
-            StackEntry::Map { remaining } => {
-                // Determine the size of the map
-                if remaining.is_none() {
-                    match parse_scalar!(ScalarTypeHint::Usize, true)? {
-                        #[expect(clippy::cast_possible_truncation, reason = "")]
-                        ScalarValue::U64(len) => *remaining = Some(len as usize),
-                        ScalarValue::U128(len) => *remaining = Some(len as usize),
-                        _ => unreachable!(),
-                    }
-                }
-
-                todo!()
-            }
-            StackEntry::Optional { present } => {
-                // Determine if the value is present
-                if present.is_none() {
-                    if let ScalarValue::Bool(is_present) =
-                        parse_scalar!(ScalarTypeHint::Bool, false)?
-                    {
-                        *present = Some(is_present);
-                    } else {
-                        unreachable!()
-                    }
-                }
-
-                if present.unwrap() {
-                    // `Some` value
-                    todo!();
-                    // Ok(Some(ParseEvent::Scalar(ScalarValue::Bool(true))))
-                } else {
-                    // `None` value
-                    Ok(Some(ParseEvent::Scalar(ScalarValue::Bool(false))))
-                }
-            }
-
-            StackEntry::Scalar { hint } => {
-                let variable = false; // TODO: Determine if the scalar type is variable-length
-                let scalar = parse_scalar!(*hint, variable).map(|v| Some(ParseEvent::Scalar(v)));
-                let _ = self.stack.pop();
-                scalar
-            }
-        }
-    }
-}
-
-impl<'de> FormatParser<'de> for McDeserializer<'de> {
-    type Error = DeserializeError;
-    type Probe<'a>
-        = McDeserializerProbe
+    fn from_slice_owned(slice: &[u8]) -> Result<Self, DeserializeError<'static>>
     where
-        Self: 'a;
-
-    fn next_event(&mut self) -> Result<Option<ParseEvent<'de>>, Self::Error> {
-        self.peek.take().map_or_else(|| self.parse_next(), |event| Ok(Some(event)))
+        Self: Facet<'static>,
+    {
+        Self::from_slice_remainder(slice).map(|(value, _)| value)
     }
 
-    fn peek_event(&mut self) -> Result<Option<ParseEvent<'de>>, Self::Error> {
-        self.peek.clone().map_or_else(
-            || {
-                let event = self.next_event()?;
-                self.peek.clone_from(&event);
-                Ok(event)
-            },
-            |event| Ok(Some(event)),
-        )
+    /// Deserialize a value from a `&[u8]` slice,
+    /// returning any remaining data.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DeserializeError`] if deserialization fails.
+    fn from_slice_remainder(slice: &[u8]) -> Result<(Self, &[u8]), DeserializeError<'static>>
+    where
+        Self: Facet<'static>,
+    {
+        let mut cursor = InputCursor::new(slice);
+        let value = DeserializeIter::<false>::new::<Self>()?
+            .complete(owned_processor(&mut cursor))?
+            .materialize::<Self>()?;
+        Ok((value, cursor.as_slice()))
     }
 
-    fn skip_value(&mut self) -> Result<(), Self::Error> { self.next_event().map(|_| ()) }
+    /// Deserialize a value from a reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DeserializeError`] if deserialization fails or if reading
+    /// fails.
+    #[cfg(feature = "std")]
+    fn from_reader<R: std::io::Read>(mut reader: R) -> Result<Self, DeserializeError<'static>>
+    where
+        Self: Facet<'static>,
+    {
+        from_coroutine(
+            DeserializeIter::<false>::new::<Self>()?,
+            move |buf: &mut [u8]| reader.read_exact(buf).map_err(Into::into),
+            Self::SIZE_HINT,
+        )?
+        .materialize::<Self>()
+        .map_err(Into::into)
+    }
 
-    fn begin_probe(&mut self) -> Result<Self::Probe<'_>, Self::Error> { Ok(McDeserializerProbe) }
+    /// Deserialize a value from a [`futures_lite`] reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DeserializeError`] if deserialization fails or if reading
+    /// fails.
+    #[cfg(feature = "futures-lite")]
+    fn from_async_reader<R: futures_lite::AsyncRead + Unpin>(
+        mut reader: R,
+    ) -> impl Future<Output = Result<Self, DeserializeError<'static>>>
+    where
+        Self: Facet<'static>,
+    {
+        use futures_lite::AsyncReadExt;
 
-    // ---------------------------------------------------------------------------------------------
-
-    fn is_self_describing(&self) -> bool { false }
-
-    fn hint_struct_fields(&mut self, num: usize) { self.stack.push_struct_hint(num); }
-
-    fn hint_scalar_type(&mut self, hint: ScalarTypeHint) { self.stack.push_scalar_hint(hint); }
-
-    fn hint_opaque_scalar(&mut self, _: &'static str, shape: &'static Shape) -> bool {
-        if shape.is_type::<Uuid>() {
-            self.hint_scalar_type(ScalarTypeHint::U128);
-            true
-        } else {
-            false
+        async move {
+            from_async_coroutine(
+                DeserializeIter::<false>::new::<Self>()?,
+                async move |buf: &mut [u8]| reader.read_exact(buf).await.map_err(Into::into),
+                Self::SIZE_HINT,
+            )
+            .await?
+            .materialize::<Self>()
+            .map_err(Into::into)
         }
     }
 
-    fn hint_byte_sequence(&mut self) -> bool { true }
+    /// Deserialize a value from a [`tokio`] reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DeserializeError`] if deserialization fails or if reading
+    /// fails.
+    #[cfg(feature = "tokio")]
+    fn from_tokio_reader<R: tokio::io::AsyncRead + Unpin>(
+        mut reader: R,
+    ) -> impl Future<Output = Result<Self, DeserializeError<'static>>>
+    where
+        Self: Facet<'static>,
+    {
+        use tokio::io::AsyncReadExt;
 
-    fn hint_sequence(&mut self) { self.stack.push_sequence_hint(None); }
-
-    fn hint_array(&mut self, len: usize) { self.stack.push_sequence_hint(Some(len)); }
-
-    fn hint_option(&mut self) { self.stack.push_optional_hint(); }
-
-    fn hint_map(&mut self) { self.stack.push_map_hint(); }
-
-    fn hint_enum(&mut self, variants: &[EnumVariantHint]) { self.stack.push_enum_hint(variants); }
-
-    fn current_span(&self) -> Option<Span> {
-        Some(Span::new(self.counter, self.input.len().saturating_sub(self.counter)))
+        async move {
+            from_async_coroutine(
+                DeserializeIter::<false>::new::<Self>()?,
+                async move |buf: &mut [u8]| {
+                    reader.read_exact(buf).await.map_or_else(|err| Err(err.into()), |_| Ok(()))
+                },
+                Self::SIZE_HINT,
+            )
+            .await?
+            .materialize::<Self>()
+            .map_err(Into::into)
+        }
     }
 }
 
-/// A deserializer probe that implements [`ProbeStream`].
-pub struct McDeserializerProbe;
-
-impl<'a> ProbeStream<'a> for McDeserializerProbe {
-    type Error = DeserializeError;
-
-    fn next(&mut self) -> Result<Option<FieldEvidence<'a>>, Self::Error> { todo!() }
+impl<'facet, T: Facet<'facet>> Deserialize<'facet> for T {
+    const SIZE_HINT: TypeSizeHint = crate::hint::calculate_shape_hint(Self::SHAPE, None);
 }
 
 // -------------------------------------------------------------------------------------------------
 
-/// Deserialize a value of type `T` from a byte slice and returning any
-/// remaining bytes.
-///
-/// # Note
-///
-/// This function **does not** support JIT!
-///
-/// Use [`from_slice_borrowed`] or any of the other deserialization functions if
-/// you want JIT support.
-///
-/// # Errors
-///
-/// This function will return an error if deserialization fails.
-pub fn from_slice<T: Deserializable<'static>>(
-    input: &[u8],
-) -> Result<(T, &[u8]), FDError<DeserializeError>> {
-    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
-    // deserializable!") };
-
-    let mut format = FormatDeserializer::new_owned(McDeserializer::new(input));
-
-    format.deserialize_root::<T>().and_then(|val| {
-        let consumed = format.parser_mut().consumed();
-        if let Some(remaining) = input.get(consumed..) {
-            Ok((val, remaining))
-        } else {
-            // This should never happen, but just in case...
-            Err(FDError::Parser(DeserializeError::new(
-                DeserializeErrorKind::UnexpectedEndOfInput {
-                    expected: consumed,
-                    found: input.len(),
-                },
-            )))
-        }
-    })
+/// A `no_std`-compatible cursor for deserialization.
+pub struct InputCursor<'input, 'facet> {
+    slice: &'input [u8],
+    _invariant: core::marker::PhantomData<fn(&'facet ()) -> &'facet ()>,
 }
 
-/// Deserialize a value of type `T` from a byte slice and returning any
-/// remaining bytes, allowing zero-copy borrowing.
-///
-/// This variant requires the input to outlive the result (`'input: 'facet`),
-/// enabling zero-copy deserialization of string fields as `&str` or `Cow<str>`.
-///
-/// Use this when you need maximum performance and can guarantee the input
-/// buffer outlives the deserialized value. For most use cases, prefer
-/// [`from_slice`] which doesn't have lifetime requirements.
-///
-/// # Errors
-///
-/// This function will return an error if deserialization fails.
-#[cfg(not(feature = "jit"))]
-pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
-    input: &'input [u8],
-) -> Result<(T, &'input [u8]), FDError<DeserializeError>> {
-    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
-    // deserializable!") };
+impl<'input, 'facet> InputCursor<'input, 'facet> {
+    /// Create a new [`InputCursor`] from a byte slice.
+    #[must_use]
+    pub const fn new(slice: &'input [u8]) -> Self { Self { slice, _invariant: PhantomData } }
 
-    let mut format = FormatDeserializer::new(McDeserializer::new(input));
+    /// Get the remaining bytes in the cursor as a slice.
+    #[inline]
+    #[must_use]
+    pub const fn as_slice(&self) -> &'input [u8] { self.slice }
 
-    format.deserialize_root::<T>().and_then(|val| {
-        let consumed = format.parser_mut().consumed();
-        if let Some(remaining) = input.get(consumed..) {
-            Ok((val, remaining))
-        } else {
-            // This should never happen, but just in case...
-            Err(FDError::Parser(DeserializeError::new(
-                DeserializeErrorKind::UnexpectedEndOfInput {
-                    expected: consumed,
-                    found: input.len(),
-                },
-            )))
+    /// Read bytes into the given buffer, advancing the cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EndOfInput`] if there are not enough bytes
+    /// remaining in the cursor.
+    pub fn read(&mut self, buf: &mut [u8]) -> Result<(), EndOfInput> {
+        if buf.len() > self.slice.len() {
+            return Err(EndOfInput { had: self.slice.len(), expected: buf.len() });
         }
-    })
+        buf.copy_from_slice(&self.slice[..buf.len()]);
+        self.slice = &self.slice[buf.len()..];
+        Ok(())
+    }
+
+    /// Take the next N bytes from the cursor, advancing the cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EndOfInput`] if there are not enough bytes
+    /// remaining in the cursor.
+    pub fn take(&mut self, n: usize) -> Result<&'input [u8], EndOfInput> {
+        if n > self.slice.len() {
+            return Err(EndOfInput { had: self.slice.len(), expected: n });
+        }
+        let result = &self.slice[..n];
+        self.slice = &self.slice[n..];
+        Ok(result)
+    }
+
+    /// Take the next N bytes from the cursor, advancing the cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EndOfInput`] if there are not enough bytes
+    /// remaining in the cursor.
+    pub fn take_array<const N: usize>(&mut self) -> Result<&'input [u8; N], EndOfInput> {
+        if let Some((start, end)) = self.slice.split_first_chunk::<N>() {
+            self.slice = end;
+            Ok(start)
+        } else {
+            Err(EndOfInput { had: self.slice.len(), expected: N })
+        }
+    }
+
+    /// Advance the cursor by N bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EndOfInput`] if there are not enough bytes
+    /// remaining in the cursor.
+    pub fn consume(&mut self, n: usize) -> Result<(), EndOfInput> {
+        if n > self.slice.len() {
+            return Err(EndOfInput { had: self.slice.len(), expected: n });
+        }
+        self.slice = &self.slice[n..];
+        Ok(())
+    }
 }
 
-/// Deserialize a value of type `T` from a byte slice and returning any
-/// remaining bytes, allowing zero-copy borrowing.
+// -------------------------------------------------------------------------------------------------
+
+/// Read a variable-length integer from a buffer.
 ///
-/// This variant requires the input to outlive the result (`'input: 'facet`),
-/// enabling zero-copy deserialization of string fields as `&str` or `Cow<str>`.
-///
-/// Use this when you need maximum performance and can guarantee the input
-/// buffer outlives the deserialized value. For most use cases, prefer
-/// [`from_slice`] which doesn't have lifetime requirements.
+/// Returns the number of bytes read and the integer value.
 ///
 /// # Errors
 ///
-/// This function will return an error if deserialization fails.
-#[cfg(feature = "jit")]
-pub fn from_slice_borrowed<'input: 'facet, 'facet, T: Deserializable<'facet>>(
-    input: &'input [u8],
-) -> Result<(T, &'input [u8]), FDError<DeserializeError>> {
-    // const { assert!(T::DESERIALIZABLE.possible(), "This type is not
-    // deserializable!") };
+/// Returns a [`DeserializeIterError`] if there isn't enough data.
+#[inline]
+pub fn bytes_to_variable(bytes: &[u8]) -> Result<(usize, u128), EndOfInput> {
+    let mut byte: u8;
+    let mut index: usize = 0;
+    let mut number: u128 = 0;
 
-    let mut format = McDeserializer::new(input);
+    while index < 19 {
+        byte = *bytes.get(index).ok_or(EndOfInput { had: index, expected: 1 })?;
+        number |= u128::from(byte & 0b0111_1111) << (7 * index);
+        index += 1;
+        if byte & 0b1000_0000 == 0 {
+            break;
+        }
+    }
 
-    if let Some(result) = facet_format::jit::try_deserialize_with_format_jit::<T, _>(&mut format) {
-        result.and_then(|val| {
-            let consumed = format.consumed();
-            if let Some(remaining) = input.get(consumed..) {
-                Ok((val, remaining))
+    Ok((index, number))
+}
+
+/// A processor function for deserialization that borrows data where possible.
+#[allow(clippy::cast_possible_truncation, reason = "Macro generated code")]
+#[allow(clippy::cast_possible_wrap, reason = "Macro generated code")]
+#[allow(clippy::too_many_lines, reason = "Macro generated code")]
+#[allow(trivial_numeric_casts, reason = "Macro generated code")]
+pub fn borrowed_processor<'cursor, 'facet>(
+    cursor: &'cursor mut InputCursor<'facet, 'facet>,
+) -> impl FnMut(PartialValue<'_, 'facet, true>) -> Result<(), DeserializeValueError> + 'cursor {
+    macro_rules! take {
+        ($val:expr, $ty:ty) => {{
+            $val.set_value(<$ty>::from_be_bytes(
+                *cursor.take_array::<{ core::mem::size_of::<$ty>() }>()?,
+            ) as _);
+            Ok(())
+        }};
+        ($val:expr, $var:expr, $ty:ty) => {{
+            if $var {
+                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                $val.set_value(value as _);
+                Ok(())
             } else {
-                // This should never happen, but just in case...
-                Err(FDError::Parser(DeserializeError::new(
-                    DeserializeErrorKind::UnexpectedEndOfInput {
-                        expected: consumed,
-                        found: input.len(),
-                    },
-                )))
+                take!($val, $ty)
             }
-        })
-    } else {
-        // Fallback to non-JIT deserialization
+        }};
+    }
 
-        let mut format = FormatDeserializer::new(format);
+    move |partial| {
+        #[cfg(feature = "tracing")]
+        tracing::trace!(
+            target: "facet_minecraft::deserialize",
+            "Reading borrowed `{partial}`"
+        );
 
-        format.deserialize_root::<T>().and_then(|val| {
-            let consumed = format.parser_mut().consumed();
-            if let Some(remaining) = input.get(consumed..) {
-                Ok((val, remaining))
+        match partial {
+            PartialValue::Bool(val) => match cursor.take_array::<1>()?[0] {
+                0 => {
+                    val.set_value(false);
+                    Ok(())
+                }
+                1 => {
+                    val.set_value(true);
+                    Ok(())
+                }
+                other => Err(DeserializeValueError::Boolean(other)),
+            },
+            PartialValue::U8(val) => take!(val, u8),
+            PartialValue::U16(val, var) => take!(val, var, u16),
+            PartialValue::U32(val, var) => take!(val, var, u32),
+            PartialValue::U64(val, var) => take!(val, var, u64),
+            PartialValue::U128(val, var) => take!(val, var, u128),
+            PartialValue::I8(val) => take!(val, i8),
+            PartialValue::I16(val, var) => take!(val, var, i16),
+            PartialValue::I32(val, var) => take!(val, var, i32),
+            PartialValue::I64(val, var) => take!(val, var, i64),
+            PartialValue::I128(val, var) => take!(val, var, i128),
+            PartialValue::F32(val) => take!(val, f32),
+            PartialValue::F64(val) => take!(val, f64),
+            PartialValue::Usize(val, var) => take!(val, var, u64),
+            PartialValue::Isize(val, var) => take!(val, var, i64),
+            PartialValue::Str(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(str::from_utf8(cursor.take(len as usize)?)?);
+                Ok(())
+            }
+            PartialValue::String(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(str::from_utf8(cursor.take(len as usize)?)?.into());
+                Ok(())
+            }
+            PartialValue::CowStr(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(Cow::Borrowed(str::from_utf8(cursor.take(len as usize)?)?));
+                Ok(())
+            }
+            PartialValue::Bytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(cursor.take(len as usize)?);
+                Ok(())
+            }
+            PartialValue::VecBytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(cursor.take(len as usize)?.into());
+                Ok(())
+            }
+            PartialValue::CowBytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(Cow::Borrowed(cursor.take(len as usize)?));
+                Ok(())
+            }
+            PartialValue::Uuid(val) => {
+                val.set_value(Uuid::from_bytes(*cursor.take_array::<16>()?));
+                Ok(())
+            }
+
+            PartialValue::VarInt(val) => {
+                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
+                #[cfg(feature = "tracing")]
+                tracing::trace!(
+                    target: "facet_minecraft::deserialize",
+                    "Read variable-length integer: {value} ({consumed} bytes)",
+                );
+                cursor.consume(consumed)?;
+                *val = Some(value as usize);
+                Ok(())
+            }
+            PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
+        }
+    }
+}
+
+/// A processor function for deserialization that owns all data.
+#[allow(clippy::cast_possible_truncation, reason = "Macro generated code")]
+#[allow(clippy::cast_possible_wrap, reason = "Macro generated code")]
+#[allow(trivial_numeric_casts, reason = "Macro generated code")]
+pub fn owned_processor<'cursor>(
+    cursor: &'cursor mut InputCursor<'_, 'static>,
+) -> impl FnMut(PartialValue<'_, 'static, false>) -> Result<(), DeserializeValueError> + 'cursor {
+    macro_rules! take {
+        ($val:expr, $ty:ty) => {{
+            $val.set_value(<$ty>::from_be_bytes(
+                *cursor.take_array::<{ core::mem::size_of::<$ty>() }>()?,
+            ) as _);
+            Ok(())
+        }};
+        ($val:expr, $var:expr, $ty:ty) => {
+            if $var {
+                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                $val.set_value(value as _);
+                Ok(())
             } else {
-                // This should never happen, but just in case...
-                Err(FDError::Parser(DeserializeError::new(
-                    DeserializeErrorKind::UnexpectedEndOfInput {
-                        expected: consumed,
-                        found: input.len(),
-                    },
-                )))
+                take!($val, $ty)
             }
-        })
+        };
+    }
+
+    move |partial| {
+        #[cfg(feature = "tracing")]
+        tracing::trace!(
+            target: "facet_minecraft::deserialize",
+            "Reading owned `{partial}`"
+        );
+
+        match partial {
+            PartialValue::Bool(val) => match cursor.take_array::<1>()?[0] {
+                0 => {
+                    val.set_value(false);
+                    Ok(())
+                }
+                1 => {
+                    val.set_value(true);
+                    Ok(())
+                }
+                other => Err(DeserializeValueError::Boolean(other)),
+            },
+            PartialValue::U8(val) => take!(val, u8),
+            PartialValue::U16(val, var) => take!(val, var, u16),
+            PartialValue::U32(val, var) => take!(val, var, u32),
+            PartialValue::U64(val, var) => take!(val, var, u64),
+            PartialValue::U128(val, var) => take!(val, var, u128),
+            PartialValue::I8(val) => take!(val, i8),
+            PartialValue::I16(val, var) => take!(val, var, i16),
+            PartialValue::I32(val, var) => take!(val, var, i32),
+            PartialValue::I64(val, var) => take!(val, var, i64),
+            PartialValue::I128(val, var) => take!(val, var, i128),
+            PartialValue::F32(val) => take!(val, f32),
+            PartialValue::F64(val) => take!(val, f64),
+            PartialValue::Usize(val, var) => take!(val, var, u64),
+            PartialValue::Isize(val, var) => take!(val, var, i64),
+            PartialValue::String(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(str::from_utf8(cursor.take(len as usize)?)?.into());
+                Ok(())
+            }
+            PartialValue::CowStr(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(Cow::Owned(str::from_utf8(cursor.take(len as usize)?)?.into()));
+                Ok(())
+            }
+            PartialValue::VecBytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(cursor.take(len as usize)?.into());
+                Ok(())
+            }
+            PartialValue::CowBytes(val) => {
+                let (consumed, len) = bytes_to_variable(cursor.as_slice())?;
+                cursor.consume(consumed)?;
+                val.set_value(Cow::Owned(cursor.take(len as usize)?.to_vec()));
+                Ok(())
+            }
+            PartialValue::Uuid(val) => {
+                val.set_value(Uuid::from_bytes(*cursor.take_array::<16>()?));
+                Ok(())
+            }
+            PartialValue::VarInt(val) => {
+                let (consumed, value) = bytes_to_variable(cursor.as_slice())?;
+                #[cfg(feature = "tracing")]
+                tracing::trace!(
+                    target: "facet_minecraft::deserialize",
+                    "Read variable-length integer: {value} ({consumed} bytes)",
+                );
+                cursor.consume(consumed)?;
+                *val = Some(value as usize);
+                Ok(())
+            }
+            PartialValue::Custom(partial, deserialize) => deserialize.call(partial, cursor),
+            // Cannot borrow strings or bytes while deserializing owned values
+            PartialValue::Str(_) | PartialValue::Bytes(_) => {
+                Err(DeserializeValueError::StaticBorrow)
+            }
+        }
+    }
+}
+
+/// A helper function to drive a [`DeserializeIter`] using a reader function
+/// that fills a buffer.
+///
+/// # Errors
+///
+/// Returns a [`DeserializeError`] if deserialization fails.
+#[cfg(feature = "std")]
+pub fn from_coroutine<F: FnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>>(
+    mut iter: DeserializeIter<'static, false>,
+    mut reader: F,
+    hint: TypeSizeHint,
+) -> Result<HeapValue<'static, false>, DeserializeError<'static>> {
+    let mut buffer = Vec::<u8>::with_capacity(hint.minimum().unwrap_or_default());
+    (reader)(&mut buffer)?;
+
+    let mut cursor = InputCursor::new(buffer.as_slice());
+    let mut processor = owned_processor(&mut cursor);
+    loop {
+        match iter.next(&mut processor) {
+            Ok((iterator, false)) => iter = iterator,
+            Ok((iterator, true)) => return Ok(iterator.into_partial().build()?),
+            Err(err) => {
+                match err {
+                    crate::deserialize::error::DeserializeIterError::EndOfInput {
+                        error: crate::deserialize::error::EndOfInput { had, expected },
+                        iterator,
+                    } => {
+                        // Drop the old processor to release the buffer
+                        drop(processor);
+                        // Move the remaining data to the start of the buffer and resize it
+                        let src = buffer.len() - had;
+                        buffer.copy_within(src.., 0);
+                        buffer.resize(had + expected, 0);
+                        // Read new data into the buffer
+                        (reader)(&mut buffer[had..])?;
+                        // Create a new cursor and processor
+                        cursor = InputCursor::new(buffer.as_slice());
+                        processor = owned_processor(&mut cursor);
+                        // Replace the old iterator and resume deserialization
+                        iter = iterator;
+                    }
+                    other => return Err(other.into()),
+                }
+            }
+        }
+    }
+}
+
+/// A helper function to drive a [`DeserialerIter`] using an async reader
+/// function that fills a buffer.
+///
+/// # Errors
+///
+/// Returns a [`DeserializeError`] if deserialization fails.
+#[cfg(any(feature = "futures-lite", feature = "tokio"))]
+pub async fn from_async_coroutine<
+    F: AsyncFnMut(&mut [u8]) -> Result<(), DeserializeError<'static>>,
+>(
+    mut iter: DeserializeIter<'static, false>,
+    mut reader: F,
+    hint: TypeSizeHint,
+) -> Result<HeapValue<'static, false>, DeserializeError<'static>> {
+    let mut buffer = Vec::<u8>::with_capacity(hint.minimum().unwrap_or_default());
+    (reader)(&mut buffer).await?;
+
+    let mut cursor = InputCursor::new(buffer.as_slice());
+    let mut processor = owned_processor(&mut cursor);
+    loop {
+        match iter.next(&mut processor) {
+            Ok((iterator, false)) => iter = iterator,
+            Ok((iterator, true)) => return Ok(iterator.into_partial().build()?),
+            Err(err) => {
+                match err {
+                    crate::deserialize::error::DeserializeIterError::EndOfInput {
+                        error: crate::deserialize::error::EndOfInput { had, expected },
+                        iterator,
+                    } => {
+                        // Drop the old processor to release the buffer
+                        drop(processor);
+                        // Move the remaining data to the start of the buffer and resize it
+                        let src = buffer.len() - had;
+                        buffer.copy_within(src.., 0);
+                        buffer.resize(had + expected, 0);
+                        // Read new data into the buffer
+                        (reader)(&mut buffer[had..]).await?;
+                        // Create a new cursor and processor
+                        cursor = InputCursor::new(buffer.as_slice());
+                        processor = owned_processor(&mut cursor);
+                        // Replace the old iterator and resume deserialization
+                        iter = iterator;
+                    }
+                    other => return Err(other.into()),
+                }
+            }
+        }
     }
 }

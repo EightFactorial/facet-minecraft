@@ -1,17 +1,18 @@
-//! Custom [`facet`](::facet) attributes for supporting the Minecraft protocol.
+//! Custom [`facet`] attributes for supporting the Minecraft protocol.
 //!
 //! TODO: Make `Serialize` and `Deserialize` *require* a function pointer.
 //!
 //! Until then, this can be forced via trait bounds and compiler errors.
 #![allow(unpredictable_function_pointer_comparisons, reason = "Correct!")]
 
-use crate::{deserialize::DeserializeFn, serialize::SerializeFn};
+use crate::{deserialize::fns::DeserializeFn, serialize::fns::SerializeFn};
 
 facet::define_attr_grammar! {
     ns "mc";
     crate_path ::facet_minecraft::attribute;
 
     /// Attributes used by the Minecraft protocol.
+    #[derive(facet::Facet)]
     pub enum Attr {
         /// Marks a field as variably-sized.
         Variable,

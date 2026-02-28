@@ -9,16 +9,16 @@ facet-bedrock = { default-features = false, path = "facet-bedrock", version = "0
 # Facet Dependencies
 facet = { default-features = false, version = "0.43" }
 facet-core = { default-features = false, version = "0.43" }
-facet-format = { default-features = false, version = "0.43" }
+facet-error = { default-features = false, version = "0.43" }
 facet-reflect = { default-features = false, version = "0.43" }
 
 # Other Dependencies
-corosensei = { default-features = false, version = "0.3" }
 foldhash = { default-features = false, version = "0.2" }
 futures-lite = { default-features = false, version = "2.0" }
 indexmap = { default-features = false, version = "2.12" }
 miette = { default-features = false, version = "7.6" }
-rapidhash = { default-features = false, version = "4.2" }
+replace_with = { default-features = false, version = "0.1" }
+smallvec = { default-features = false, version = "1.15" }
 tokio = { default-features = false, version = "1.0" }
 tracing = { default-features = false, version = "0.1" }
 uuid = { default-features = false, version = "1.0" }
@@ -30,6 +30,7 @@ flate2 = { version = "1.1" }
 pretty_assertions = { version = "1.4" }
 proptest = { version = "1.10" }
 tracing-subscriber = { features = ["tracing-log"], version = "0.3" }
+pastey = { version = "0.2" }
 
 # --- Workspace Settings ---
 
