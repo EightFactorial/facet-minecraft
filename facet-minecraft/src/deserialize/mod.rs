@@ -248,7 +248,7 @@ impl<'input, 'facet> InputCursor<'input, 'facet> {
 ///
 /// Returns a [`DeserializeIterError`] if there isn't enough data.
 #[inline]
-fn bytes_to_variable(bytes: &[u8]) -> Result<(usize, u128), EndOfInput> {
+pub fn bytes_to_variable(bytes: &[u8]) -> Result<(usize, u128), EndOfInput> {
     let mut byte: u8;
     let mut index: usize = 0;
     let mut number: u128 = 0;
@@ -268,6 +268,7 @@ fn bytes_to_variable(bytes: &[u8]) -> Result<(usize, u128), EndOfInput> {
 /// A processor function for deserialization that borrows data where possible.
 #[allow(clippy::cast_possible_truncation, reason = "Macro generated code")]
 #[allow(clippy::cast_possible_wrap, reason = "Macro generated code")]
+#[allow(clippy::too_many_lines, reason = "Macro generated code")]
 #[allow(trivial_numeric_casts, reason = "Macro generated code")]
 pub fn borrowed_processor<'cursor, 'facet>(
     cursor: &'cursor mut InputCursor<'facet, 'facet>,

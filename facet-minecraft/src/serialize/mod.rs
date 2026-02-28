@@ -125,7 +125,7 @@ fn parse_peek<'mem, 'facet>(
 ///
 /// Returns the length of the written data.
 #[inline]
-fn variable_to_bytes(mut val: u128, buffer: &mut [u8; 19]) -> usize {
+pub fn variable_to_bytes(mut val: u128, buffer: &mut [u8; 19]) -> usize {
     let mut byte;
     let mut index = 0;
     while (val != 0 || index == 0) && index < 19 {
